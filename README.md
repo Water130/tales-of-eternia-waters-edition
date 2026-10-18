@@ -33,6 +33,10 @@ every other language**. All installation archives and public documentation are i
 Water's Edition was created, designed and directed by **Water, a human**.
 **All of the mod's code was written by AI.**
 
+This mod was done strictly for my personal use, I am just sharing it with whoever wants it, I wont take requests.
+
+**If you're on a crusade agaisnt AI, do not be hypocrite and do not download this mod, I have neither the time nor the desire to learn codding, I'm just a random lambda guy that likes to tweaks games and give them my personal touch with the help of AI like Codex or Claude.**
+
 You may download, install and play the official release. To share the mod,
 please link to this repository or its official release page.
 
