@@ -1,4 +1,4 @@
-# Tales of Eternia - Water's Edition
+# Tales of Eternia Remastered
 
 <p align="center">
   <img src="assets/branding/waters-edition-blue.png" alt="Water's Edition — blue title logo" width="860">
