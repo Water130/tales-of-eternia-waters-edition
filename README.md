@@ -7,6 +7,27 @@ A combat and interface mod for **Tales of Eternia Remastered on Windows / Steam*
 Experimental test release. Supports **Steam build 25190541**. The installer
 checks the exact game file before making any changes.
 
+## Current features
+
+- Basic physical hits restore **1 TP**, or **2 TP for Keele and Meredy**.
+- Post-battle TP recovery starts at **8% on Normal**. Native minimums and modifiers remain.
+- A smoother dynamic battle camera follows the controlled character and selected target.
+- Reduced spell cinematic freezes and limited overlap between supported, different spell effects.
+- Hold **Arte** through an elemental cast to choose the matching owned, learned Craymel at full vitality;
+  hold **L1** to keep a completed spell ready.
+- Compact custom HUD with animated green HP and blue TP gauges, casting bars and an item cooldown bar.
+- Element-colored casting effects and damage numbers.
+- Animated Craymel miniatures and elemental vitality counters below the mage portraits.
+- Startup skips the presentation screens and goes directly to the opening movie.
+- Blue **Water's Edition** title lettering with a cyan glow.
+- A native-style **Mod settings** page with keyboard/controller hints and seven independent switches.
+
+The settings page can toggle the camera, post-battle TP, basic-hit TP, damage colors,
+custom HUD, casting bars and item cooldown bar. Settings are saved automatically.
+
+Mod text is **French when the game's text language is French**, and **English for
+every other language**. All installation archives and public documentation are in English.
+
 ## Authorship, bugs and use at your own risk
 
 Water's Edition was created, designed and directed by **Water, a human**.
@@ -65,27 +86,6 @@ No Python, mod loader or extra download is needed to install the release.
 
 Download the **Easy-Install.zip** release asset, rather than GitHub's automatically
 generated **Source code** archive. Keep the extracted launchers and Support folder together.
-
-## Current features
-
-- Basic physical hits restore **1 TP**, or **2 TP for Keele and Meredy**.
-- Post-battle TP recovery starts at **8% on Normal**. Native minimums and modifiers remain.
-- A smoother dynamic battle camera follows the controlled character and selected target.
-- Reduced spell cinematic freezes and limited overlap between supported, different spell effects.
-- Hold **Arte** through an elemental cast to choose the matching owned, learned Craymel at full vitality;
-  hold **L1** to keep a completed spell ready.
-- Compact custom HUD with animated green HP and blue TP gauges, casting bars and an item cooldown bar.
-- Element-colored casting effects and damage numbers.
-- Animated Craymel miniatures and elemental vitality counters below the mage portraits.
-- Startup skips the presentation screens and goes directly to the opening movie.
-- Blue **Water's Edition** title lettering with a cyan glow.
-- A native-style **Mod settings** page with keyboard/controller hints and seven independent switches.
-
-The settings page can toggle the camera, post-battle TP, basic-hit TP, damage colors,
-custom HUD, casting bars and item cooldown bar. Settings are saved automatically.
-
-Mod text is **French when the game's text language is French**, and **English for
-every other language**. All installation archives and public documentation are in English.
 
 ## Compatibility and current limits
 
