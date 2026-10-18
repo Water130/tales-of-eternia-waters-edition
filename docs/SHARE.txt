@@ -1,0 +1,52 @@
+Tales of Eternia - Water's Edition - 0.10.4 test release
+
+An experimental combat and UI mod for Tales of Eternia Remastered on Steam.
+
+Created, designed and directed by Water, a human. All of the mod's code was
+written by AI. This mod has bugs, and unknown bugs or new regressions may appear
+in current and future versions. Not all bugs will necessarily be fixed.
+Fixes, support and future updates are not guaranteed.
+
+Use at your own risk. Provided as-is, without warranty. To the extent permitted
+by applicable law, the creator accepts no liability for problems or losses
+resulting from its use, including damage to game files, save corruption or lost
+progress. Back up your saves separately before installing. The installer does
+not directly edit saves, but gameplay bugs may still affect your progress.
+
+Current features include TP recovery from basic physical hits, adjusted
+post-battle TP recovery, a smoother player-and-target camera, reduced spell
+freezes, and limited overlapping spell effects. You can choose a full-vitality
+Craymel summon by holding the Arte command through an elemental cast, while L1
+holds a completed spell instead.
+
+The interface adds animated HP/TP gauges, casting and item cooldown bars,
+element-colored casting effects and damage numbers, plus animated Craymel
+miniatures with colored vitality counters. Startup goes straight to the opening.
+
+The title screen features a blue Water's Edition wordmark with a cyan glow,
+visible after the original title reveal and before pressing Start.
+Version 0.10.4 fixes the title logo drawing over the settings page. The page
+follows the native Options layout, with gold labels, side-by-side choices,
+a hand cursor, Reset/Default controls and live keyboard/controller button hints.
+The Mod settings page on the title screen lets you toggle the camera, both TP
+recovery features, damage colors, custom HUD, casting bars and item cooldown bar
+independently. Settings are saved automatically. Mod text is French with the
+French game text language, and English with every other language.
+
+This is a TEST release. The 0.10.4 settings menu has been confirmed in-game by
+the tester. Some camera edges, summon backdrops and the newest Spread cap
+still need broader visual feedback.
+Same-effect and special spells are still queued.
+A Compatibility mode restores the native spell queue while keeping the other
+changes.
+
+Requires Windows and Steam build 25190541. Extract the ZIP, close the game,
+double-click Install.cmd, then type Y and press Enter. The game folder is detected
+automatically. To remove the mod, run Uninstall.cmd and confirm the same way.
+The installer checks the exact game version and backs up the original DLL.
+The ZIP contains patch data, not the complete game DLL.
+
+If uninstalling fails, close the game and try Steam's game-file verification:
+https://help.steampowered.com/en/faqs/view/0C48-FCBD-DA71-93EB
+Reinstalling the game may be necessary if problems persist. Verification and
+reinstallation do not guarantee recovery of damaged saves or lost progress.

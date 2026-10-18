@@ -1,0 +1,36 @@
+name: Bug report
+description: Report a problem with Water's Edition.
+title: "[Bug] "
+body:
+  - type: input
+    id: version
+    attributes:
+      label: Mod version and Steam build
+      placeholder: "0.10.4 / Steam build 25190541"
+    validations:
+      required: true
+  - type: dropdown
+    id: mode
+    attributes:
+      label: Installed mode
+      options:
+        - Full
+        - Compatibility
+    validations:
+      required: true
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: What happened and how to reproduce it
+      description: Include the battle/location, character, spell, enabled mod settings and any other mods.
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+  - type: textarea
+    id: media
+    attributes:
+      label: Screenshots or a short clip
+      description: Do not attach saves, account details or game binaries.

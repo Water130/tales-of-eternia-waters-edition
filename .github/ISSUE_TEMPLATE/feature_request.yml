@@ -1,0 +1,11 @@
+name: Feature idea
+description: Suggest an improvement to Water's Edition.
+title: "[Idea] "
+body:
+  - type: textarea
+    id: idea
+    attributes:
+      label: Your idea
+      description: Describe the desired behavior and why it would improve the game.
+    validations:
+      required: true

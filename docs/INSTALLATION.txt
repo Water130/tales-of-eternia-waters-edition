@@ -1,0 +1,59 @@
+TALES OF ETERNIA - WATER'S EDITION
+Version 0.10.4 - Test release
+Easy installation for Windows / Steam build 25190541
+
+AUTHORSHIP / BUGS / USE AT YOUR OWN RISK
+Water's Edition was created, designed and directed by Water, a human.
+All of the mod's code was written by AI.
+
+This mod has bugs. Unknown bugs and new regressions may appear in current and
+future versions. Crashes, visual glitches and unintended gameplay behavior are
+possible. Not all bugs will necessarily be fixed. Fixes, support and future
+updates are not guaranteed.
+
+Use this mod at your own risk. It is provided as-is, without warranty. To the
+extent permitted by applicable law, the creator accepts no liability for
+problems or losses resulting from its use, including damage to game files,
+save corruption or lost progress. Back up your saves separately before installing.
+The installer/uninstaller do not directly edit saves, but gameplay bugs may
+still affect your progress.
+
+INSTALL
+1. Close the game. Right-click this ZIP and choose "Extract All".
+2. Open the extracted folder and double-click Install.cmd.
+3. Check the detected game folder, type Y and press Enter.
+4. Wait for "Installed and verified", then start the game through Steam.
+
+UNINSTALL
+1. Close the game and double-click Uninstall.cmd in this same folder.
+2. Check the detected game folder, type Y and press Enter.
+3. Wait for "Original game restored and verified".
+
+The installer finds your Steam libraries automatically. If it asks for a path:
+in Steam, right-click the game > Manage > Browse local files, then copy that
+folder's path and paste it into the installer. Press Enter to continue.
+
+Keep Install.cmd, Uninstall.cmd and the Support folder together.
+No Python, mod loader or extra download is required.
+The installer does not directly edit saves. The original game file is backed up for removal.
+Uninstalling keeps your mod preferences and the original backup.
+
+IF UNINSTALLING FAILS
+Close the game and try Steam's game-file verification:
+Steam Library > game Properties > Installed Files > Verify integrity of game files.
+Official guide: https://help.steampowered.com/en/faqs/view/0C48-FCBD-DA71-93EB
+Reinstalling the game may be necessary if problems persist. Verification and
+reinstallation do not guarantee recovery of damaged saves or lost progress.
+
+In the game, open "Mod settings" on the title screen to switch features on/off.
+Mod text is French with French game text, and English with every other language.
+
+If an older mod version is installed, uninstall it using its own Uninstall.cmd
+first. This installer refuses unsupported game versions and other modified DLLs.
+
+This package contains the current 0.10.4 build.
+
+Support/Mod-details.txt: full feature list, compatibility and troubleshooting.
+Support/SHARE.txt: English introduction you can post with the ZIP.
+Support/Status.cmd: check installation status.
+Support/Compatibility-Mode.cmd: optional mode with the native spell queue.

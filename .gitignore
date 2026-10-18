@@ -1,0 +1,18 @@
+# Local game copies, generated files and private tooling
+/backups/
+/build/
+/release/
+/.venv/
+/tools/pydeps/
+/tools/patchdeps/
+/tools/github-cli/
+/local/
+__pycache__/
+*.py[cod]
+*.dll
+*.exe
+*.pdb
+*.sav
+*.log
+.env
+.env.*
