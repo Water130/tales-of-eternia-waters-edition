@@ -1,7 +1,7 @@
-"""Two seven-command palettes. Build 25190541 only; no save-format changes.
+"""Three six-command palettes. Build 25190541 only; no save-format changes.
 
 The native six-slot editor is used under a scoped palette exchange. It never
-leaves palette B in the game's save state between calls. Physical trigger bits
+leaves palette B/C in the game's save state between calls. Physical trigger bits
 come from 5d4e7/5d501 (input table indices 13 and 16, not action IDs).
 """
 import struct
@@ -11,7 +11,7 @@ PROFILE_SIZE = 96
 
 
 def emit_artesphere(emit, mem, jump, edit, data, symbols, state):
-    payload = bytearray(0x2000)
+    payload = bytearray(0xd000)
     strings = {}
     cursor = 0x1000
     def string(key, value, wide=False):
@@ -21,13 +21,14 @@ def emit_artesphere(emit, mem, jump, edit, data, symbols, state):
         strings[key] = state+cursor
         payload[cursor:cursor+len(blob)] = blob
         cursor += len(blob)
-        assert cursor <= len(payload)
+        assert cursor <= 0x2000
         return strings[key]
     for key, fr, en in [
         ('a','Artesphere — Page A','Artesphere — Page A'),
         ('b','Artesphere — Page B','Artesphere — Page B'),
-        ('trigger','/','/'),
-        ('help','L2 / touche Page : changer de page','L2 / Page key: switch page'),
+        ('c','Artesphere — Page C','Artesphere — Page C'),
+        ('help','L2 : page B / A — R2 : page C / A','L2: page B / A — R2: page C / A'),
+        ('helpkeys','Touche page B / C : changer de page','Page B / C key: switch page'),
         ('fail','Affectations du mod : sauvegarde indisponible','Mod assignments: could not save'),
         ('select','Sélect.','Select'),('empty','Aucun','None'),('confirm','Valider','Confirm'),('back','Retour','Back'),
     ]:
@@ -46,13 +47,17 @@ def emit_artesphere(emit, mem, jump, edit, data, symbols, state):
         lang_{name}_{reg}:'''
     initialized, page, depth, modal = (state+i for i in range(4))
     owner, choice, selected_char, error = (state+i for i in (4,5,6,7))
-    profile, extra = state+0x20, state+0x60
-    # Default page B is a copy of current native commands, once per loaded game.
+    profile = state+0x20
+    # Each page stores 7*4 directional bytes + 4*4 ally-shortcut bytes.
+    # Two 44-byte pages fit in the existing 96-byte transport.
+    # New profiles copy native A into B and C once per loaded game.
     init = emit('artesphere_initialize',f'''
         cmp byte ptr {mem(initialized)}, 0
         jne done
-        lea rax, {mem(0x11ca4ba)}
         lea rdx, {mem(profile)}
+        mov r10d, 2
+    palette:
+        lea rax, {mem(0x11ca4ba)}
         mov ecx, 7
     next:
         mov r8d, dword ptr [rax]
@@ -62,7 +67,10 @@ def emit_artesphere(emit, mem, jump, edit, data, symbols, state):
         dec ecx
         jne next
         movups xmm0, xmmword ptr {mem(0x11cad3c)}
-        movups xmmword ptr {mem(profile+28)}, xmm0
+        movups xmmword ptr [rdx], xmm0
+        add rdx, 16
+        dec r10d
+        jne palette
         mov byte ptr {mem(initialized)}, 1
     done:
         ret
@@ -70,6 +78,12 @@ def emit_artesphere(emit, mem, jump, edit, data, symbols, state):
     swap = emit('artesphere_exchange',f'''
         lea rax, {mem(0x11ca4ba)}
         lea rdx, {mem(profile)}
+        movzx ecx, byte ptr {mem(page)}
+        dec ecx
+        cmp ecx, 1
+        ja done
+        imul ecx, ecx, 44
+        add rdx, rcx
         mov ecx, 7
     next:
         mov r8d, dword ptr [rax]
@@ -81,9 +95,10 @@ def emit_artesphere(emit, mem, jump, edit, data, symbols, state):
         dec ecx
         jne next
         movups xmm0, xmmword ptr {mem(0x11cad3c)}
-        movups xmm1, xmmword ptr {mem(profile+28)}
+        movups xmm1, xmmword ptr [rdx]
         movups xmmword ptr {mem(0x11cad3c)}, xmm1
-        movups xmmword ptr {mem(profile+28)}, xmm0
+        movups xmmword ptr [rdx], xmm0
+    done:
         ret
     ''')
     enter = emit('artesphere_enter_editor',f'''
@@ -139,7 +154,7 @@ def emit_artesphere(emit, mem, jump, edit, data, symbols, state):
         movzx ebx, byte ptr [rax+rbp]
         cmp byte ptr [rbp+0x56], 0
         jne done
-        test dword ptr {mem(0x8c9180)}, {L2}
+        test dword ptr {mem(0x8c9180)}, {L2|R2}
         je done
         push rax
         push rcx
@@ -155,6 +170,10 @@ def emit_artesphere(emit, mem, jump, edit, data, symbols, state):
         cmp ecx, 6
         ja invalid
         lea edx, [eax+ecx*4]
+        test dword ptr {mem(0x8c9180)}, {R2}
+        je palette_b
+        add edx, 44
+    palette_b:
         lea rax, {mem(profile)}
         movzx ebx, byte ptr [rax+rdx]
         mov edx, ebx
@@ -175,43 +194,26 @@ def emit_artesphere(emit, mem, jump, edit, data, symbols, state):
         test ebx, ebx
         jmp 0x114298
     ''')
-    jump(0x114292,6,direct,'Page B directional artes for controller zero')
+    jump(0x114292,6,direct,'Page B/C directional artes for controller zero')
     # Native combo paths branch directly to the displaced TEST, not the load.
     combo_test=emit('artesphere_combo_test','test ebx, ebx; jmp 0x114298')
     jump(0x1141c5,5,combo_test,'Preserve combo failure branch over directional lookup')
     jump(0x1141dc,5,combo_test,'Preserve combo result branch over directional lookup')
-    # Expand the native ally dispatcher, preserving its TP/state/action checks.
-    # R2 is edge-triggered and uses its own cast source tag (0x100).
+    # Keep the two native ally commands and their original cast-source tags.
+    # R2 selects C, with priority over L2; pressing a page key never casts.
     dispatch = emit('artesphere_dispatch',f'''
-        cmp edi, 2
-        jne normal
-        cmp byte ptr [r14+0x56], 0
-        jne skip
-        mov r9d, dword ptr {mem(0x8c9184)}
-        and r9d, {R2}
-        je skip
-        movzx eax, byte ptr [r14+0x4f]
-        cmp eax, 6
-        ja skip
-        imul eax, eax, 4
-        test dword ptr {mem(0x8c9180)}, {L2}
-        je extra_a
-        add eax, 2
-    extra_a:
-        lea rdx, {mem(extra)}
-        movzx ecx, byte ptr [rdx+rax]
-        movzx ebp, byte ptr [rdx+rax+1]
-        jmp custom
-    normal:
         movzx ebp, byte ptr [r10+rax*2+0x91d]
         cmp byte ptr [r14+0x56], 0
         jne original
-        test dword ptr {mem(0x8c9180)}, {L2}
+        test dword ptr {mem(0x8c9180)}, {L2|R2}
         je original
         lea rdx, {mem(profile+28)}
+        test dword ptr {mem(0x8c9180)}, {R2}
+        je palette_b
+        add rdx, 44
+    palette_b:
         movzx ecx, byte ptr [rdx+rdi*2]
         movzx ebp, byte ptr [rdx+rdi*2+1]
-    custom:
         test r9d, r9d
         je skip
         sub rsp, 0x40
@@ -237,8 +239,7 @@ def emit_artesphere(emit, mem, jump, edit, data, symbols, state):
         mov r10, qword ptr {mem(0x12cea60)}
         jmp 0x1134b3
     ''')
-    jump(0x1133cf,11,dispatch,'Resolve seven-slot commands without indexing past native pairs')
-    edit(0x1134bb,b'\x03','Third shortcut iteration',False)
+    jump(0x1133cf,11,dispatch,'Resolve two native shortcuts from selected A/B/C palette')
     guard = emit('artesphere_owner_guard',f'''
         test rbx, rbx
         je skip
@@ -249,18 +250,10 @@ def emit_artesphere(emit, mem, jump, edit, data, symbols, state):
         jmp 0x1134b3
     ''')
     jump(0x11343f,6,guard,'Skip shortcuts whose caster is absent')
-    tag = emit('artesphere_cast_tag',f'''
-        cmp edi, 2
-        jne normal
-        mov r15w, 0x100
-    normal:
-        mov word ptr [rbx+0xa4], r15w
-        jmp 0x113547
-    ''')
-    jump(0x11353f,8,tag,'Capture R2 source independently of subsequent page changes')
-
+    from arte_usage_patch import emit_usage
+    usage = emit_usage(emit,mem,jump,state)
     from artesphere_storage import emit_storage
-    storage = emit_storage(emit,mem,jump,data,state,profile,string,symbols)
+    storage = emit_storage(emit,mem,jump,data,state,profile,string,symbols,usage)
 
     from artesphere_keyboard import emit_keyboard
     keyboard = emit_keyboard(emit,mem,jump,data,state,string,init)
@@ -269,11 +262,8 @@ def emit_artesphere(emit, mem, jump, edit, data, symbols, state):
     keyboard['ui']=emit_keys_ui(emit,mem,data,state,string,loc,symbols,keyboard)
 
     from artesphere_ui import emit_ui
-    ui = emit_ui(emit,mem,jump,edit,state,profile,extra,strings,loc,symbols,
-                 init,enter,leave,name_table,L2,R2)
-    for i,value in enumerate((20.,132.,135.25,139.5,142.5)):
-        struct.pack_into('<f',payload,0xc60+i*4,value)
-    return dict(state_rva=state,profile_rva=profile,extra_rva=extra,
-                pages=2,slots_per_page=7,controller_slot=0,
+    ui = emit_ui(emit,mem,jump,state,loc,symbols,init,enter,leave,L2,R2)
+    return dict(state_rva=state,profile_rva=profile,page_stride=44,
+                pages=3,slots_per_page=6,controller_slot=0,page_priority='C then B then A',
                 physical_l2=L2,physical_r2=R2,storage=storage,ui=ui,
-                keyboard=keyboard),bytes(payload)
+                keyboard=keyboard,usage=usage),bytes(payload)

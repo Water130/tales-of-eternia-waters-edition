@@ -170,4 +170,3 @@ def emit_summon(emit, mem, jump, edit):
 
     # Ordinary spell charging has a separate 10 -> 5 case. Summon consumption in
     # d55db..d5637 is untouched (native level / 10 fixed-point vitality).
-    edit(0x9041e, b'\x90'*8, 'Keep full vitality when casting an ordinary same-element spell')

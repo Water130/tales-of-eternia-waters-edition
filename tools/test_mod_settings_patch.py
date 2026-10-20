@@ -7,6 +7,7 @@ def check_settings(u,base,m,actors,enemies,stats,sp,reset,put,get,reg,regs):
     sp-=0x1000  # Native title epilogue references its 0x200-byte stack frame.
     info=m['mod_settings'];sym=m['symbols'];data=base+m['data_rva']
     feature_count=len(info['features'])
+    row_step=info['row_step']
     flags=base+info['flags_rva'];page=base+info['page_rva'];selected=base+info['selection_rva']
     initialized=base+info['initialized_rva'];error=base+info['error_rva']
     sentinel=m['data_rva']-16;api=0x60000000
@@ -116,7 +117,9 @@ def check_settings(u,base,m,actors,enemies,stats,sp,reset,put,get,reg,regs):
         assert get(initialized,'B')==1 and get(error,'B')==0
         run('settings_initialize');assert len(reads)==feature_count
         values={k:0 for k in info['features'][:-1]};setup();run('settings_initialize')
-        assert bytes(u.mem_read(flags,feature_count))==b'\0'*(feature_count-1)+b'\1', 'new skit option defaults on without resetting existing preferences'
+        assert bytes(u.mem_read(flags,feature_count))==b'\0'*(feature_count-1)+b'\1', 'new option defaults on without resetting existing preferences'
+        values={k:i%2 for i,k in enumerate(info['features'][:10])};setup();run('settings_initialize')
+        assert bytes(u.mem_read(flags,feature_count))==bytes(i%2 for i in range(10))+b'\1'*(feature_count-10), 'both new control options migrate without resetting old preferences'
         values={k:i%2 for i,k in enumerate(info['features'])};setup();run('settings_initialize')
         assert list(u.mem_read(flags,feature_count))==[i%2 for i in range(feature_count)]
         for missing in names:
@@ -126,6 +129,9 @@ def check_settings(u,base,m,actors,enemies,stats,sp,reset,put,get,reg,regs):
         for environment in ('','x'*960,'x'*1024):
             setup();run('settings_initialize');assert get(initialized,'B')==2 and not reads
         environment=saved_env
+        # The final flag is beyond the first snapshot qword: make it nonzero,
+        # so omitting its copy on opening cannot pass by matching zeroed memory.
+        values[info['features'][-1]]=1
         # Native menu count is 4 or 5; preserve all native actions/submenus.
         for extra in (0,2):
             total=5+extra//2
@@ -140,6 +146,8 @@ def check_settings(u,base,m,actors,enemies,stats,sp,reset,put,get,reg,regs):
                 end=run('settings_title_navigation',(0x1b9417,0x1b98d7),True)
                 assert (end==0x1b98d7)==(cursor==total-1)
                 assert get(page,'B')==int(cursor==total-1)
+                if cursor==total-1:
+                    assert bytes(u.mem_read(base+info['snapshot_rva'],feature_count)) == bytes(u.mem_read(flags,feature_count)), 'opening snapshot includes every option'
         for submenu in (10,20,30,40):
             setup();put(base+0x10e1d3c,'H',submenu)
             assert run('settings_title_navigation',(0x1b92bf,),True)==0x1b92bf
@@ -163,7 +171,7 @@ def check_settings(u,base,m,actors,enemies,stats,sp,reset,put,get,reg,regs):
                 run('settings_panel_input',(0x1b98d7,),True)
                 assert get(selected,'B')==order[(order.index(cursor)+delta)%len(order)]
         # Header reset restores the values captured on opening; defaults turn
-        # all eight features on. Both persist each key without touching saves.
+        # all features on. Both persist each key without touching saves.
         snapshot=base+info['snapshot_rva'];choice=base+info['reset_choice_rva']
         u.mem_write(snapshot,bytes(i%2 for i in range(feature_count)))
         for default in (0,1):
@@ -193,7 +201,7 @@ def check_settings(u,base,m,actors,enemies,stats,sp,reset,put,get,reg,regs):
                 for _,fr,en in __import__('mod_settings_patch').FEATURES:assert (fr if lang==3 else en) in strings
                 assert len(texts)==6+3*feature_count and rects
                 assert all(25<t['x']<455 and 26<=t['y']<=236 for t in texts)
-                labels=[t for t in texts if t['y'] in range(55,55+17*feature_count,17) and t['x']==34]
+                labels=[t for t in texts if t['y'] in range(55,55+row_step*feature_count,row_step) and t['x']==34]
                 assert len(labels)==feature_count and all(t['size']==8.5 and t['color']==0xff49bfff for t in labels)
                 assert cursors[-1]==(1,55,43,2)
         # Mid-function wrapper must restore live volatile registers/XMM values.
@@ -254,13 +262,14 @@ def check_settings(u,base,m,actors,enemies,stats,sp,reset,put,get,reg,regs):
         title_end=next(i for i,p in enumerate(submitted) if get(p,'I')==0x3c)
         panel_start=next(i for i,p in enumerate(submitted) if get(p,'I')==5)
         assert title_end<panel_start
-        # All eight cursor strips use real native geometry and stay inside body.
-        for row in range(feature_count):
+        # Every feature and keyboard row stays inside the native body.
+        for row in range(feature_count+1):
             submitted.clear();put(context+0x4e0,'I',0);put(allocation+0x2000008,'I',0)
-            put(selected,'B',row);run('settings_backdrop')
+            put(selected,'B',row if row<feature_count else feature_count+1);run('settings_backdrop')
             p=[p for p in submitted if get(p,'I')==5][-1];v=get(p+32,'Q')
             assert get(p+12,'I')==0x80019c
-            assert tuple(get(v+i,'f') for i in (4,8,12,20,40))==(31,54+17*row,0,444,64.5+17*row)
+            assert tuple(get(v+i,'f') for i in (4,8,12,20,40))==(31,54+row_step*row,0,444,64.5+row_step*row)
+            assert 64.5+row_step*row<225, 'last row overflows the native window'
             assert get(v,'I')==0xffa55f2a and get(v+16,'I')==0x00a55f2a
         # Execute native UTF-8 measurement and glyph emission too. The older
         # tests stubbed b480 and therefore could not detect hidden/missing text.
@@ -279,7 +288,7 @@ def check_settings(u,base,m,actors,enemies,stats,sp,reset,put,get,reg,regs):
             assert all(get(p+8,'f')>0 and get(p+12,'f')>0 for p in sizes)
             assert all(get(p+16,'f')==0 for p in glyphs)
             assert all(20<=get(p+8,'f')<455 and 20<=get(p+12,'f')<248 for p in glyphs)
-            for y in range(55,55+17*feature_count,17):
+            for y in range(55,55+row_step*feature_count,row_step):
                 assert any(y<=get(p+12,'f')<y+10 for p in glyphs)
             assert any(get(p,'I')==0x1b and get(p+8,'I')==4 for p in submitted)
         real_font=False

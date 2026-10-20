@@ -1,4 +1,4 @@
-Tales of Eternia - Water's Edition - 0.12.6 test release
+Tales of Eternia - Water's Edition - 0.12.13 test release
 
 An experimental combat and UI mod for Tales of Eternia Remastered on Steam.
 
@@ -29,20 +29,21 @@ The settings page draws over the title logo. The page
 follows the native Options layout, with gold labels, side-by-side choices,
 a hand cursor, Reset/Default controls and live keyboard/controller button hints.
 The Mod settings page on the title screen lets you toggle the camera, both TP
-recovery features, damage colors, custom HUD, casting bars, item cooldown bar
-and skit notifications
-independently. Settings are saved automatically. Mod text is French with the
-French game text language, and English with every other language.
+recovery features, damage colors, custom HUD, casting bars, item cooldown bar,
+skit notifications, difficulty rebalancing, multiple MAX vitality,
+Guard spell cancelling and Guard + Up mage jumps independently. Settings are saved automatically.
+Mod text is French with the French game text language, and English with every
+other language.
 
-The mod includes two arte pages with seven assignments each, L2/LT page
-switching, an R2/RT shortcut, configurable keyboard keys and per-save assignments.
+The mod includes three arte pages of six commands (18 total): A in blue,
+B in red (L2/LT) and C in yellow (R2/RT), with configurable keyboard keys and
+per-save assignments. The original six-row arte menu layout is restored.
+Spell usage counters sit beside their element icons. Victory TP numbers keep
+their normal animation and draw in front of the TP bars.
 An optional skit notice works on the overworld and in fields/dungeons.
 
-This is a TEST release. Version 0.12.6 fixes the invisible R2/RT button images,
-uses "Artesphere" without an accent, and colors page A blue and page B red.
-Offline regressions pass; the newest rendering changes still need in-game
-visual confirmation. The spell-palette fix from 0.12.5 is retained and also
-still awaits visual confirmation.
+This is a TEST release. Native-code regressions and installer checks pass,
+but new features still need broader in-game testing.
 Some camera edges and summon backdrops can still have issues.
 Same-effect and special spells are still queued.
 A Compatibility mode restores the native spell queue while keeping the other

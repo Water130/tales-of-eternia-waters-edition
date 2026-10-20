@@ -1,5 +1,5 @@
 TALES OF ETERNIA - WATER'S EDITION
-Version 0.12.6 - Test release
+Version 0.12.13 - Test release
 Easy installation for Windows / Steam build 25190541
 
 AUTHORSHIP / BUGS / USE AT YOUR OWN RISK
@@ -51,7 +51,7 @@ Mod text is French with French game text, and English with every other language.
 If an older mod version is installed, uninstall it using its own Uninstall.cmd
 first. This installer refuses unsupported game versions and other modified DLLs.
 
-This package contains the current 0.12.6 build.
+This package contains the current 0.12.13 build.
 
 Support/Mod-details.txt: full feature list, compatibility and troubleshooting.
 Support/SHARE.txt: English introduction you can post with the ZIP.

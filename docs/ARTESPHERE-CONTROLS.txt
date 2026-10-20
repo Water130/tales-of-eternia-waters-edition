@@ -1,0 +1,64 @@
+Water's Edition - Artesphere (test build 0.12.13)
+
+Three pages, six commands per page: 18 assignments.
+Page A is blue, page B is red, and page C is yellow.
+
+CONTROLLER
+- In the arte assignment menu: tap L2/LT to toggle B/A, or R2/RT to toggle C/A.
+  You can switch directly between B and C. Close the arte/caster chooser before
+  switching pages.
+- In battle: hold L2/LT for page B, or R2/RT for page C. Release both for A.
+  C takes priority when both are held. Page modifiers alone do not cast.
+- The original six-row menu layout, spacing, cursor and descriptions are used.
+- The four directional artes and the two existing ally shortcuts keep their
+  original game bindings. The seventh slot has been removed.
+- A page change does not replace a spell already being cast.
+- On all pages, holding the original arte command at completion can select an
+  eligible summon. L1 still takes priority to hold a cast.
+- This first implementation supports the first controller/player slot.
+
+KEYBOARD
+- F7 = page B key (tap in menus, hold in battle).
+- F8 = page C key (tap in menus, hold in battle).
+- The original six commands use the bindings in the game's Controls menu.
+- To change F7/F8 in game: open Mod settings > Keyboard controls (PC).
+  Select the page B or page C key, confirm, release the held keys, then
+  press the new key. Esc cancels. The two commands cannot use the same key.
+  Changes apply immediately and are saved for the next launch.
+- Choose keys not already assigned to other actions in the game's Controls
+  menu. This page stores the mod's extra bindings separately.
+- Configure-ArtesphereKeys.cmd remains available as an external alternative
+  with the game closed. External edits are read on the next launch.
+
+Manual alternative: add or edit this section in
+%LOCALAPPDATA%\TalesOfEternia-WatersEdition.ini
+
+[ArtesphereControls]
+PageKey=118
+PageCKey=119
+
+These are decimal Windows virtual-key codes: F7=118, F8=119, F1=112,
+A=65, Z=90, Shift=16, Ctrl=17, Alt=18. Invalid or identical values use
+the F7/F8 defaults. The keyboard aliases only work while the game is focused.
+Existing ShortcutKey bindings are read for C when PageCKey is absent.
+
+SAVING
+The key bindings are shared across your games. Arte assignments are saved
+separately for each save slot when the game successfully saves, including
+autosaves. New profiles initialize B and C from your original assignments.
+Existing A and B assignments are preserved; C initially copies B when migrating
+an old profile. Old seventh-slot records are retained but are no longer used.
+The game's save format is unchanged. Extra assignments are stored in the
+[Artesphere-v2] section of the same local INI, tied to the matching save data.
+Legacy Artesphere-v1 records remain untouched.
+If the extra record is missing or does not match, the original commands are
+kept and the extra pages return to their initial configuration.
+Copy this INI along with your saves when moving to another PC. It is not
+included automatically in Steam Cloud. Do not edit its encoded save records.
+Keep backups of your game saves and this INI before testing.
+
+STATUS
+This is an experimental local build. Offline machine-code checks pass, but
+the in-game layout, real controls and save/load round trip need visual/play
+testing. Water is the human creator; all mod code was written by AI. Bugs can
+occur; fixes and support are not guaranteed. Use the mod at your own risk.

@@ -100,6 +100,22 @@ for BASE in [0x180000000,0x7ffb00000000]:
         assert saved=={r:uc.reg_read(v) for r,v in REGS.items()},'entry register corruption'
         return get(DATA,'Q')
 
+    if 'cast_defense' in manifest:
+        from test_cast_defense_patch import check_cast_defense
+        n = check_cast_defense(uc,BASE,manifest,ACTORS,ENEMIES,STATS,SP,reset,put,get,reg,REGS)
+        passed.append(f'{BASE:x}: {n} native defense controls cases; independent toggles, mapped Guard cancel, cleanup, no debit, guard state, deliberate mage jumps, manual/semi-auto, AI/enemy/stun/air/pause exclusions')
+
+    if 'multiple_vitality' in manifest:
+        from test_multiple_vitality_patch import check_multiple_vitality
+        n = check_multiple_vitality(uc,BASE,manifest,ACTORS,SP,reset,put,get,reg,REGS)
+        passed.append(f'{BASE:x}: {n} native vitality cases; multiple MAX, on/off, both mages, all families, opposing charge, owner guards, consumption, counters and unchanged save fields')
+
+    if 'difficulty_rebalance' in manifest:
+        from test_difficulty_patch import check_difficulty
+        n = check_difficulty(uc,BASE,manifest,ACTORS,STATS,IMPACT,SP,
+                             reset,put,get,reg,REGS)
+        passed.append(f'{BASE:x}: {n} native difficulty cases; on/off, all modes, HP/DEF/fixed-hit factors, unchanged adjacent stats and party hits, integer limits')
+
     if 'spell_textures' in manifest:
         from test_spell_palette_patch import check_spell_palettes
         n=check_spell_palettes(uc,BASE,manifest,SP,put,get,reg,REGS)
@@ -258,6 +274,9 @@ for BASE in [0x180000000,0x7ffb00000000]:
         count,checks=check_artesphere(uc,BASE,manifest,ACTORS,SP,reset,put,get,reg,REGS)
         passed.extend(f'{BASE:x}: {check}' for check in checks)
         passed.append(f'{BASE:x}: {count} artesphere native execution cases')
+        from test_arte_usage_patch import check_arte_usage
+        usage_checks=check_arte_usage(uc,BASE,manifest,ACTORS,SP,reset,put,get,reg,REGS)
+        passed.append(f'{BASE:x}: arte usage counters: {usage_checks}')
 
 report={'passed':True,'patched_sha256':digest(binary),'checks':passed,
         'runtime_validated':False,'note':'Actual x64 hook execution in an emulator; rendering, engine concurrency, Quickie routing and gameplay still require user testing.'}

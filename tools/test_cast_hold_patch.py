@@ -90,20 +90,18 @@ def check_cast_hold(uc, base, manifest, actors, enemies, stats, impact, sp,
                             assert get(actor+0x34,'H') == 500
                             assert get(master+0xbba+(family-1)*8,'H') == 0xa000
         checks.append('Native cast ticks: L1 priority, release, ten elements, healing, direct and both shortcut buttons')
-        if 'artesphere' in manifest['features']:
-            for char in [2,3,6]:
-                for held in [False,True]:
-                    for l1 in [False,True]:
-                        actor=setup(char,71,held,l1,0x100)
-                        put(base+0x8c9180,'I',(0x80000 if held else 0)|(0x100 if l1 else 0))
-                        tick(actor)
-                        assert get(actor+0x6d,'B')==(43 if char in (2,3) and held and not l1 else 71)
-                        assert get(actor+0x8c,'H')==(4 if l1 or (char==6 and held) else 2)
-            # Native release path must also retarget ally healing for R2.
-            for source in (0x400,0x800,0x100):
-                actor=setup(2,55,False,False,source);reg('rbx',actor);reg('rdx',source)
-                execute(0xd53f0,[0x90690])
-            checks.append('R2 casts: release/hold/invocation, L1 priority and native ally-healing target branch')
+        # Page modifiers never replace the cast's original command source.
+        for page in (0,0x40000,0x80000,0xc0000):
+            for source in (0x40,0x400,0x800):
+                for held in (False,True):
+                    actor=setup(2,71,held,False,source)
+                    put(base+0x8c9180,'I',page)
+                    tick(actor)
+                    assert get(actor+0x6d,'B')==(43 if held else 71)
+        for source in (0x400,0x800):
+            actor=setup(2,55,False,False,source);reg('rbx',actor);reg('rdx',source)
+            execute(0xd53f0,[0x90690])
+        checks.append('A/B/C modifiers retain native direct/ally source, summon release and healing target selection')
 
         for exclusion in ['low_gauge','owner','unlearned','enemy','autonomous','other_controller']:
             actor = setup()
@@ -201,8 +199,9 @@ def check_cast_hold(uc, base, manifest, actors, enemies, stats, impact, sp,
                 actor=setup(char)
                 reg('rcx',char);reg('rdx',family);reg('r8',0x800);reg('r9',0)
                 execute(0x90380)
-                assert get(master+0xbba+family*8,'H')==0xa000
-        checks.append('Ordinary same-element spells still preserve full vitality')
+                expected=0xa000 if 'multiple_vitality' in manifest else 0x5000
+                assert get(master+0xbba+family*8,'H')==expected
+        checks.append('Ordinary same-element spells follow the enabled vitality feature')
 
     if 'casting_colors' in manifest['features']:
         effect,particle=impact,impact+0x200

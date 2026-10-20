@@ -5,7 +5,7 @@ No native bindings or save structures are enlarged. Garde is no longer involved.
 """
 
 
-def emit_cast_hold(emit, mem, jump, edit, data_rva, overlap, artesphere=False):
+def emit_cast_hold(emit, mem, jump, edit, data_rva, overlap):
     choose = emit('held_summon_choice', f'''
         push r8
         push r9
@@ -65,22 +65,6 @@ def emit_cast_hold(emit, mem, jump, edit, data_rva, overlap, artesphere=False):
 
     save = 'pushfq; push rax; push rcx; push rdx; push r8; push r9; push r10; push r11'
     restore = 'pop r11; pop r10; pop r9; pop r8; pop rdx; pop rcx; pop rax; popfq'
-    extra_caster = f'''
-        cmp word ptr [rbx+0xa4], 0x100
-        jne original
-        cmp word ptr [rbx+0xa2], 0
-        jne original
-        test dword ptr {mem(0x8c9180)}, 0x80100
-        jne hold_l1
-        jmp release
-    ''' if artesphere else 'jmp original'
-    extra_branch = 'cmp edx, 0x100; je extra_button' if artesphere else ''
-    extra_button = f'''
-    extra_button:
-        test dword ptr {mem(0x8c9180)}, 0x80000
-        je release
-        jmp choose
-    ''' if artesphere else ''
     start = emit('cast_hold_resolution', f'''
         {save}
         cmp byte ptr {mem(0x12d0ef7)}, 6
@@ -91,7 +75,7 @@ def emit_cast_hold(emit, mem, jump, edit, data_rva, overlap, artesphere=False):
         sub eax, 2
         cmp eax, 1
         jbe mage
-        {extra_caster}
+        jmp original
     mage:
         movzx edx, word ptr [rbx+0xa4]
         test edx, edx
@@ -101,7 +85,6 @@ def emit_cast_hold(emit, mem, jump, edit, data_rva, overlap, artesphere=False):
         jne original
         test dword ptr {mem(0x8c9180)}, 0x100
         jne hold_l1
-        {extra_branch}
         cmp edx, 0x40
         je arte_button
         cmp edx, 0x400
@@ -109,7 +92,6 @@ def emit_cast_hold(emit, mem, jump, edit, data_rva, overlap, artesphere=False):
         cmp edx, 0x800
         jne original
         jmp arte_button
-        {extra_button}
     arte_button:
         cmp byte ptr {mem(0x8c9230)}, 0
         je release
@@ -154,12 +136,6 @@ def emit_cast_hold(emit, mem, jump, edit, data_rva, overlap, artesphere=False):
         jmp 0xd53c4
     ''')
     jump(0xd53bd, 7, start, 'Hold Arte chooses invocation at cast completion; L1 retains ready spell')
-    if artesphere:
-        # R2 belongs to the ally-shortcut family for native healing target
-        # selection too (First Aid/Recover/etc. are handled at this branch).
-        edit(0xd5408, b'\xb8\x00\x0d\x00\x00', 'R2 retains native ally-healing target selection')
-    edit(0x9041e, b'\x90'*8, 'Keep full vitality when casting an ordinary same-element spell')
-
     # Read-only mirror of the dispatcher admission checks. Queue retries must
     # happen BEFORE TP/vitality are spent, especially now that summons are chosen
     # after incantation. Includes exhausted effect pools and loading records.

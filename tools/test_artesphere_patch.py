@@ -6,14 +6,14 @@ import struct
 
 def check_artesphere(u,base,m,actors,sp,reset,put,get,reg,regs):
     sym=m['symbols'];info=m['artesphere'];state=base+info['state_rva']
-    profile=base+info['profile_rva'];extra=base+info['extra_rva'];data=base+m['data_rva']
+    profile=base+info['profile_rva'];data=base+m['data_rva']
     master=base+0x11ca420;raw=base+0x8c9180;storage=info['storage']
     api=0x61000000;u.mem_map(api,0x1000)
     ui_arena=0x62000000;u.mem_map(ui_arena,0x2001000)
     names={name:api+0x20+i*0x10 for i,name in enumerate((
         'GetPrivateProfileStructW','WritePrivateProfileStructW','GetAsyncKeyState',
         'GetForegroundWindow','GetWindowThreadProcessId','GetCurrentProcessId'))}
-    sentinel=base+m['data_rva']-16;count=0;records={};write_fail=False;native_save=True
+    sentinel=base+m['data_rva']-16;count=0;records={};legacy_records={};usage_records={};write_fail=False;native_save=True
     held=set();foreground=True;settings={};polls=[];native_edits=False;draws=[];admit=True
     native_inputs=[];executions=[];checks=[];real_input=False;real_mouse=False;row_render=False;key_writes=[];key_save_ok=True;row_text_y=[];trigger_glyphs=[]
     row_commands=[];text_colors=[]
@@ -37,15 +37,17 @@ def check_artesphere(u,base,m,actors,sp,reset,put,get,reg,regs):
             assert string(rcx) in ('kernel32.dll','user32.dll');ret(1)
         elif address==api+0x10:ret(names[string(rdx)])
         elif address in (names['GetPrivateProfileStructW'],names['WritePrivateProfileStructW']):
-            assert string(rcx,True)=='Artesphere-v1' and r9==104
+            section=string(rcx,True)
+            assert (section,r9) in (('Artesphere-v1',104),('Artesphere-v2',104),('ArteUsage-v1',1800))
             assert string(get(rsp+0x28,'Q'),True).endswith('TalesOfEternia-WatersEdition.ini')
             key=string(rdx,True)
+            target=records if section=='Artesphere-v2' else legacy_records if section=='Artesphere-v1' else usage_records
             if address==names['WritePrivateProfileStructW']:
-                if not write_fail:records[key]=bytes(u.mem_read(r8,104))
+                if not write_fail:target[key]=bytes(u.mem_read(r8,r9))
                 ret(int(not write_fail))
             else:
-                if key in records:u.mem_write(r8,records[key])
-                ret(int(key in records))
+                if key in target:u.mem_write(r8,target[key])
+                ret(int(key in target))
         elif address==names['GetForegroundWindow']:ret(0x1234)
         elif address==names['GetWindowThreadProcessId']:
             put(rdx,'I',77 if foreground else 88);ret(1)
@@ -62,7 +64,7 @@ def check_artesphere(u,base,m,actors,sp,reset,put,get,reg,regs):
             u.reg_write(UC_X86_REG_XMM0,0x42200000);ret()
         elif row_render and a==0xb480:
             row_text_y.append(struct.unpack('<f',struct.pack('<I',u.reg_read(UC_X86_REG_XMM2)&0xffffffff))[0]);ret()
-        elif row_render and a==0x13410 and u.reg_read(regs['r15'])!=2:ret()
+        elif row_render and a==0x13410:ret()
         elif row_render and a==0x12cb0:
             xy=[struct.unpack('<f',(u.reg_read(r)&0xffffffff).to_bytes(4,'little'))[0]
                 for r in (UC_X86_REG_XMM1,UC_X86_REG_XMM2)]
@@ -124,178 +126,123 @@ def check_artesphere(u,base,m,actors,sp,reset,put,get,reg,regs):
         if stops is None:assert u.reg_read(UC_X86_REG_RSP)==rsp+8,(name,'unbalanced stack')
         return reached[0]-base
     try:
-        setup();run('artesphere_initialize');native=bytes(u.mem_read(master,0x1070))
-        for i in range(7):assert get(profile+i*4,'I')==get(master+i*0xd0+0x9a,'I')
-        u.mem_write(profile,bytes([70,71,72,73])*7);put(state+1,'B',1)
-        run('artesphere_enter_editor');assert get(master+0x9a,'I')==0x49484746
-        run('artesphere_enter_editor');put(master+0x9a,'I',0x4a494847)
-        run('artesphere_leave_editor');assert get(master+0x9a,'I')==0x4a494847
-        run('artesphere_leave_editor');assert bytes(u.mem_read(master,0x1070))==native
-        assert get(profile,'I')==0x4a494847 and get(state+2,'B')==0
-        checks.append('Nested native editor scopes restore A and retain B edits')
+        for selected_page in (1,2):
+            setup();run('artesphere_initialize');native=bytes(u.mem_read(master,0x1070))
+            for offset in (0,44):
+                for i in range(7):
+                    assert get(profile+offset+i*4,'I')==get(master+i*0xd0+0x9a,'I')
+                assert bytes(u.mem_read(profile+offset+28,16))==bytes(u.mem_read(master+0x91c,16))
+            chosen=profile+44*(selected_page-1)
+            u.mem_write(chosen,bytes([70,71,72,73])*7);put(state+1,'B',selected_page)
+            untouched=bytes(u.mem_read(profile+44*(2-selected_page),44))
+            run('artesphere_enter_editor');assert get(master+0x9a,'I')==0x49484746
+            run('artesphere_enter_editor');put(master+0x9a,'I',0x4a494847)
+            run('artesphere_leave_editor');assert get(master+0x9a,'I')==0x4a494847
+            run('artesphere_leave_editor');assert bytes(u.mem_read(master,0x1070))==native
+            assert get(chosen,'I')==0x4a494847 and get(state+2,'B')==0
+            assert bytes(u.mem_read(profile+44*(2-selected_page),44))==untouched
+        checks.append('Nested editor scopes restore native A and isolate B/C assignments')
         for char in range(7):
             for slot in range(4):
-                for held_page in (0,0x40000):
-                    setup();run('artesphere_initialize');put(profile+char*4+slot,'B',74)
+                for held_page,expected in ((0,43),(0x40000,73),(0x80000,74),(0xc0000,74)):
+                    setup();run('artesphere_initialize')
+                    put(profile+char*4+slot,'B',73);put(profile+44+char*4+slot,'B',74)
                     put(raw,'I',held_page);put(actors+0x4f,'B',char);put(actors+0xac+slot,'B',43)
                     reg('rbp',actors);reg('rax',0xac+slot);run(0x114292,[0x114298],True)
-                    assert u.reg_read(regs['rbx'])==(74 if held_page else 43)
-        for arte,controller,expected in [(255,0,0),(74,1,43),(0,0,0)]:
-            setup();put(profile,'B',arte);put(actors+0xac,'B',43);put(actors+0x56,'B',controller)
-            put(raw,'I',0x40000);reg('rax',0xac);reg('rbp',actors)
-            run(0x114292,[0x114298],True);assert u.reg_read(regs['rbx'])==expected
+                    assert u.reg_read(regs['rbx'])==expected
+        for offset,button in ((0,0x40000),(44,0x80000)):
+            for arte,controller,expected in [(255,0,0),(74,1,43),(0,0,0)]:
+                setup();put(profile+offset,'B',arte);put(actors+0xac,'B',43);put(actors+0x56,'B',controller)
+                put(raw,'I',button);reg('rax',0xac);reg('rbp',actors)
+                run(0x114292,[0x114298],True);assert u.reg_read(regs['rbx'])==expected
         for entry in (0x1141c5,0x1141dc):
             reg('rbx',52);run(entry,[0x114298],True);assert u.reg_read(regs['rbx'])==52
-        checks.append('56 direction/page cases, invalid IDs, other controllers and native combo branches')
-        for page in (0,1):
-            for edge in (0,0x80000):
-                setup();run('artesphere_initialize');put(extra+page*2,'BB',3,71+page)
-                put(raw,'II',page*0x40000,edge);reg('rcx',actors);run(0x113370)
-                assert bool(executions)==bool(edge)
-                if edge:
-                    assert executions[-1][1:]==(actors+2*0x248,71+page)
-                    assert get(actors+2*0x248+0xa4,'H')==0x100
-        for owner_id,arte,allowed in ((7,71,True),(3,250,True),(3,71,False),(0,0,True)):
-            setup();put(extra,'BB',owner_id,arte);put(raw+4,'I',0x80000)
-            reg('rcx',actors);admit=allowed;run(0x113370)
-            assert not [x for x in executions if x[0]=='execute']
-        admit=True
-        for page in (0,1):
+        checks.append('112 directional page cases; C priority, learned-ID guards, other controllers and native combo branches')
+        for held in (0,0x40000,0x80000,0xc0000):
+            setup();run('artesphere_initialize')
+            put(raw,'II',held,held);reg('rcx',actors);run(0x113370)
+            assert not executions, 'Page selection must never dispatch the retired seventh arte'
+        for held,offset in ((0,None),(0x40000,0),(0x80000,44),(0xc0000,44)):
             for slot in (0,1):
-                setup();run('artesphere_initialize');put(profile+28+slot*2,'BB',slot+3,73+slot)
-                put(raw,'I',page*0x40000);put(base+0x12ceba0,'I',0x400<<slot);reg('rcx',actors)
-                run(0x113370);assert executions[-1][2]==(73+slot if page else 71+slot)
-        checks.append('Native dispatcher: R2 edge, both pages, ally slots, absent/unlearned casters and admission refusal')
+                setup();run('artesphere_initialize')
+                put(profile+28+slot*2,'BB',slot+3,73)
+                put(profile+44+28+slot*2,'BB',slot+3,74)
+                put(raw,'I',held);put(base+0x12ceba0,'I',0x400<<slot);reg('rcx',actors)
+                run(0x113370)
+                assert executions[-1][2]==(71+slot if offset is None else 73 if offset==0 else 74)
+                assert get(actors+(slot+2)*0x248+0xa4,'H')==0x400<<slot
+        for offset,held in ((0,0x40000),(44,0x80000)):
+            for owner_id,arte,allowed in ((7,71,True),(3,250,True),(3,71,False),(0,0,True)):
+                setup();put(profile+offset+28,'BB',owner_id,arte)
+                put(raw,'I',held);put(base+0x12ceba0,'I',0x400)
+                reg('rcx',actors);admit=allowed;run(0x113370)
+                assert not [x for x in executions if x[0]=='execute']
+        admit=True
+        checks.append('Two native ally shortcuts on all pages; unchanged source tags, no R2-only cast, absent/unlearned/admission guards')
         setup();run('artesphere_initialize');native=bytes(u.mem_read(master,0x1070))
-        put(raw+4,'I',0x40000);run(0x228ad0);assert get(state+1,'B')==1 and not native_inputs
-        native_edits=True;put(raw+4,'I',0);run(0x228ad0);native_edits=False
-        assert get(profile,'I')==0x4a494847 and bytes(u.mem_read(master,0x1070))==native
-        put(raw+4,'I',0x80000);run(0x228ad0)
-        assert get(base+0x1119f98,'H')==2 and get(base+0x1119f9a,'H')==6
-        assert get(state+3,'B')==0, 'old modal must never open'
-        native=bytes(u.mem_read(master,0x1070))
-        for palette,letter,color in ((0,'A',0xffffad61),(1,'B',0xff6666ff)):
+        for button,expected in ((0x40000,1),(0x80000,2),(0x80000,0),(0xc0000,2),(0x40000,1),(0x40000,0)):
+            put(raw+4,'I',button);run(0x228ad0)
+            assert get(state+1,'B')==expected and not native_inputs
+        for page in (1,2):
+            put(state+1,'B',page);put(raw+4,'I',0);native_edits=True
+            run(0x228ad0);native_edits=False
+            assert get(profile+(page-1)*44,'I')==0x4a494847
+            assert bytes(u.mem_read(master,0x1070))==native
+        for palette,letter,color in ((0,'A',0xffffad61),(1,'B',0xff6666ff),(2,'C',0xff40dfff)):
             for language in (3,1,0):
                 put(state+1,'B',palette);put(base+0x11c9ce8,'B',language)
                 draws.clear();text_colors.clear();run(0x224920)
                 expected=f'Artesphere — Page {letter}'
                 assert expected in draws and (expected,color) in text_colors
                 assert bytes(u.mem_read(master,0x1070))==native
-        # Execute the actual native input state machine, including seven-row
-        # navigation, character chooser, learned list, commit and clear.
+        # Actual original six-row navigation, caster selection and assignment.
         real_input=True
-        for palette in (0,1):
-            setup();put(state+1,'B',palette)
-            put(base+0x1119f98,'HH',2,5);put(raw+8,'I',0x40)
-            run(0x228ad0);assert get(base+0x1119f9a,'H')==6
+        for palette in (0,1,2):
+            setup();put(state+1,'B',palette);run('artesphere_initialize')
+            put(base+0x1119f98,'HH',2,4);put(raw+8,'I',0x40)
+            run(0x228ad0);assert get(base+0x1119f9a,'H')==5
             put(raw,'III',0,0x2000,0);run(0x228ad0)
-            assert get(base+0x1119f98,'H')==7, 'native caster chooser'
+            assert get(base+0x1119f98,'H')==7
+            # Page changes are blocked while the native caster/list chooser is open.
+            put(raw,'III',0,0x80000 if palette!=2 else 0x40000,0);run(0x228ad0)
+            assert get(state+1,'B')==palette
             put(raw,'III',0,0x2000,0);run(0x228ad0)
-            assert get(base+0x1119f98,'H')==8, 'native learned-arte list'
+            assert get(base+0x1119f98,'H')==8
             put(base+0x1119f9c,'H',2)
-            before=bytes(u.mem_read(master+0x91c,16))
+            expected_address=master+0x91e if palette==0 else profile+(palette-1)*44+30
+            native_before=bytes(u.mem_read(master,0x1070))
             put(raw,'III',0,0x2000,0);run(0x228ad0)
-            assert get(base+0x1119f98,'H')==2
-            assert get(extra+palette*2,'H')==0x2d01
-            assert bytes(u.mem_read(master+0x91c,16))==before, 'seventh row overwrote a vanilla shortcut'
+            assert get(base+0x1119f98,'H')==2 and get(expected_address,'H')==0x2d01
+            if palette:assert bytes(u.mem_read(master,0x1070))==native_before
             put(raw,'III',0,0,0x1000);run(0x228ad0)
-            assert get(extra+palette*2,'H')==0
+            assert get(expected_address,'H')==0
+            put(base+0x1119f9a,'H',5);put(raw,'III',0,0,0x40);run(0x228ad0)
+            assert get(base+0x1119f9a,'H')<=5
         real_input=False
-        checks.append('Native seven-row navigation/caster chooser/learned list/assignment/clear; scoped A/B storage; Artesphere header without accent, page A blue and page B red in FR/EN')
-        # Real native hit testing and left-row callback, with only OS polling
-        # stubbed. The temporary descriptor is restored byte for byte.
-        setup();real_mouse=True
-        put(base+0x86241c,'I',1)
-        u.mem_write(base+0x860560,b'\0'*56)
-        unused=bytes(range(56));u.mem_write(base+0x860598,unused)
-        put(state+0xcc0,'8f',20,172,180,20,0,0,0,0)
-        put(base+0x862460,'IIBBBBf',40,180,1,1,0,0,0)
-        put(base+0x573c58,'i',-1)
-        for expected in (0x10000000,0x2000):
-            reg('rcx',state+0xf00);reg('rdx',state+0xf04);reg('r8',1)
-            run('artesphere_native_mouse')
-            assert u.reg_read(regs['rax'])==expected
-            assert get(base+0x1119f98,'H')==2 and get(base+0x1119f9a,'H')==6
-            assert get(base+0x86241c,'I')==1
-            assert bytes(u.mem_read(base+0x860598,56))==unused
-        put(base+0x86241c,'I',128)
-        u.mem_write(base+0x860560,b'\0'*(128*56))
-        reg('rcx',state+0xf00);reg('rdx',state+0xf04);reg('r8',1)
-        run('artesphere_native_mouse')
-        assert get(base+0x86241c,'I')==128
-        real_mouse=False
-        checks.append('Native mouse hit testing selects/confirms row seven; temporary descriptor restored; bounded capacity')
-        for opacity in (255,128,0):
-            setup();put(extra,'H',0x2d01);run('artesphere_prepare_rows')
-            row_render=True;row_text_y.clear();row_commands.clear();trigger_glyphs.clear()
-            context=actors+0x3000
-            put(base+0x644a10,'Q',context)
-            put(context+0x4d0,'Q',ui_arena+0x1000)
-            put(context+0x4d8,'Q',128);put(context+0x4e0,'I',0)
-            put(context+0x548,'Q',ui_arena+0x9000)
-            put(base+0x86191a,'B',0)
-            put(base+0x644a70,'Q',0);put(base+0x6449f8,'Q',actors);put(actors+0x10,'I',0)
-            u.mem_write(base+0x8606e8,b'\x42'*56)
-            reg('rsi',0);put(sp-8+0x60,'B',opacity);put(sp-8+0x70,'I',0)
-            run(0x225684,[0x225a71],True)
-            assert row_text_y==[132.,142.5,152.,162.5,172.,182.5],row_text_y
-            assert [get(p,'f') for p in (base+0x86067c,base+0x8606b4,state+0xcc4)]==[132.,152.,172.]
-            assert bytes(u.mem_read(base+0x8606e8,56))==b'\x42'*56
-            assert '/' in draws and u.reg_read(regs['r15'])==3
-            assert [(family,x,y,size) for family,x,y,size,_,_ in trigger_glyphs]==[(0,31.,174.,12.),(4,47.,174.,12.)],trigger_glyphs
-            assert all(u0==252/512 and v0==168/512 for *_,u0,v0 in trigger_glyphs),trigger_glyphs
-            # Inspect the actual deferred render commands, including the RGBA
-            # active at each quad, the two controller atlases and their UVs.
-            color=None;atlas=None;quads=[]
-            for command in row_commands:
-                op=struct.unpack_from('<I',command)[0]
-                if op==0x14:color=tuple(command[8:12])
-                elif op==0x22:
-                    assert struct.unpack_from('<Q',command,8)[0]==ui_arena+0x9000
-                    atlas=struct.unpack_from('<I',command,24)[0]
-                elif op==0xc:
-                    assert struct.unpack_from('<4f',command,8)==(84/512,84/512,12.,12.)
-                elif op==8:
-                    quads.append((atlas,color,struct.unpack_from('<5f',command,8)))
-            assert quads==[(atlas,(255,255,255,opacity),(x,174.,0.,252/512,168/512))
-                           for atlas,x in ((0,31.),(4,47.))],('invisible/tinted button quad',quads)
-            assert get(base+0x86191a,'B')==0,'native glyph mode must be restored'
-        put(base+0x644a10,'Q',0)
-        row_render=False
-        checks.append('Native renderer emits all three shortcut rows at compact coordinates without overwriting the learned-list hitbox')
-        checks.append('R2/RT native RGBA, atlas binding and quads: opaque white when open, matching menu fade at half/zero opacity')
-        # Execute each native description/icon reader for all party slots.
-        # Different sentinel pairs catch both the old 4-byte stride and row-7
-        # reads leaking into the next character's vanilla bindings.
-        setup()
-        for party in range(4):
-            for row in range(4,7):
-                caster=party+1;arte=43+party*3+row-4
-                put(state+0xc00+party*8+(row-4)*2,'BB',caster,arte)
-        for party in range(4):
-            for row in range(4,7):
-                arte=43+party*3+row-4
-                put(base+0x1119f9a,'H',row);reg('rdi',base);reg('r14',party)
-                run(0x226c9a,[0x226cfb],True)
-                assert u.reg_read(regs['rbp'])==arte
-                assert u.reg_read(regs['r15'])==party
-                put(sp-8+0x70,'I',party);reg('rdi',base)
-                run(0x227870,[0x22788a],True)
-                assert u.reg_read(regs['rax'])==arte
-                reg('rcx',party);reg('r8',row);reg('r12',base)
-                run(0x22813d,[0x22814a],True)
-                assert u.reg_read(regs['rcx'])==arte
-        # Native hand applies +16 after these row-coordinate calculations.
-        for row in range(7):
+        checks.append('Native six-row navigation/caster/list/assignment/clear on A/B/C; no seventh row; original native state restored')
+        # Both native cursor calculations retain the original spacing.
+        for row in range(6):
             put(base+0x1119f9a,'H',row)
-            expected=14*row+62 if row<4 else 20*row+41
-            run(0x226394,[0x226367],True)
-            assert u.reg_read(regs['r8'])==expected
-            run(0x2263c4,[0x2263e0],True)
-            assert u.reg_read(regs['rcx'])&0xffff==expected
-        checks.append('Native description/icon readers address all 7 rows per party; active and dim cursor share compact row coordinates')
-        for custom in ({},{'PageKey':65,'ShortcutKey':66},{'PageKey':0,'ShortcutKey':999},{'PageKey':65,'ShortcutKey':65}):
-            setup();settings=custom;expected=(65,66) if custom.get('ShortcutKey')==66 else (118,119)
+            expected=17*row+62 if row<4 else 26*row+29
+            run(0x226394,[0x226367],True);assert u.reg_read(regs['r8'])==expected
+            run(0x2263c4,[0x2263e0],True);assert u.reg_read(regs['rcx'])&0xffff==expected
+        # The original renderer still loops over exactly two shortcut rows.
+        setup();row_render=True;row_text_y.clear()
+        put(base+0x644a70,'Q',0)
+        put(base+0x6449f8,'Q',actors);put(actors+0x10,'I',0)
+        reg('rsi',0);put(sp-8+0x60,'B',255);put(sp-8+0x70,'I',0)
+        run(0x225684,[0x225a71],True)
+        assert len(row_text_y)==4 and u.reg_read(regs['r15'])==2,row_text_y
+        row_render=False
+        checks.append('Original six-row layout and cursor spacing; exactly two native shortcut rows; blue A/red B/yellow C in FR/EN')
+        for custom,expected in (
+            ({},(118,119)),({'PageKey':65,'ShortcutKey':66},(65,66)),
+            ({'PageKey':0,'ShortcutKey':999},(118,119)),
+            ({'PageKey':65,'ShortcutKey':65},(118,119)),
+            ({'PageKey':65,'ShortcutKey':66,'PageCKey':67},(65,67)),
+            ({'PageKey':65,'PageCKey':65},(118,119)),
+        ):
+            setup();settings=custom
             held=set(expected);foreground=True;run('artesphere_keyboard')
             assert get(raw,'I')==0xc0000 and get(raw+4,'I')==0xc0000 and polls==list(expected)
             put(raw,'III',0x100,0,0);run('artesphere_keyboard')
@@ -318,6 +265,8 @@ def check_artesphere(u,base,m,actors,sp,reset,put,get,reg,regs):
             run('artesphere_keys_input');assert get(base+info['keyboard']['keys_rva'],'I')==65
             assert get(err,'B')==(1 if key==119 else 2 if fail else 0)
         key_save_ok=True;foreground=True;held=set();put(cap,'B',0)
+        reg('rcx',1);reg('rdx',66);run('artesphere_key_save')
+        assert key_writes[-1]==('PageCKey','66')
         for key,label in [(65,'A'),(118,'F7'),(135,'F24'),(32,'Space'),(186,'VK# 186')]:
             reg('rcx',key);run('artesphere_key_name');assert string(u.reg_read(regs['rax']))==label
         put(base+0x644a10,'Q',actors+0x3000)
@@ -327,6 +276,7 @@ def check_artesphere(u,base,m,actors,sp,reset,put,get,reg,regs):
         put(base+0x11c9e18,'Q',ui_arena+0x9000)
         draws.clear();run('settings_draw')
         assert 'Keyboard controls (PC)' in draws
+        assert 'Hold: arte page B' in draws and 'Hold: arte page C' in draws
         held={65};put(raw,'III',0,0,0);run('artesphere_keyboard');assert get(raw,'I')==0
         put(data+0x1a11,'B',1);put(base+m['mod_settings']['selection_rva'],'B',len(m['mod_settings']['features'])+1)
         reg('rsi',0x2000);reg('r13',0)
@@ -337,6 +287,28 @@ def check_artesphere(u,base,m,actors,sp,reset,put,get,reg,regs):
         checks.append('In-game binding capture: release gating, persistence, duplicate/cancel/write failure/focus, key names, alias suppression')
 
         setup();savebuf=actors+0x9000;u.mem_write(savebuf,bytes((i%251 for i in range(0x12d4))))
+        # A/B from an old save survive; C starts from B, while seventh slots
+        # remain only in the untouched legacy record. No in-game save writes.
+        legacy_profile=bytes(range(96))
+        u.mem_write(profile,legacy_profile)
+        reg('rcx',1);reg('rdx',19);reg('r8',savebuf);reg('r9',profile)
+        run('artesphere_storage_io')
+        legacy_records['Slot19']=records.pop('Slot19')
+        legacy_before=legacy_records['Slot19']
+        native_before=bytes(u.mem_read(master,0x1070))
+        u.mem_write(profile,b'\0'*96)
+        reg('rcx',0);reg('rdx',19);reg('r8',savebuf);reg('r9',profile)
+        run('artesphere_storage_io')
+        assert bytes(u.mem_read(profile,96))==legacy_profile[:44]*2+b'\0'*8
+        assert legacy_records['Slot19']==legacy_before and 'Slot19' not in records
+        assert bytes(u.mem_read(master,0x1070))==native_before
+        # Mismatched legacy snapshot cannot contaminate the current profile.
+        before=bytes(u.mem_read(profile,96));put(savebuf,'B',255)
+        reg('rcx',0);reg('rdx',19);reg('r8',savebuf);reg('r9',profile)
+        run('artesphere_storage_io')
+        assert u.reg_read(regs['rax'])==0 and bytes(u.mem_read(profile,96))==before
+        put(savebuf,'B',0)
+        checks.append('Legacy v1 migration preserves B, copies B into C, ignores seventh slots and retains the original record; fingerprint mismatch rejected')
         for slot in (0,1,20):
             u.mem_write(profile,bytes([slot+1])*96)
             reg('rcx',1);reg('rdx',slot);reg('r8',savebuf);reg('r9',profile)

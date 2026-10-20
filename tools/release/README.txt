@@ -1,5 +1,5 @@
 TALES OF ETERNIA - WATER'S EDITION
-0.12.6 - Experimental test release
+0.12.13 - Experimental test release
 Windows / Steam build 25190541 only
 
 This is the current combat and interface prototype. It is intended for testing;
@@ -73,10 +73,10 @@ Use the controller or keyboard:
 Up/Down selects a setting, Confirm or Left/Right toggles it, and Back closes
 the panel. Up from the first row selects Reset/Default at the top right.
 Choose one with Left/Right and press Confirm: Reset restores the settings from
-when you opened the page; Default enables all eight features. Mouse selection
+when you opened the page; Default enables all twelve features. Mouse selection
 of the custom entry/panel is not implemented.
 
-Eight switches are available and enabled by default:
+Twelve switches are available and enabled by default:
 - Dynamic camera (including the related framing/ground/effect adjustments)
 - Post-battle TP recovery (Off restores the native recovery amount)
 - TP from basic physical hits (Off removes the additional TP)
@@ -85,11 +85,16 @@ Eight switches are available and enabled by default:
 - Casting progress bars
 - Item cooldown bar
 - Skit notification
+- Rebalanced difficulties
+- Multiple Craymels at full vitality
+- Guard to cancel an incantation
+- Guard + Up for mage jumps
 
 The switches are independent. For example, you can keep the casting/item bars
 while using the original HUD. The menu saves each change automatically to:
   %LOCALAPPDATA%\TalesOfEternia-WatersEdition.ini
-Settings apply to the next battle without restarting and survive relaunches.
+Configure combat settings at the title screen before loading your save.
+Preferences survive relaunches.
 If saving fails, the panel displays an error and keeps the change for the current
 session. Uninstalling leaves this small preferences file in place.
 
@@ -112,33 +117,48 @@ Uninstall.cmd before installing this version. Other GameNative.dll mods cannot b
 automatically. Other platforms and builds have not been verified.
 
 ARTESPHERE AND SKIT NOTICE
-- Two arte pages, seven assignments each (14 total). In the arte menu, tap
-  L2/LT to switch pages. In battle, hold L2/LT for page B; release for page A.
-  The Artesphere heading is blue on page A and red on page B.
-- R2/RT is the seventh shortcut, assigned through the normal arte menu.
-  It can command an active ally. Its native cursor, description and button
-  images are integrated into the seven-row layout.
-- Keyboard defaults: F7 for the page key, F8 for the seventh shortcut.
-  Change these under Mod settings > Keyboard controls (PC). Choose keys
-  that do not conflict with existing game controls.
-- Extra assignments are saved per game save slot, including autosaves, in
-  %LOCALAPPDATA%\TalesOfEternia-WatersEdition.ini. The game's save format
-  is unchanged. Copy and back up this INI alongside your saves when moving
+- Three arte pages, six assignments each (18 total). A is blue, B red, C yellow.
+  In battle, hold L2/LT for B or R2/RT for C; release both to select A.
+  C takes priority when both are held. A page button alone does not cast.
+- In the arte menu, tap L2/LT to toggle B/A or R2/RT to toggle C/A. Close the
+  arte/caster chooser before switching. The original six rows are restored.
+- Keyboard defaults: F7 for B, F8 for C. Change these under Mod settings >
+  Keyboard controls (PC). Choose keys that do not conflict with game controls.
+- A/B assignments are preserved. C initially copies B for migrated profiles,
+  or A for new profiles. Retired seventh-slot records remain untouched.
+- Extra assignments and spell usage counts are stored per game save slot in
+  %LOCALAPPDATA%\TalesOfEternia-WatersEdition.ini. The game's save format is
+  unchanged. Copy and back up this INI alongside your saves when moving
   computers; it is not automatically included in Steam Cloud.
-- An optional, enabled-by-default skit notice indicates a camp skit is available.
-  It prefers the lower left on the overworld and lower right in other areas,
-  moves around occupied HUD space, and hides during menus and story scenes.
+- The optional skit notice prefers the lower left on the overworld and lower
+  right elsewhere, moves around occupied HUD space, and hides in story scenes.
 
-CHANGES IN 0.12.6
-- Fix invisible R2 and RT button images on the seventh arte row. Both images
-  now receive the native row's full color and opacity, including menu fades.
-- Use "Artesphere" without an accent in French and English.
-- Make the page A heading blue and the page B heading red.
-- Expanded offline tests reproduce the transparent-button defect in 0.12.5
-  and check the corrected native color, atlas binding, quads and page headings.
-  Final in-game rendering of this newest update still needs visual confirmation.
-- Retain the 0.12.5 spell-palette isolation change. Its final in-game rendering
-  also still needs confirmation; no further spell changes are included here.
+CHANGES SINCE THE PREVIOUS PUBLIC RELEASE
+- Three Artesphere pages of six assignments (18 total), with the original
+  six-row layout, cursor spacing and descriptions restored.
+- Page A is blue, B is red and C is yellow. Hold L2/LT for B or R2/RT for C
+  in battle; release both for A. C takes priority if both are held.
+- In the arte menu, tap L2/LT to toggle B/A or R2/RT to toggle C/A.
+  The seventh assignment is removed; page buttons alone no longer cast.
+- Keyboard defaults are F7 for B and F8 for C, configurable in Mod settings.
+  Existing custom keys are retained, including the former shortcut key for C.
+- Existing A/B assignments are preserved per save. When loading an older
+  profile, C initially copies B. New profiles copy A into B and C.
+- Usage counters are displayed for spells as well as physical artes; element
+  icons appear to their left. Counts are tracked separately by character.
+  New spell counters start at zero; earlier uses cannot be recovered.
+- Victory TP numbers keep their original position and animation, but draw
+  in front of the TP gauge instead of behind it.
+- Optional rebalanced difficulties: Hard/Extreme/Unknown enemy HP multipliers
+  are 1.5/3/5, defense multipliers 1.1/1.2/1.3, and fixed-damage attack
+  multipliers 1.1/1.2/1.5. Normal and other native stat rules are unchanged.
+- Optional simultaneous full vitality lets several Craymels stay at MAX.
+  Summoning still consumes the selected Craymel's vitality.
+- Optional spell cancelling: press the mapped Guard command during an
+  eligible pending incantation to cancel it and defend.
+- Optional deliberate mage jumps: Keele and Meredy require Guard + Up to jump
+  while manually or semi-automatically controlled. Other characters retain
+  their native jump controls.
 
 CURRENT FEATURES
 - Basic physical hits restore 1 TP to party members; Keele and Meredy restore
@@ -161,8 +181,9 @@ CURRENT FEATURES
 - Hold L1 to keep a finished spell ready; release L1 to let it go. L1 takes
   priority over the summon choice. Controller handling targets Steam's primary
   controller slot; other controller slots retain the native controls.
-- Ordinary same-element spells no longer reduce full vitality from 10 to 5.
-  Actual summons retain their native vitality consumption.
+- With Multiple MAX vitality enabled, ordinary spells preserve full vitality
+  across Craymels. Actual summons retain their native vitality consumption.
+  Disable this switch to restore the original charging and reduction rules.
 - Element-colored casting effects for Keele and Meredy, including hand glyphs
   and ground effects. Colors follow the native spell family.
 - Element-colored damage numbers; neutral damage stays white. Damage received

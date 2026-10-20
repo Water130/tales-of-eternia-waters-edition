@@ -6,7 +6,7 @@
 
 A combat and interface mod for **Tales of Eternia Remastered on Windows / Steam**.
 
-**[Download Water's Edition 0.12.6 - Easy Install](https://github.com/Water130/tales-of-eternia-waters-edition/releases/download/v0.12.6-test/Tales-of-Eternia-Waters-Edition-0.12.6-Easy-Install.zip)**
+**[Download Water's Edition 0.12.13 - Easy Install](https://github.com/Water130/tales-of-eternia-waters-edition/releases/download/v0.12.13-test/Tales-of-Eternia-Waters-Edition-0.12.13-Easy-Install.zip)**
 
 Experimental test release. Supports **Steam build 25190541**. The installer
 checks the exact game file before making any changes.
@@ -15,30 +15,38 @@ checks the exact game file before making any changes.
 
 - Basic physical hits restore **1 TP**, or **2 TP for Keele and Meredy**.
 - Post-battle TP recovery starts at **8% on Normal**. Native minimums and modifiers remain.
+  Recovery numbers retain their original animation and draw in front of the TP bars.
 - A smoother dynamic battle camera follows the controlled character and selected target.
   Unsupported stage layouts retain the original framing.
 - Reduced spell cinematic freezes and overlap between supported, different ordinary spells.
-  Spell texture descriptors and color palettes are isolated to prevent cross-spell replacement.
-- Hold **Arte** through an elemental cast to choose the matching owned, learned Craymel at full vitality;
-  hold **L1** to keep a completed spell ready.
-- **Artesphere: two pages of seven assignments (14 total)**, with **L2/LT** for page B
-  and **R2/RT** for the seventh shortcut. Assignments are stored separately per save slot.
-  Native R2 / RT button images identify the seventh row; page A is blue and page B is red.
-- Configurable keyboard aliases: **F7** for the page key and **F8** for the seventh shortcut,
-  changeable under **Mod settings > Keyboard controls (PC)**.
+  Spell texture descriptors and palettes are isolated to prevent cross-spell replacement.
+- Hold **Arte** through an elemental cast to choose the matching owned, learned Craymel
+  at full vitality; hold **L1** to keep a completed spell ready.
+- **Artesphere: three pages of six assignments (18 total)**, using the original six-row menu.
+  A is blue, B is red (**L2/LT**), and C is yellow (**R2/RT**).
+  Hold a modifier in battle; tap it in the editor to toggle that page/A.
+  Assignments are stored separately per save. Existing A/B assignments are preserved.
+- Configurable keyboard modifiers: **F7** for B and **F8** for C, changeable under
+  **Mod settings > Keyboard controls (PC)**.
+- Per-character spell usage counters, with element icons to their left.
+  Physical artes retain their native counters and also show their elements.
+- Optional **Rebalanced difficulties**: Hard/Extreme/Unknown enemy HP **×1.5/×3/×5**,
+  physical defense **×1.1/×1.2/×1.3**, and enemy fixed-damage attacks **×1.1/×1.2/×1.5**.
+- Optional **multiple MAX vitality**, allowing several Craymels to remain fully charged.
+- Optional **Guard spell cancelling** and **Guard + Up jumps for Keele/Meredy**.
 - Compact custom HUD with animated green HP and blue TP gauges, casting bars and an item cooldown bar.
-  Victory TP numbers appear above the party HUD.
 - Vivid elemental casting effects and damage numbers.
-- Smaller rotating Craymel miniatures and element-colored vitality counters below mage portraits.
-- Optional **skit notification**, enabled by default, on the overworld and in fields/dungeons.
+- Smaller rotating Craymel miniatures and colored vitality counters below mage portraits.
+- Optional **skit notification**, on the overworld and in fields/dungeons.
   It avoids occupied HUD space and hides during menus, dialogue and story scenes.
-- Startup skips the presentation screens and goes directly to the opening movie.
+- Startup skips presentation screens and goes directly to the opening movie.
 - Blue **Water's Edition** title lettering with a cyan glow.
-- A native-style **Mod settings** page with keyboard/controller hints, eight independent switches,
-  and a dedicated keyboard configuration page.
+- A native-style **Mod settings** page with keyboard/controller hints, twelve independent
+  switches and a dedicated keyboard configuration page.
 
-The settings page can toggle the camera, post-battle TP, basic-hit TP, damage colors,
-custom HUD, casting bars, item cooldown bar and skit notification. Settings save automatically.
+All twelve switches are enabled by default and saved automatically. Existing
+preferences are retained. Configure the new combat settings at the title screen
+before loading your save.
 
 Mod text is **French when the game's text language is French**, and **English for
 every other language**. All installation archives and public documentation are in English.
@@ -134,10 +142,9 @@ compatible original game DLL; it is **not** included. See [BUILDING.md](BUILDING
 
 The shared ZIP contains binary differences, not a complete game executable or DLL.
 The installer preserves a verified original backup and refuses unknown game-file hashes.
-Automated tests cover native hooks and installation/restoration on disposable test copies;
-they do not prove stability in every battle. The 0.12.6 trigger-button and page-heading changes
-pass offline regressions; final in-game rendering still needs visual confirmation.
-The 0.12.5 spell-palette isolation fix is retained and also still awaits visual confirmation.
+Automated tests cover native hooks at two image bases and installation/restoration on
+disposable test copies. They do not prove whole-game stability. The newest controls,
+save migration and rendering changes still need in-game validation.
 
 Unofficial fan mod, not affiliated with or endorsed by Bandai Namco Entertainment.
 Tales of Eternia and its original assets belong to their respective rights holders.

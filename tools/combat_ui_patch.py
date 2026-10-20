@@ -7,10 +7,33 @@ No gameplay timer, save field, cooldown or rendering template is enlarged.
 
 
 def emit_combat_ui(emit, mem, jump, edit, data_rva):
-    # Victory-only TP number/shadow: retain the native bounce, amounts and X.
-    # Y=160+bounce puts the gain above both the portrait and formation caption.
-    for at in (0x11a411,0x11a462):
-        edit(at,b'\xa0\x00\x00\x00','Victory TP gain above the party HUD',False)
+    # Keep both native X/Y calculations, including Y=220+bounce. Only the
+    # victory digits' render depth changes: 506 is in front of the gauges at
+    # 507. Restore the scratch depth immediately, including between the two
+    # native text passes, so subsequent UI rendering keeps its original layer.
+    victory = emit('ui_victory_tp_foreground', f'''
+        sub rsp, 0x58
+        mov r10, qword ptr [rsp+0x80]
+        mov qword ptr [rsp+0x20], r10
+        mov r10, qword ptr [rsp+0x88]
+        mov qword ptr [rsp+0x28], r10
+        mov r10, qword ptr [rsp+0x90]
+        mov qword ptr [rsp+0x30], r10
+        mov r10, qword ptr [rsp+0x98]
+        mov qword ptr [rsp+0x38], r10
+        movzx r10d, word ptr {mem(0x11ce684)}
+        mov word ptr [rsp+0x40], r10w
+        mov word ptr {mem(0x11ce684)}, 506
+        call 0x1114a0
+        mov r10w, word ptr [rsp+0x40]
+        mov word ptr {mem(0x11ce684)}, r10w
+        add rsp, 0x58
+        ret
+    ''')
+    import struct
+    for at in (0x11a449,0x11a48d):
+        edit(at,b'\xe8'+struct.pack('<i',victory-at-5),
+             'Draw victory TP gain in front of gauges without moving its native animation')
     # Match the miniature group's screen-space anchor. The native pad helper
     # applies a second widescreen transform, which cannot align with this HUD.
     pad = emit('ui_fast_cast_pad', f'''

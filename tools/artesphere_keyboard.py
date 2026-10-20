@@ -3,7 +3,8 @@
 def emit_keyboard(emit,mem,jump,data,state,string,initialize):
     section=string('keys_section','ArtesphereControls',True)
     page=string('keys_page','PageKey',True)
-    extra=string('keys_extra','ShortcutKey',True)
+    extra=string('keys_c','PageCKey',True)
+    legacy=string('keys_legacy','ShortcutKey',True)
     kernel=string('keys_kernel','kernel32.dll')
     user=string('keys_user','user32.dll')
     apis={name:string('keys_'+name,name) for name in (
@@ -28,10 +29,19 @@ def emit_keyboard(emit,mem,jump,data,state,string,initialize):
         '''
     load=''
     for i,(key,default) in enumerate(((page,118),(extra,119))):
+        # Preserve an existing keyboard binding for the retired seventh slot.
+        fallback = f'''
+            lea rcx, {mem(section)}
+            lea rdx, {mem(legacy)}
+            mov r8d, {default}
+            lea r9, {mem(data+0x3000)}
+            call qword ptr {mem(data+0x1b08)}
+            mov r8d, eax
+        ''' if i == 1 else f'mov r8d, {default}'
         load+=f'''
+            {fallback}
             lea rcx, {mem(section)}
             lea rdx, {mem(key)}
-            mov r8d, {default}
             lea r9, {mem(data+0x3000)}
             call qword ptr {mem(data+0x1b08)}
             cmp eax, 1
@@ -115,6 +125,6 @@ def emit_keyboard(emit,mem,jump,data,state,string,initialize):
         jmp 0x19df42
     ''')
     jump(0x19df3d,5,bridge,'Poll configurable foreground keyboard aliases after native input')
-    return dict(section='ArtesphereControls',page_key=118,shortcut_key=119,
+    return dict(section='ArtesphereControls',page_b_key=118,page_c_key=119,
                 keys_rva=keys,api_rva=table,initialized_rva=flag,previous_rva=previous,
-                section_rva=section,page_name_rva=page,shortcut_name_rva=extra)
+                section_rva=section,page_name_rva=page,page_c_name_rva=extra)

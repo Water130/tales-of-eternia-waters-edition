@@ -197,18 +197,19 @@ def check_recovery_summon(uc, base, manifest, actors, enemies, stats, impact, sp
 
     for char in [2,3]:
         for element in range(10):
-            for initial, expected in [(0xa000,0xa000),(0x9000,0x9800),(0x9800,0xa000)]:
+            full = 0xa000 if 'multiple_vitality' in manifest else 0x5000
+            for initial, expected in [(0xa000,full),(0x9000,0x9800),(0x9800,0xa000)]:
                 setup(char)
                 put(master+0xbba+element*8, 'H', initial)
                 reg('rcx', char); reg('rdx', element); reg('r8', 0x800); reg('r9', 0)
                 execute(0x90380)
                 assert get(master+0xbba+element*8, 'H') == expected, (char, element, initial)
-            # Spell cast by the other mage also must not lower full gauge to five.
+            # The MAX option also applies to a spell cast by the other mage.
             setup(char, owner=4 if char == 2 else 3)
             reg('rcx', char); reg('rdx', element); reg('r8', 0x800); reg('r9', 0)
             execute(0x90380)
-            assert get(master+0xbba+element*8, 'H') == 0xa000
-    checks.append('Native vitality routine: full stays full for both mages; ordinary charging still reaches ten')
+            assert get(master+0xbba+element*8, 'H') == full
+    checks.append('Native vitality routine follows the MAX option for both mages; ordinary charging still reaches ten')
 
     for element in range(10):
         for level in [1, 15, 30]:

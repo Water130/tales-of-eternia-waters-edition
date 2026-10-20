@@ -15,6 +15,10 @@ FEATURES = [
     ('CastBars', "Barres d'incantation", 'Casting progress bars'),
     ('ItemBar', "Barre de recharge des objets", 'Item cooldown bar'),
     ('SkitNotice', 'Notification des saynètes', 'Skit notification'),
+    ('DifficultyRebalance', 'Difficultés rééquilibrées', 'Rebalanced difficulties'),
+    ('MultipleMaxVitality', 'Vitalités multiples au MAX', 'Multiple MAX vitality gauges'),
+    ('GuardSpellCancel', 'Annulation de sort par garde', 'Guard cancels casting'),
+    ('MageGuardJump', 'Saut des mages : Garde + Haut', 'Mage jump: Guard + Up'),
 ]
 
 
@@ -22,7 +26,9 @@ def emit_settings(emit, mem, jump, data, symbols):
     count = len(FEATURES)
     header = count
     keyboard = count + 1
-    assert count == 8  # Eight bytes in the opening-state snapshot.
+    assert count <= 16  # Two qwords reserved for flags and opening snapshot.
+    row_step = min(17, 160//count)
+    assert row_step >= 12 and 64.5 + row_step*count < 225
     payload = bytearray()
     strings = {}
     def string(name, text, wide=False):
@@ -370,6 +376,8 @@ def emit_settings(emit, mem, jump, data, symbols):
         call {initialize:#x}
         mov rax, qword ptr {mem(flags)}
         mov qword ptr {mem(snapshot)}, rax
+        mov rax, qword ptr {mem(flags+8)}
+        mov qword ptr {mem(snapshot+8)}, rax
         mov byte ptr {mem(reset_choice)}, 0
         mov byte ptr {mem(page)}, 1
         mov byte ptr {mem(selection)}, 0
@@ -519,7 +527,7 @@ def emit_settings(emit, mem, jump, data, symbols):
         jne regular_row
         mov edx, {count}
     regular_row:
-        imul edx, edx, 17
+        imul edx, edx, {row_step}
         add edx, 55
         cvtsi2ss xmm1, edx
         mov eax, 31
@@ -650,13 +658,13 @@ def emit_settings(emit, mem, jump, data, symbols):
     label_ready:
         add rcx, rdi
         mov edx, 34
-        imul r8d, ebx, 17
+        imul r8d, ebx, {row_step}
         add r8d, 55
         mov r9d, 111
         mov eax, 0xff49bfff
         call {field:#x}
         mov edx, 150
-        imul r8d, ebx, 17
+        imul r8d, ebx, {row_step}
         add r8d, 55
         xor r9d, r9d
         mov eax, 0xff808080
@@ -668,7 +676,7 @@ def emit_settings(emit, mem, jump, data, symbols):
         {localized('on','rcx')}
         call {field:#x}
         mov edx, 190
-        imul r8d, ebx, 17
+        imul r8d, ebx, {row_step}
         add r8d, 55
         xor r9d, r9d
         mov eax, 0xfffffdfa
@@ -686,13 +694,13 @@ def emit_settings(emit, mem, jump, data, symbols):
         jb row
         {localized('keyboard')}
         mov edx, 34
-        mov r8d, {55+17*count}
+        mov r8d, {55+row_step*count}
         mov r9d, 111
         mov eax, 0xff49bfff
         call {field:#x}
         {localized('open')}
         mov edx, 150
-        mov r8d, {55+17*count}
+        mov r8d, {55+row_step*count}
         xor r9d, r9d
         mov eax, 0xfffffdfa
         call {field:#x}
@@ -700,7 +708,7 @@ def emit_settings(emit, mem, jump, data, symbols):
         cmp eax, {keyboard}
         jne feature_cursor
         mov edx, 55
-        mov r8d, {43+17*count}
+        mov r8d, {43+row_step*count}
         jmp cursor
     feature_cursor:
         cmp eax, {count}
@@ -709,7 +717,7 @@ def emit_settings(emit, mem, jump, data, symbols):
         movzx edx, byte ptr [rdx+rax]
         imul edx, edx, -40
         add edx, 95
-        imul r8d, eax, 17
+        imul r8d, eax, {row_step}
         add r8d, 43
         jmp cursor
     header_cursor:
@@ -809,7 +817,7 @@ def emit_settings(emit, mem, jump, data, symbols):
     logo_info['visibility']='After native title reveal (phase >=230), before and after Start; hidden in settings and transitions'
     return dict(flags_rva=flags, initialized_rva=initialized,page_rva=page,selection_rva=selection,
                 error_rva=error,reset_choice_rva=reset_choice,snapshot_rva=snapshot,path_rva=path,strings=strings,table_rva=table,
-                features=[k for k,_,_ in FEATURES],default='enabled',french_text_language=3,
+                features=[k for k,_,_ in FEATURES],default='enabled',french_text_language=3,row_step=row_step,
                 configuration='%LOCALAPPDATA%/TalesOfEternia-WatersEdition.ini',
                 input='native controller/keyboard confirm, back, directions; page uses separate cursor',
                 native_entries_preserved=True,visual_validation=False,

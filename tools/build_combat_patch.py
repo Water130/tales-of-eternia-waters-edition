@@ -1,7 +1,7 @@
 """Build a reversible, version-locked native combat experiment. Never installs it.
 
 RVA addresses refer ONLY to Steam build 25190541 / ORIGINAL_SHA256.
-No spell unlocks or save edits. x64 hooks are position independent.
+x64 hooks are position independent.
 """
 from pathlib import Path
 import argparse, hashlib, json, re, struct, sys
@@ -26,6 +26,12 @@ digest = lambda b: hashlib.sha256(b).hexdigest()
 def build(features):
     if 'mod_settings' in features and 'combat_ui' not in features:
         raise ValueError('mod_settings requires combat_ui for its native panel renderer')
+    if 'difficulty_rebalance' in features and 'mod_settings' not in features:
+        raise ValueError('difficulty_rebalance requires mod_settings for its optional switch')
+    if 'multiple_vitality' in features and 'mod_settings' not in features:
+        raise ValueError('multiple_vitality requires mod_settings for its optional switch')
+    if 'cast_defense' in features and 'mod_settings' not in features:
+        raise ValueError('cast_defense requires mod_settings for its independent switches')
     source = BACKUP if BACKUP.exists() else GAME
     original = source.read_bytes()
     if digest(original) != ORIGINAL_SHA256:
@@ -455,7 +461,7 @@ def build(features):
     if 'summon_hold' in features:
         if 'summon_modifier' in features:raise ValueError('Choose one summon input scheme')
         from cast_hold_patch import emit_cast_hold
-        emit_cast_hold(emit, mem, jump, edit, data_rva, 'concurrent_spells' in features, 'artesphere' in features)
+        emit_cast_hold(emit, mem, jump, edit, data_rva, 'concurrent_spells' in features)
     color_data = b''
     if 'casting_colors' in features:
         from casting_color_patch import emit_casting_colors
@@ -468,7 +474,7 @@ def build(features):
         damage_palette = emit_damage_colors(emit, mem, jump, data_rva)
         active_gate = None
     if 'combat_ui' in features:
-        active_gate = {site:4 for site in (0xd1aa5,0xd1b38,0x80af8,0x80b1b,0xd1c23,0xd1cd4,0xd1d46,0xd53a5)}
+        active_gate = {site:4 for site in (0xd1aa5,0xd1b38,0x80af8,0x80b1b,0xd1c23,0xd1cd4,0xd1d46,0xd53a5,0x11a449,0x11a48d)}
         active_gate.update({site:5 for site in (0x112ff8,0x8152f,0xd458e)})
         active_gate[0xd5ad4] = 6
         from combat_ui_patch import emit_combat_ui
@@ -521,6 +527,25 @@ def build(features):
         texture_offset = align(particle_offset+particle_info['size'],0x1000)
         texture_info = emit_spell_textures(emit, mem, jump, data_rva+texture_offset)
 
+    difficulty_info = None
+    if 'difficulty_rebalance' in features:
+        active_gate = 8
+        from difficulty_patch import emit_difficulty
+        difficulty_info = emit_difficulty(emit, jump)
+        active_gate = None
+
+    vitality_info = None
+    if 'multiple_vitality' in features:
+        active_gate = 9
+        from multiple_vitality_patch import emit_multiple_vitality
+        vitality_info = emit_multiple_vitality(emit, jump, edit)
+        active_gate = None
+
+    defense_info = None
+    if 'cast_defense' in features:
+        from cast_defense_patch import emit_cast_defense
+        defense_info = emit_cast_defense(emit, mem, jump, data_rva)
+
     if len(code)>code_capacity:
         raise RuntimeError('Hook code exceeds reserved section')
     # Two sections: executable code and nonexecutable writable state. Original
@@ -541,7 +566,9 @@ def build(features):
     state = bytearray(state_size)
     if artesphere_data:state[artesphere_offset:artesphere_offset+len(artesphere_data)]=artesphere_data
     if logo_png:state[0x4000:0x4000+len(logo_png)] = logo_png
-    if state_size >= 0x2000:state[0x1a00:0x1a08] = b'\1'*8
+    if state_size >= 0x2000:
+        from mod_settings_patch import FEATURES
+        state[0x1a00:0x1a00+len(FEATURES)] = b'\1'*len(FEATURES)
     if settings_data:state[0x2000:0x2000+len(settings_data)] = settings_data
     if artesphere_info:
         kbui=artesphere_info['keyboard']['ui']
@@ -577,13 +604,13 @@ def build(features):
     struct.pack_into('<I',result,pe.OPTIONAL_HEADER.get_field_absolute_offset('CheckSum'),check_pe.generate_checksum())
     OUT.mkdir(parents=True,exist_ok=True)
     (OUT/'GameNative.dll').write_bytes(result)
-    manifest = {'version':'combat-test-0.12.6','steam_build':25190541,'original_sha256':ORIGINAL_SHA256,
+    manifest = {'version':'combat-test-0.12.13','steam_build':25190541,'original_sha256':ORIGINAL_SHA256,
                 'patched_sha256':digest(result),'features':features,'edits':edits,'hooks':hooks,
                 'symbols':symbols,'code_rva':code_rva,'data_rva':data_rva,
                 'concurrent_effect_allowlist':allowed,'runtime_validated':False,
                 'limits':['Distinct ordinary large effects only; same effect and special sequences remain serialized.',
                           'Dynamic camera bounds cover 82 audited rectangular stage grids. Unsupported grids retain their original camera rotation and position. Forest stages 6-8 additionally account for their offset backdrop at depth 576. New background behavior still requires in-game visual validation.',
-                          'Eight per-user title-screen switches, French for text language 3 and English otherwise, tested in emulation. Use controller or keyboard; custom mouse selection is not implemented. Title branding, panel layout and real settings persistence still need in-game validation.',
+                          'Twelve per-user title-screen switches, French for text language 3 and English otherwise, tested in emulation. Use controller or keyboard; custom mouse selection is not implemented. Title branding, panel layout and real settings persistence still need in-game validation.',
                           'Ordinary large effects 1-25, 61, 62 and 66 preserve battle pitch; special sequences retain native cameras. Spread retains its vanilla column with an added small textured top cap; the new cap needs in-game visual validation. Ondine perimeter and zoom-scaled shadows remain experimental. Other summon backdrops were not extended.',
                           'Craymel miniatures use an 8x8 quad and eight directional poses: the second half-turn mirrors the native half-turn atlas. New size and continuous rotation require visual confirmation.',
                           'Held Arte at cast completion selects learned owned summons; L1 holds ready casts. Steam controller slot zero only; other slots retain native controls.',
@@ -591,6 +618,9 @@ def build(features):
     if color_data:
         from casting_color_patch import COLORS
         manifest['casting_colors'] = COLORS
+    if difficulty_info:manifest['difficulty_rebalance']=difficulty_info
+    if vitality_info:manifest['multiple_vitality']=vitality_info
+    if defense_info:manifest['cast_defense']=defense_info
     if floor_info:manifest['floor_extension']=floor_info
     if particle_info:manifest['particle_capacity']=particle_info
     if texture_info:manifest['spell_textures']=texture_info
@@ -599,7 +629,8 @@ def build(features):
     if skit_info:manifest['skit_notice']=skit_info
     if artesphere_info:
         manifest['artesphere']=artesphere_info
-        manifest['limits'].append('Artesphere: two pages of seven commands, per-save sidecar stored locally beside mod preferences. L2 toggles editor pages and is held for page B in battle; R2 is the seventh command. F7/F8 are configurable foreground keyboard aliases. Only controller zero uses the extra pages. Runtime validation pending; copy the sidecar with saves when changing PCs.')
+        manifest['limits'].append('Artesphere: three pages of six commands, per-save sidecar stored locally beside mod preferences. L2 toggles B/A and R2 toggles C/A in the native six-row editor; hold L2 for B or R2 for C in battle, with C priority. F7/F8 are configurable foreground keyboard aliases. Legacy B assignments migrate; C initially copies B for legacy saves and A for new profiles. Only controller zero uses the extra pages. Runtime validation pending; copy the sidecar with saves when changing PCs.')
+        manifest['limits'].append('Spell usage: new counters start at zero and are stored per character and save slot in ArteUsage-v1 beside mod preferences. Native physical counts remain authoritative. Casts count on successful release, menu healing after application; no reconstruction of past casts. Keep the INI sidecar with your saves. Offline verification does not replace in-game visual testing.')
     if damage_palette:manifest['damage_colors']='actual impact element; party received damage takes precedence; heal/TP recovery preserved'
     if 'concurrent_spells' in features:
         queue_names = ['Allow distinct ordinary spells after resource readiness',
@@ -629,6 +660,6 @@ def build(features):
 
 if __name__=='__main__':
     ap=argparse.ArgumentParser()
-    ap.add_argument('--features',nargs='+',choices=['tp','camera','no_freeze','concurrent_spells','victory_tp','summon_modifier','summon_hold','casting_colors','camera_floor','damage_colors','combat_ui','startup_opening','mod_settings','skit_notice','artesphere'],
-                    default=['tp','camera','no_freeze','concurrent_spells','victory_tp','summon_hold','casting_colors','camera_floor','damage_colors','combat_ui','startup_opening','mod_settings','skit_notice','artesphere'])
+    ap.add_argument('--features',nargs='+',choices=['tp','camera','no_freeze','concurrent_spells','victory_tp','summon_modifier','summon_hold','casting_colors','camera_floor','damage_colors','combat_ui','startup_opening','mod_settings','skit_notice','artesphere','difficulty_rebalance','multiple_vitality','cast_defense'],
+                    default=['tp','camera','no_freeze','concurrent_spells','victory_tp','summon_hold','casting_colors','camera_floor','damage_colors','combat_ui','startup_opening','mod_settings','skit_notice','artesphere','difficulty_rebalance','multiple_vitality','cast_defense'])
     build(ap.parse_args().features)

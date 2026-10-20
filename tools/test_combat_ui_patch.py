@@ -73,7 +73,8 @@ def check_combat_ui(uc, base, manifest, actors, enemies, stats, impact, sp,
         assert length%48==0
         return [[dict(rgb=tuple(uc.mem_read(allocation+8+o+v*12,3)),
                       x=get(allocation+8+o+v*12+4,'h'),
-                      y=get(allocation+8+o+v*12+6,'h')) for v in range(4)]
+                      y=get(allocation+8+o+v*12+6,'h'),
+                      z=get(allocation+8+o+v*12+8,'h')) for v in range(4)]
                 for o in range(0,length,48)]
 
     if 'damage_colors' in manifest['features']:
@@ -182,6 +183,7 @@ def check_combat_ui(uc, base, manifest, actors, enemies, stats, impact, sp,
             assert q[2][1]['x']-q[2][0]['x']==15
             assert q[1][1]['x']==party_slot*48+11+80, 'gauge right edge moved'
             assert q[2][0]['y']==y+16
+            assert all(v['z']==507 for quad in q for v in quad)
             assert q[2][0]['rgb']==((84,219,120) if metric==0 else (80,173,255))
             assert bytes(uc.mem_read(base+0x11ce620,0xa0))==scratch
             assert bytes(uc.mem_read(actors,0x1000))==gameplay
@@ -476,8 +478,57 @@ def check_combat_ui(uc, base, manifest, actors, enemies, stats, impact, sp,
                 put(actors+0x1a,'B',slot)
                 execute(start,stop)
                 assert uc.reg_read(regs['rcx'])==23
-                assert uc.reg_read(regs['r8'])==160+bounce
+                assert uc.reg_read(regs['r8'])==220+bounce
                 assert uc.reg_read(regs['rdx'])==(slot*48-bounce-8)&0xffffffff
-    checks.append('Victory TP numbers: native amount/X/bounce preserved; both glyph passes above HUD for all four slots')
+    # Run the actual native number/glyph/quad pipeline, intercepting only
+    # texture binding and command dispatch. Compare against the unmodified
+    # draw calls via the disabled-HUD option: coordinates, UVs, sizes, colors
+    # and both native text passes must be identical, with only Z changed.
+    import struct
+    for wide in (0,1):
+        for slot in range(4):
+            for bounce in (-12,0,12,24):
+                for amount in (23,9999):
+                    outputs=[]
+                    for enabled in ((0,1) if 'mod_settings' in manifest['features'] else (1,)):
+                        setup()
+                        put(data+0x1a04,'B',enabled)
+                        put(base+0x573c3e,'B',wide)
+                        put(actors+0xc100,'H',0x400 if wide else 0)
+                        context=actors+0xc800
+                        put(base+0x644a10,'Q',context)
+                        put(context+0x4d0,'Q',allocation+0x10000)
+                        put(context+0x4d8,'Q',4096)
+                        put(context+0x4e0,'I',0)
+                        # Native recovery setup at 11a15a/11a166.
+                        put(base+0x11ce684,'H',510)
+                        put(base+0x11ce680,'I',1)
+                        put(base+0x11ce670,'I',0xff80ff80)
+                        reg('rsi',actors);reg('rdi',amount)
+                        reg('r14',bounce&0xffffffffffffffff);reg('r13',0x59)
+                        put(actors+0x1a,'B',slot)
+                        gameplay=bytes(uc.mem_read(actors,0x1000))
+                        commands=[]
+                        def capture_victory(rva,rsp):
+                            if rva==0x60bf0:
+                                commands.append(bytes(uc.mem_read(uc.reg_read(regs['rdx']),80)))
+                        execute(0x11a40e,0x11a492,(0x12b90,0x11ded0,0x60bf0),capture_victory)
+                        glyphs=[struct.unpack_from('<5f',c,8) for c in commands
+                                if struct.unpack_from('<I',c)[0]==8]
+                        assert glyphs, 'native victory glyphs were not submitted'
+                        assert all(g[2]==(506 if enabled else 510) for g in glyphs),glyphs
+                        assert get(base+0x11ce684,'H')==510, 'depth leaked to subsequent UI'
+                        assert bytes(uc.mem_read(actors,0x1000))==gameplay
+                        normalized=[]
+                        for c in commands:
+                            c=bytearray(c)
+                            if struct.unpack_from('<I',c)[0]==8:
+                                struct.pack_into('<f',c,16,510)
+                            normalized.append(bytes(c))
+                        outputs.append(normalized)
+                    assert outputs[0]==outputs[-1], 'victory rendering changed beyond depth'
+    if 'mod_settings' in manifest['features']:
+        put(data+0x1a04,'B',1)
+    checks.append('Victory TP: original amount/X/Y/bounce and both native glyph passes preserved in all slots/widescreen modes; actual glyph depth 506 in front of gauge depth 507; scratch restored; HUD-off keeps native depth')
     uc.mem_unmap(allocation,0x2001000)
     return checks,count

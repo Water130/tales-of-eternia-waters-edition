@@ -4,8 +4,8 @@ Key bindings are mod-owned VK aliases; native Unity bindings remain untouched.
 
 def emit_keys_ui(emit,mem,data,state,string,loc,symbols,keyboard):
     strings=[('keytitle','Commandes clavier (PC)','Keyboard controls (PC)'),
-        ('keypage','Maintenir : page 2 des artes','Hold: arte page 2'),
-        ('keyextra','Septième arte','Seventh arte'),
+        ('keypage','Maintenir : page B des artes','Hold: arte page B'),
+        ('keyextra','Maintenir : page C des artes','Hold: arte page C'),
         ('keyinfo','Validez une commande, puis appuyez sur la touche souhaitée.','Confirm a command, then press the desired key.'),
         ('keywait','Relâchez les touches, puis appuyez sur la nouvelle touche.','Release all keys, then press the new key.'),
         ('keycancel','Échap : annuler','Esc: cancel'),
@@ -99,7 +99,7 @@ def emit_keys_ui(emit,mem,data,state,string,loc,symbols,keyboard):
         lea rdx, {mem(keyboard['page_name_rva'])}
         test ebx, ebx
         je name
-        lea rdx, {mem(keyboard['shortcut_name_rva'])}
+        lea rdx, {mem(keyboard['page_c_name_rva'])}
     name:
         lea rcx, {mem(keyboard['section_rva'])}
         lea r9, {mem(data+0x3000)}

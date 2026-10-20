@@ -6,8 +6,9 @@ Loading previews only updates a pending record; the live profile changes at the
 actual native import. The original game file is never extended or rewritten.
 """
 
-def emit_storage(emit,mem,jump,data,state,profile,string,symbols):
-    section=string('storage_section','Artesphere-v1',True)
+def emit_storage(emit,mem,jump,data,state,profile,string,symbols,usage):
+    section=string('storage_section','Artesphere-v2',True)
+    legacy=string('storage_legacy','Artesphere-v1',True)
     kernel=string('storage_kernel','kernel32.dll')
     get=string('storage_get','GetPrivateProfileStructW')
     put=string('storage_put','WritePrivateProfileStructW')
@@ -27,6 +28,8 @@ def emit_storage(emit,mem,jump,data,state,profile,string,symbols):
         jne next
         ret
     ''')
+    from arte_usage_patch import emit_usage_storage
+    usage_hooks = emit_usage_storage(emit,mem,data,state,string,fingerprint,usage)
     # ECX write flag, EDX slot, R8 serialized buffer, R9 96-byte mod profile.
     io=emit('artesphere_storage_io',f'''
         push rbx
@@ -82,6 +85,7 @@ def emit_storage(emit,mem,jump,data,state,profile,string,symbols):
         cmp eax, 96
         jb copy_out
     read_record:
+        mov dword ptr [rsp+0x50], 0
         lea rcx, {mem(section)}
         lea rdx, [rsp+0x40]
         lea r8, [rsp+0x60]
@@ -90,12 +94,38 @@ def emit_storage(emit,mem,jump,data,state,profile,string,symbols):
         mov qword ptr [rsp+0x20], rax
         call qword ptr [rsp+0xd8]
         test eax, eax
+        jne record_ready
+        test ebx, ebx
+        jne failed
+        # Read legacy records only as a fallback; never overwrite them.
+        lea rcx, {mem(legacy)}
+        lea rdx, [rsp+0x40]
+        lea r8, [rsp+0x60]
+        mov r9d, 104
+        lea rax, {mem(data+0x3000)}
+        mov qword ptr [rsp+0x20], rax
+        call qword ptr [rsp+0xd8]
+        test eax, eax
         je failed
+        mov dword ptr [rsp+0x50], 1
+    record_ready:
         test ebx, ebx
         jne success
         mov rax, qword ptr [rsp+0xd0]
         cmp rax, qword ptr [rsp+0x60]
         jne failed
+        cmp dword ptr [rsp+0x50], 0
+        je migrated
+        # Keep B's 44 bytes; C starts as B, not the obsolete seventh slots.
+        xor eax, eax
+    migrate:
+        mov edx, dword ptr [rsp+rax+0x68]
+        mov dword ptr [rsp+rax+0x94], edx
+        add eax, 4
+        cmp eax, 44
+        jb migrate
+        mov qword ptr [rsp+0xc0], 0
+    migrated:
         xor eax, eax
     copy_in:
         mov rdx, qword ptr [rsp+rax+0x68]
@@ -127,6 +157,7 @@ def emit_storage(emit,mem,jump,data,state,profile,string,symbols):
         add eax, 8
         cmp eax, 96
         jb next
+        {usage_hooks['capture']}
         mov rbx, qword ptr [rsp+0x30]
         jmp 0x24db28
     ''')
@@ -151,6 +182,7 @@ def emit_storage(emit,mem,jump,data,state,profile,string,symbols):
         cmp eax, 96
         jb next
     done:
+        {usage_hooks['queue']}
         mov rax, qword ptr [rbp+0x10]
         lea rcx, [rbp+0x10]
         jmp 0x3f3a8
@@ -175,6 +207,7 @@ def emit_storage(emit,mem,jump,data,state,profile,string,symbols):
         call {io:#x}
         test eax, eax
         sete byte ptr {mem(state+7)}
+        {usage_hooks['commit']}
     done:
         movzx eax, byte ptr [rsp+0x20]
         add rsp, 0x28
@@ -198,6 +231,7 @@ def emit_storage(emit,mem,jump,data,state,profile,string,symbols):
         lea r9, {mem(pending)}
         call {io:#x}
         mov byte ptr {mem(valid)}, al
+        {usage_hooks['read']}
     done:
         jmp 0x40172
     ''')
@@ -205,6 +239,7 @@ def emit_storage(emit,mem,jump,data,state,profile,string,symbols):
     # Native load import mutates localized name IDs in its source buffer. The
     # sidecar was already fingerprinted before this mutation in the read thread.
     load=emit('artesphere_import_profile',f'''
+        {usage_hooks['load']}
         mov byte ptr {mem(state)}, 0
         mov byte ptr {mem(state+1)}, 0
         mov byte ptr {mem(state+2)}, 0
@@ -238,6 +273,7 @@ def emit_storage(emit,mem,jump,data,state,profile,string,symbols):
     jump(0x24db40,6,load,'Apply matching profile only when a save is actually imported')
     reset=emit('artesphere_new_game',f'''
         call 0x2a41e0
+        {usage_hooks['reset']}
         mov dword ptr {mem(state)}, 0
         mov byte ptr {mem(valid)}, 0
         lea r10, {mem(profile)}
@@ -253,4 +289,6 @@ def emit_storage(emit,mem,jump,data,state,profile,string,symbols):
     return dict(kind='per-slot INI sidecar with native-snapshot fingerprint',
                 profile_size=96,snapshot_rva=snapshot,pending_rva=pending,
                 pending_ptr_rva=pending_ptr,pending_valid_rva=valid,
-                worker_profiles_rva=workers,section='Artesphere-v1',save_format_modified=False)
+                worker_profiles_rva=workers,section='Artesphere-v2',
+                legacy_section='Artesphere-v1',migration='Preserve B; initialize C from B; retain legacy record',
+                save_format_modified=False)
