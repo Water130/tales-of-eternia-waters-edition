@@ -1,5 +1,21 @@
 # Changelog
 
+## 0.12.6 - Experimental release
+
+- Fix invisible R2 / RT images on the seventh arte row. The buttons now use the
+  native row's full RGBA color instead of a value with zero alpha, including menu fades.
+- Use **Artesphere** without an accent in French and English.
+- Color the **Artesphere — Page A** heading blue and **Artesphere — Page B** red.
+- Extend native rendering tests to cover actual color, atlas binding and quad commands,
+  with opaque, half-opacity and transparent menu states. The test reproduces the
+  invisible-button defect in 0.12.5.
+- Retain the 0.12.5 spell-palette isolation changes; no new spell changes are included.
+
+Native x64 checks pass at two image bases. Installer and uninstaller checks pass
+on disposable test copies. Final in-game rendering of the newest changes and the
+earlier palette-isolation fix still needs visual confirmation.
+These checks do not guarantee whole-game stability.
+
 ## 0.12.5 - Experimental release
 
 - Fix shared native spell palettes: loading a later supported spell no longer

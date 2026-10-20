@@ -1,5 +1,5 @@
 TALES OF ETERNIA - WATER'S EDITION
-0.12.5 - Experimental test release
+0.12.6 - Experimental test release
 Windows / Steam build 25190541 only
 
 This is the current combat and interface prototype. It is intended for testing;
@@ -64,7 +64,7 @@ Open the new Mod settings entry at the bottom of the title menu. The title also
 displays a blue, textured Water's Edition wordmark with a soft cyan glow below
 Remastered, inspired by the original title lettering. It appears after the
 original title reveal, including on the Press Start screen.
-Version 0.12.5 places the page after the title's drawing pass so the logo no
+The settings page draws after the title's drawing pass so the logo no
 longer draws over it. It uses the native Options layout: capsule heading,
 window frames and color, gold labels, side-by-side choices, gradient highlight
 and hand cursor. Bottom-right button hints use the game's live keyboard and
@@ -114,6 +114,7 @@ automatically. Other platforms and builds have not been verified.
 ARTESPHERE AND SKIT NOTICE
 - Two arte pages, seven assignments each (14 total). In the arte menu, tap
   L2/LT to switch pages. In battle, hold L2/LT for page B; release for page A.
+  The Artesphere heading is blue on page A and red on page B.
 - R2/RT is the seventh shortcut, assigned through the normal arte menu.
   It can command an active ally. Its native cursor, description and button
   images are integrated into the seven-row layout.
@@ -128,14 +129,16 @@ ARTESPHERE AND SKIT NOTICE
   It prefers the lower left on the overworld and lower right in other areas,
   moves around occupied HUD space, and hides during menus and story scenes.
 
-CHANGES IN 0.12.5
-- Separate native palette ownership prevents a later supported spell from
-  overwriting the palette used by an earlier spell's live projectiles.
-  The Air Thrust -> Spread regression is covered by native offline tests.
-  Final in-game rendering of this change still requires visual validation.
-- Native R2 and RT button images replace the plain seventh-shortcut label.
-- Includes earlier fixes for the seventh-row cursor/description, skit placement,
-  unsupported battle-camera layouts and victory TP numbers above the HUD.
+CHANGES IN 0.12.6
+- Fix invisible R2 and RT button images on the seventh arte row. Both images
+  now receive the native row's full color and opacity, including menu fades.
+- Use "Artesphere" without an accent in French and English.
+- Make the page A heading blue and the page B heading red.
+- Expanded offline tests reproduce the transparent-button defect in 0.12.5
+  and check the corrected native color, atlas binding, quads and page headings.
+  Final in-game rendering of this newest update still needs visual confirmation.
+- Retain the 0.12.5 spell-palette isolation change. Its final in-game rendering
+  also still needs confirmation; no further spell changes are included here.
 
 CURRENT FEATURES
 - Basic physical hits restore 1 TP to party members; Keele and Meredy restore

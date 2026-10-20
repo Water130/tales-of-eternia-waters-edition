@@ -6,7 +6,7 @@ ROOT=Path(__file__).resolve().parents[1]
 STAGE=ROOT/'build/shareable'
 SOURCE=ROOT/'build/combat-test'
 TEMPLATES=ROOT/'tools/release'
-VERSION='0.12.5'
+VERSION='0.12.6'
 NAME=f'Tales-of-Eternia-Waters-Edition-{VERSION}-Easy-Install'
 FILES=['Install.cmd','Uninstall.cmd','README.txt','Support/Patch-Mod.ps1',
        'Support/patch.json','Support/Mod-details.txt','Support/SHARE.txt',

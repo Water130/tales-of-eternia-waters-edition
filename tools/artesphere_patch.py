@@ -24,8 +24,8 @@ def emit_artesphere(emit, mem, jump, edit, data, symbols, state):
         assert cursor <= len(payload)
         return strings[key]
     for key, fr, en in [
-        ('a','Artesphère — Page A','Artesphere — Page A'),
-        ('b','Artesphère — Page B','Artesphere — Page B'),
+        ('a','Artesphere — Page A','Artesphere — Page A'),
+        ('b','Artesphere — Page B','Artesphere — Page B'),
         ('trigger','/','/'),
         ('help','L2 / touche Page : changer de page','L2 / Page key: switch page'),
         ('fail','Affectations du mod : sauvegarde indisponible','Mod assignments: could not save'),

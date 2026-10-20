@@ -154,7 +154,10 @@ def emit_ui(emit,mem,jump,edit,state,profile,extra,strings,loc,symbols,
         mov dword ptr [rsp+0x20], 0x432e0000
         mov dword ptr [rsp+0x28], 0
         mov dword ptr [rsp+0x30], 0x41400000
-        mov dword ptr [rsp+0x38], 255
+        # 13410 takes packed RGBA, not an alpha byte. Reuse the native row
+        # color (original frame +0x80) so the glyphs also follow menu fading.
+        mov eax, dword ptr [rsp+0xc0]
+        mov dword ptr [rsp+0x38], eax
         call 0x13410
         mov ecx, 15
         mov edx, 3
@@ -164,13 +167,14 @@ def emit_ui(emit,mem,jump,edit,state,profile,extra,strings,loc,symbols,
         mov dword ptr [rsp+0x20], 0x432e0000
         mov dword ptr [rsp+0x28], 0
         mov dword ptr [rsp+0x30], 0x41400000
-        mov dword ptr [rsp+0x38], 255
+        mov eax, dword ptr [rsp+0xc0]
+        mov dword ptr [rsp+0x38], eax
         call 0x13410
         {loc('trigger')}
         mov edx, 44
         mov r8d, 176
         mov r9d, -6
-        mov eax, 0xffffffff
+        mov eax, dword ptr [rsp+0xc0]
         call {text:#x}
         add rsp, 0x40
         jmp 0x2258ee
@@ -314,10 +318,14 @@ def emit_ui(emit,mem,jump,edit,state,profile,extra,strings,loc,symbols,
         je title
         {loc('b')}
     title:
+        mov eax, 0xffffad61
+        cmp byte ptr {mem(page)}, 0
+        je color_ready
+        mov eax, 0xff6666ff
+    color_ready:
         mov edx, 240
         mov r8d, 9
         mov r9d, 7
-        mov eax, 0xffffcf8d
         call {text:#x}
         {loc('help')}
         mov edx, 240

@@ -16,6 +16,7 @@ def check_artesphere(u,base,m,actors,sp,reset,put,get,reg,regs):
     sentinel=base+m['data_rva']-16;count=0;records={};write_fail=False;native_save=True
     held=set();foreground=True;settings={};polls=[];native_edits=False;draws=[];admit=True
     native_inputs=[];executions=[];checks=[];real_input=False;real_mouse=False;row_render=False;key_writes=[];key_save_ok=True;row_text_y=[];trigger_glyphs=[]
+    row_commands=[];text_colors=[]
     def string(ptr,wide=False):
         out=bytearray();step=2 if wide else 1
         for i in range(2048):
@@ -66,8 +67,11 @@ def check_artesphere(u,base,m,actors,sp,reset,put,get,reg,regs):
             xy=[struct.unpack('<f',(u.reg_read(r)&0xffffffff).to_bytes(4,'little'))[0]
                 for r in (UC_X86_REG_XMM1,UC_X86_REG_XMM2)]
             trigger_glyphs.append((rcx,*xy,get(rsp+0x28,'f'),get(rsp+0x38,'f'),get(rsp+0x40,'f')))
-            ret()
-        elif row_render and a in (0x57e80,0x13790,0x13350,0x42570,0x6c550,0x60bf0):ret()
+            # Execute the real binding, color and quad builders. Stopping here
+            # hid the 0x000000ff (alpha zero) regression in the old glyph test.
+        elif row_render and a==0x60bf0:
+            row_commands.append(bytes(u.mem_read(rdx,80)));ret()
+        elif row_render and a in (0x57e80,0x13790,0x13350,0x42570):ret()
         elif a==0x594d0:ret(int(native_save))
         elif a==0x2a41e0:u.mem_write(rcx,bytes(u.mem_read(rdx,r8)));ret(rcx)
         elif a==sym['artesphere_native_input'] and not real_input:
@@ -75,7 +79,8 @@ def check_artesphere(u,base,m,actors,sp,reset,put,get,reg,regs):
             if native_edits:put(master+0x9a,'I',0x4a494847)
             ret(0x72)
         elif a==sym['artesphere_native_draw']:native_inputs.append(get(master+0x9a,'I'));ret()
-        elif a in (sym['settings_text'],sym['settings_field']):draws.append(string(rcx));ret()
+        elif a in (sym['settings_text'],sym['settings_field']):
+            draws.append(string(rcx));text_colors.append((string(rcx),u.reg_read(regs['rax'])&0xffffffff));ret()
         elif a in (0x25aaa0,0x25a090,0x24490,0x21c460,0x21cbb0):ret(100)
         elif a==0x74510:executions.append(('admit',rcx,rdx));ret(int(admit))
         elif a in (0x112d10,0x74730,0x73790):
@@ -169,10 +174,13 @@ def check_artesphere(u,base,m,actors,sp,reset,put,get,reg,regs):
         assert get(base+0x1119f98,'H')==2 and get(base+0x1119f9a,'H')==6
         assert get(state+3,'B')==0, 'old modal must never open'
         native=bytes(u.mem_read(master,0x1070))
-        for language,expected in ((3,'Artesphère — Page B'),(1,'Artesphere — Page B'),(0,'Artesphere — Page B')):
-            put(base+0x11c9ce8,'B',language)
-            draws.clear();run(0x224920);assert expected in draws
-            assert bytes(u.mem_read(master,0x1070))==native
+        for palette,letter,color in ((0,'A',0xffffad61),(1,'B',0xff6666ff)):
+            for language in (3,1,0):
+                put(state+1,'B',palette);put(base+0x11c9ce8,'B',language)
+                draws.clear();text_colors.clear();run(0x224920)
+                expected=f'Artesphere — Page {letter}'
+                assert expected in draws and (expected,color) in text_colors
+                assert bytes(u.mem_read(master,0x1070))==native
         # Execute the actual native input state machine, including seven-row
         # navigation, character chooser, learned list, commit and clear.
         real_input=True
@@ -193,7 +201,7 @@ def check_artesphere(u,base,m,actors,sp,reset,put,get,reg,regs):
             put(raw,'III',0,0,0x1000);run(0x228ad0)
             assert get(extra+palette*2,'H')==0
         real_input=False
-        checks.append('Native seven-row navigation/caster chooser/learned list/assignment/clear; scoped A/B storage and FR/EN header')
+        checks.append('Native seven-row navigation/caster chooser/learned list/assignment/clear; scoped A/B storage; Artesphere header without accent, page A blue and page B red in FR/EN')
         # Real native hit testing and left-row callback, with only OS polling
         # stubbed. The temporary descriptor is restored byte for byte.
         setup();real_mouse=True
@@ -217,20 +225,45 @@ def check_artesphere(u,base,m,actors,sp,reset,put,get,reg,regs):
         assert get(base+0x86241c,'I')==128
         real_mouse=False
         checks.append('Native mouse hit testing selects/confirms row seven; temporary descriptor restored; bounded capacity')
-        setup();put(extra,'H',0x2d01);run('artesphere_prepare_rows')
-        row_render=True;row_text_y.clear()
-        put(base+0x644a70,'Q',0);put(base+0x6449f8,'Q',actors);put(actors+0x10,'I',0)
-        u.mem_write(base+0x8606e8,b'\x42'*56)
-        reg('rsi',0);put(sp-8+0x60,'B',255);put(sp-8+0x70,'I',0)
-        run(0x225684,[0x225a71],True)
-        assert row_text_y==[132.,142.5,152.,162.5,172.,182.5],row_text_y
-        assert [get(p,'f') for p in (base+0x86067c,base+0x8606b4,state+0xcc4)]==[132.,152.,172.]
-        assert bytes(u.mem_read(base+0x8606e8,56))==b'\x42'*56
-        assert '/' in draws and u.reg_read(regs['r15'])==3
-        assert [(family,x,y,size) for family,x,y,size,_,_ in trigger_glyphs]==[(0,31.,174.,12.),(4,47.,174.,12.)],trigger_glyphs
-        assert all(u0==252/512 and v0==168/512 for *_,u0,v0 in trigger_glyphs),trigger_glyphs
+        for opacity in (255,128,0):
+            setup();put(extra,'H',0x2d01);run('artesphere_prepare_rows')
+            row_render=True;row_text_y.clear();row_commands.clear();trigger_glyphs.clear()
+            context=actors+0x3000
+            put(base+0x644a10,'Q',context)
+            put(context+0x4d0,'Q',ui_arena+0x1000)
+            put(context+0x4d8,'Q',128);put(context+0x4e0,'I',0)
+            put(context+0x548,'Q',ui_arena+0x9000)
+            put(base+0x86191a,'B',0)
+            put(base+0x644a70,'Q',0);put(base+0x6449f8,'Q',actors);put(actors+0x10,'I',0)
+            u.mem_write(base+0x8606e8,b'\x42'*56)
+            reg('rsi',0);put(sp-8+0x60,'B',opacity);put(sp-8+0x70,'I',0)
+            run(0x225684,[0x225a71],True)
+            assert row_text_y==[132.,142.5,152.,162.5,172.,182.5],row_text_y
+            assert [get(p,'f') for p in (base+0x86067c,base+0x8606b4,state+0xcc4)]==[132.,152.,172.]
+            assert bytes(u.mem_read(base+0x8606e8,56))==b'\x42'*56
+            assert '/' in draws and u.reg_read(regs['r15'])==3
+            assert [(family,x,y,size) for family,x,y,size,_,_ in trigger_glyphs]==[(0,31.,174.,12.),(4,47.,174.,12.)],trigger_glyphs
+            assert all(u0==252/512 and v0==168/512 for *_,u0,v0 in trigger_glyphs),trigger_glyphs
+            # Inspect the actual deferred render commands, including the RGBA
+            # active at each quad, the two controller atlases and their UVs.
+            color=None;atlas=None;quads=[]
+            for command in row_commands:
+                op=struct.unpack_from('<I',command)[0]
+                if op==0x14:color=tuple(command[8:12])
+                elif op==0x22:
+                    assert struct.unpack_from('<Q',command,8)[0]==ui_arena+0x9000
+                    atlas=struct.unpack_from('<I',command,24)[0]
+                elif op==0xc:
+                    assert struct.unpack_from('<4f',command,8)==(84/512,84/512,12.,12.)
+                elif op==8:
+                    quads.append((atlas,color,struct.unpack_from('<5f',command,8)))
+            assert quads==[(atlas,(255,255,255,opacity),(x,174.,0.,252/512,168/512))
+                           for atlas,x in ((0,31.),(4,47.))],('invisible/tinted button quad',quads)
+            assert get(base+0x86191a,'B')==0,'native glyph mode must be restored'
+        put(base+0x644a10,'Q',0)
         row_render=False
         checks.append('Native renderer emits all three shortcut rows at compact coordinates without overwriting the learned-list hitbox')
+        checks.append('R2/RT native RGBA, atlas binding and quads: opaque white when open, matching menu fade at half/zero opacity')
         # Execute each native description/icon reader for all party slots.
         # Different sentinel pairs catch both the old 4-byte stride and row-7
         # reads leaking into the next character's vanilla bindings.
