@@ -121,32 +121,38 @@ def emit_spirit_icons(emit, mem, data_rva):
         div ecx
         imul eax, eax, 120
         imul edx, edx, 24
-        # Original five turning poses; ping-pong avoids a back/front snap.
+        # The atlas contains front through back over a half turn. Reflect
+        # intermediate poses for the other half: eight continuous directions.
         # Battle ticks freeze with the battle rather than using a new timer.
         mov r8d, dword ptr {mem(0x12cea40)}
         shr r8d, 3
         and r8d, 7
+        mov r10d, r8d
         mov r9d, 8
         sub r9d, r8d
         cmp r8d, 4
         cmova r8d, r9d
         imul r8d, r8d, 24
         add eax, r8d
+        lea r9d, [rax+24]
+        cmp r10d, 4
+        jbe uv_ready
+        xchg eax, r9d
+    uv_ready:
         cvtsi2ss xmm0, eax
         movss dword ptr [rsp+0x30], xmm0
-        add eax, 24
-        cvtsi2ss xmm0, eax
+        cvtsi2ss xmm0, r9d
         movss dword ptr [rsp+0x40], xmm0
         cvtsi2ss xmm0, edx
         movss dword ptr [rsp+0x38], xmm0
         add edx, 24
         cvtsi2ss xmm0, edx
         movss dword ptr [rsp+0x48], xmm0
-        mov dword ptr [rsp+0x20], 0x41200000
-        mov dword ptr [rsp+0x28], 0x41200000
-        lea eax, [rsi+82]
+        mov dword ptr [rsp+0x20], 0x41000000
+        mov dword ptr [rsp+0x28], 0x41000000
+        lea eax, [rsi+83]
         cvtsi2ss xmm1, eax
-        lea eax, [rbp+16]
+        lea eax, [rbp+17]
         cvtsi2ss xmm2, eax
         mov eax, 509
         cvtsi2ss xmm3, eax

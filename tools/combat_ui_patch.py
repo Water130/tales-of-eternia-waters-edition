@@ -7,6 +7,98 @@ No gameplay timer, save field, cooldown or rendering template is enlarged.
 
 
 def emit_combat_ui(emit, mem, jump, edit, data_rva):
+    # Victory-only TP number/shadow: retain the native bounce, amounts and X.
+    # Y=160+bounce puts the gain above both the portrait and formation caption.
+    for at in (0x11a411,0x11a462):
+        edit(at,b'\xa0\x00\x00\x00','Victory TP gain above the party HUD',False)
+    # Match the miniature group's screen-space anchor. The native pad helper
+    # applies a second widescreen transform, which cannot align with this HUD.
+    pad = emit('ui_fast_cast_pad', f'''
+        push rsi
+        push rdi
+        push rbp
+        sub rsp, 0x48
+        mov edi, r8d
+        shl edi, 4
+        and edi, 0xf0
+        movzx ebp, byte ptr [rbx+0x4e]
+        mov esi, -35
+        xor r10d, r10d
+        mov r11, qword ptr {mem(0x12cecd8)}
+        mov r9, qword ptr {mem(0x12cea60)}
+        test r11, r11
+        je own_anchor
+        test r9, r9
+        je own_anchor
+    previous_slot:
+        cmp r10d, ebp
+        jae own_anchor
+        movzx edx, byte ptr [r11+0x4f]
+        sub edx, 2
+        cmp edx, 1
+        ja next_slot
+        add edx, 3
+        xor ecx, ecx
+        xor eax, eax
+    count_previous:
+        cmp byte ptr [r9+rcx*8+0xbb8], dl
+        jne next_count
+        cmp byte ptr [r9+rcx*8+0xbb9], 0
+        je next_count
+        inc eax
+    next_count:
+        inc ecx
+        cmp ecx, 10
+        jb count_previous
+        test eax, eax
+        je next_slot
+        imul edx, r10d, 48
+        sub edx, 35
+        cmp esi, edx
+        cmovl esi, edx
+        imul eax, eax, 14
+        lea esi, [rsi+rax+2]
+    next_slot:
+        inc r10d
+        add r11, 0x248
+        jmp previous_slot
+    own_anchor:
+        cmp byte ptr [rbx+0x4f], 2
+        jne pad_space_done
+        cmp esi, -35
+        je pad_space_done
+        add esi, 18
+    pad_space_done:
+        imul eax, ebp, 48
+        sub eax, 35
+        cmp esi, eax
+        cmovl esi, eax
+        # First miniature starts at anchor+83; the pad is 16 units wide.
+        # A two-unit gap stays constant at every resolution and party slot.
+        lea ecx, [rsi+65]
+        mov edx, 250
+        mov r8d, 510
+        mov r9d, edi
+        mov dword ptr [rsp+0x20], 16
+        mov dword ptr [rsp+0x28], -1
+        mov word ptr [rsp+0x30], 0
+        movzx eax, byte ptr {mem(0x12ceb7e)}
+        xor edx, edx
+        mov r10d, 120
+        div r10d
+        cmp edx, 60
+        setge al
+        movzx eax, al
+        mov dword ptr [rsp+0x38], eax
+        mov edx, 250
+        call 0x140c0
+        add rsp, 0x48
+        pop rbp
+        pop rdi
+        pop rsi
+        jmp 0xd53aa
+    ''')
+    jump(0xd53a5, 5, pad, 'Move fast-cast direction pad left of Craymel indicators')
     hpstate = data_rva+0x1000
     casts = data_rva+0x1100
     item = data_rva+0x1200

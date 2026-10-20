@@ -3,6 +3,10 @@ def check_camera(uc, BASE, DATA, ACTORS, ENEMIES, STATS, IMPACT, SP,
                  reset, put, get, reg, run, REGS, constants):
     UC_HOOK_CODE,UC_X86_REG_RSP,UC_X86_REG_EFLAGS=constants
     count=0
+    # Synthetic wide supported arena isolates framing maths from stage limits.
+    fixture=DATA+0x800+127*16
+    fixture_original=bytes(uc.mem_read(fixture,16))
+    put(fixture,'8h',-10000,10000,-320,256,49,256,512,0)
     def execute():
         nonlocal count
         saved={r:uc.reg_read(v) for r,v in REGS.items() if r!='rcx'}
@@ -17,7 +21,7 @@ def check_camera(uc, BASE, DATA, ACTORS, ENEMIES, STATS, IMPACT, SP,
     def actor_setup(player,target):
         reset();put(ACTORS+0x57,'B',2);put(ACTORS,'Q',ENEMIES)
         put(BASE+0x12cea90,'hhh',64,0,0)
-        put(BASE+0x12d0eb2,'H',65535)  # original framing fallback, unknown arena
+        put(BASE+0x12d0eb2,'H',127)
         put(ACTORS+0x10,'h',player);put(ENEMIES+0x10,'h',target)
         put(BASE+0x12ceb78,'h',512)
         put(BASE+0x12cea98,'hhhh',-100,32,512,0)
@@ -171,4 +175,17 @@ def check_camera(uc, BASE, DATA, ACTORS, ENEMIES, STATS, IMPACT, SP,
             put(effect+0x33,'B',0)
             c,z=execute();assert abs(c-200)<=4 and abs(z-600)<=16
             assert 44<=get(BASE+0x12cea9a,'h')<=48
+    # All unsupported layouts, including out-of-range IDs, retain native
+    # rotation, position and native target even when an ordinary spell runs.
+    for stage in [r['stage'] for r in rows if not r['compatible']]+[128,65535]:
+        actor_setup(0,8192);put(BASE+0x12d0eb2,'H',stage)
+        put(BASE+0x12cea90,'hhh',80,0,0)
+        put(BASE+0x12cea98,'hhh',-200,48,600)
+        put(BASE+0x12ceab8,'hhh',-300,12,900)
+        effect=BASE+0x12cfca0
+        put(effect,'Q',ACTORS);put(effect+0x33,'B',1);put(effect+0x36,'B',66)
+        before=bytes(uc.mem_read(BASE+0x12cea90,0x30))
+        run('adaptive_battle_camera',[0x10d51c]);count+=1
+        assert bytes(uc.mem_read(BASE+0x12cea90,0x30))==before,stage
+    uc.mem_write(fixture,fixture_original)
     return count

@@ -61,7 +61,7 @@ def check_combat_ui(uc, base, manifest, actors, enemies, stats, impact, sp,
                 emu.reg_write(UC_X86_REG_RIP,get(rsp,'Q'))
                 emu.reg_write(UC_X86_REG_RSP,rsp+8)
         handle=uc.hook_add(UC_HOOK_CODE,step)
-        try:uc.emu_start(base+sym[name],base+sentinel+1,count=100000)
+        try:uc.emu_start(base+(sym[name] if isinstance(name,str) else name),base+sentinel+1,count=100000)
         finally:uc.hook_del(handle)
         assert reached,(name,'no return',hex(uc.reg_read(UC_X86_REG_RIP)))
         assert uc.reg_read(UC_X86_REG_RSP)==entrysp+(0 if stop is not None else 8),name
@@ -104,6 +104,43 @@ def check_combat_ui(uc, base, manifest, actors, enemies, stats, impact, sp,
     if 'combat_ui' not in manifest['features']:
         uc.mem_unmap(allocation,0x2001000)
         return checks,count
+
+    # Execute the real animated-pad layout and intercept only the final glyph
+    # submission. Direction/blink/size stay native; placement shares HUD space.
+    for wide in (0,1):
+        for slot in range(4):
+            for tick in (0,59,60,119,120,255):
+                for direction in (1,2,4,8):
+                    setup()
+                    put(actors+0xc100,'H',0x400 if wide else 0)
+                    put(base+0x573c3e,'B',wide)
+                    put(base+0x12ceb7e,'B',tick)
+                    put(base+0x12cea60,'Q',0)
+                    reg('rbx',actors+slot*0x248)
+                    captures=[]
+                    def capture_pad(rva,rsp):
+                        captures.append(tuple(uc.reg_read(regs[r])&0xffffffff for r in ('rcx','rdx','r8','r9'))+
+                                        tuple(get(rsp+o,'H' if o==0x38 else 'I') for o in (0x28,0x30,0x38,0x40)))
+                    reg('rcx',slot*48+27);reg('rdx',237);reg('r8',direction)
+                    execute('ui_fast_cast_pad',0xd53aa,[0x140c0],capture_pad)
+                    expected_x=slot*48+30
+                    expected_y=250
+                    assert captures==[(expected_x,expected_y,510,direction<<4,16,0xffffffff,0,int(tick%120>=60))],captures
+                    assert slot*48+48-(captures[0][0]+16)==2, 'pad must leave exactly two units before miniature'
+    # A wide Meredy group must not collide with Keele's pad in a later slot.
+    for previous_count in range(1,10):
+        setup();master=actors+0xa000;put(base+0x12cea60,'Q',master)
+        put(actors+0x4f,'B',3);put(actors+0x248+0x4f,'B',2)
+        for j in range(10):put(master+0xbb8+j*8,'BBH',4 if j<previous_count else 3,15,0xa000)
+        reg('rbx',actors+0x248);icons=[]
+        def capture_icon(rva,rsp):
+            if rva==sym['ui_spirit_icon']:icons.append(uc.reg_read(regs['rsi']) & 0xffffffff)
+        execute('ui_all_spirit_max',0xd1e5b,[0xb240,0xb480,sym['ui_spirit_icon']],capture_icon)
+        captures=[]
+        execute('ui_fast_cast_pad',0xd53aa,[0x140c0],capture_pad)
+        assert icons and icons[0]+83-(captures[0][0]+16)==2
+        assert captures[0][0]>=48+(previous_count-1)*14+8+2
+    checks.append('Fast-cast pad adjacent to miniatures in all slots/modes; two-unit gap including a preceding Meredy group, native animation and direction')
 
     for maximum in [-1,0,1,100,9999,0x7fffffff]:
         for current in [-10,0,1,50,9999,0x7fffffff]:
@@ -429,5 +466,18 @@ def check_combat_ui(uc, base, manifest, actors, enemies, stats, impact, sp,
         assert get(base+0x12cea5a,'H')==45
         put(data+0x1a06,'B',1)
     checks.append('Shared item bar: top-center geometry; only actual 26/90-tick recharge is visible; hidden ready/before-use/queued/restricted/outside battle; paused timer unchanged')
+    # Execute the native victory-number coordinate calculations for all four
+    # HUD slots, both text passes and bounce extremes. Reward value is untouched.
+    setup()
+    for slot in range(4):
+        for bounce in (-12,0,12,24):
+            for start,stop in ((0x11a40e,0x11a449),(0x11a45f,0x11a48d)):
+                reg('rsi',actors);reg('rdi',23);reg('r14',bounce&0xffffffffffffffff)
+                put(actors+0x1a,'B',slot)
+                execute(start,stop)
+                assert uc.reg_read(regs['rcx'])==23
+                assert uc.reg_read(regs['r8'])==160+bounce
+                assert uc.reg_read(regs['rdx'])==(slot*48-bounce-8)&0xffffffff
+    checks.append('Victory TP numbers: native amount/X/bounce preserved; both glyph passes above HUD for all four slots')
     uc.mem_unmap(allocation,0x2001000)
     return checks,count

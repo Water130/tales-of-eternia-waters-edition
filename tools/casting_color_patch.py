@@ -4,12 +4,14 @@ RGB consumers: 0x88c9d (+0x10), 0x858fa (+0x22), 0x86e4a (+0x0a).
 Native fourth byte, lifetimes, particle geometry and update routines are kept.
 """
 COLORS = {
-    'water': (64, 155, 255), 'wind': (74, 230, 130),
-    'fire': (255, 90, 40), 'earth': (200, 145, 65),
-    'ice': (140, 240, 255), 'lightning': (255, 230, 65),
-    'light': (255, 245, 190), 'dark': (170, 80, 235),
-    'elemental': (235, 120, 220), 'time': (80, 230, 210),
+    'water': (35, 155, 255), 'wind': (24, 180, 72),
+    'fire': (255, 75, 20), 'earth': (225, 155, 45),
+    'ice': (100, 240, 255), 'lightning': (255, 65, 185),
+    'light': (255, 255, 255), 'dark': (120, 45, 185),
+    'elemental': (220, 90, 255), 'time': (40, 235, 205),
 }
+NEUTRAL_CAST = (220, 225, 232)
+DAMAGE_COLORS = dict(COLORS, light=(255, 210, 45))
 
 # Per-instance RGB, secondary gradient, and signed RGB evolution. The fourth
 # bytes are native delay/phase counters (NOT alpha) and must remain untouched.
@@ -55,8 +57,14 @@ def emit_casting_colors(emit, mem, jump, edit, data_rva):
         ja done
         movzx ecx, byte ptr [r8+0x6c]
         shr ecx, 2
+        cmp ecx, 10
+        ja done
+        test ecx, ecx
+        jne elemental
+        mov ecx, 11
+    elemental:
         dec ecx
-        cmp ecx, 9
+        cmp ecx, 10
         ja done
         lea r8, {mem(color_rva)}
         lea r8, [r8+rcx*4]
@@ -118,8 +126,14 @@ def emit_casting_colors(emit, mem, jump, edit, data_rva):
         ja done
         movzx ecx, byte ptr [r8+0x6c]
         shr ecx, 2
+        cmp ecx, 10
+        ja done
+        test ecx, ecx
+        jne elemental
+        mov ecx, 11
+    elemental:
         dec ecx
-        cmp ecx, 9
+        cmp ecx, 10
         ja done
         cmp edx, 5
         jae done
@@ -200,4 +214,4 @@ def emit_casting_colors(emit, mem, jump, edit, data_rva):
         ''')
         jump(site, 5, start, f'Tint private casting particle at {site:x}')
     edit(0xcc8b6,b'\x90'*3,'Keep Meredy motes in their elemental hue instead of adding red alone')
-    return b''.join(bytes(rgb)+b'\0' for rgb in COLORS.values())
+    return b''.join(bytes(rgb)+b'\0' for rgb in [*COLORS.values(), NEUTRAL_CAST])

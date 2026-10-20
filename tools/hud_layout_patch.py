@@ -87,6 +87,14 @@ def emit_hud_layout(emit, mem, jump, edit, data_rva, rect, save_ui, restore_ui):
         add r11, 0x248
         jmp previous_slot
     own_anchor:
+        # Keele's 16-unit direction pad needs its own space when Meredy's
+        # miniature group extends into his column.
+        cmp byte ptr [rbx+0x4f], 2
+        jne pad_space_done
+        cmp esi, -35
+        je pad_space_done
+        add esi, 18
+    pad_space_done:
         imul eax, r12d, 48
         sub eax, 35
         cmp esi, eax

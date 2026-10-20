@@ -100,6 +100,18 @@ for BASE in [0x180000000,0x7ffb00000000]:
         assert saved=={r:uc.reg_read(v) for r,v in REGS.items()},'entry register corruption'
         return get(DATA,'Q')
 
+    if 'spell_textures' in manifest:
+        from test_spell_palette_patch import check_spell_palettes
+        n=check_spell_palettes(uc,BASE,manifest,SP,put,get,reg,REGS)
+        passed.append(f'{BASE:x}: {n} native CLUT load/draw cases; Air Thrust then Spread, reverse/repeat loads and unrelated fallback')
+        from test_spell_texture_patch import check_spell_textures
+        n=check_spell_textures(uc,BASE,manifest,ACTORS,SP,reset,put,get,reg,REGS)
+        passed.append(f'{BASE:x}: {n} native spell texture cases; overlapping loads retain per-spell descriptors, part links, binding and UV scale')
+    if 'particle_capacity' in manifest:
+        from test_particle_capacity_patch import check_particle_capacity
+        n=check_particle_capacity(uc,BASE,manifest,SP,reset,put,get,reg,REGS)
+        passed.append(f'{BASE:x}: {n} native particle allocations/updates; capacity, pause, reuse, clear and battle reset')
+
     if 'tp' in manifest['features']:
         for ch in range(4):assert impact_origin(ch)==ACTORS+ch*0x248
         assert impact_origin(4)==ACTORS+3*0x248,'Quickie owner'
@@ -235,6 +247,17 @@ for BASE in [0x180000000,0x7ffb00000000]:
         from test_mod_settings_patch import check_settings
         count=check_settings(uc,BASE,manifest,ACTORS,ENEMIES,STATS,SP,reset,put,get,reg,REGS)
         passed.append(f'{BASE:x}: {count} mod settings cases; native title navigation, French/English fallback, per-feature switches, Unicode per-user INI persistence, errors and ABI')
+
+    if 'skit_notice' in manifest['features']:
+        from test_skit_notice_patch import check_skit_notice
+        count=check_skit_notice(uc,BASE,manifest,ACTORS,SP,reset,put,get,reg,REGS)
+        passed.append(f'{BASE:x}: {count} camp-skit notice cases; world/field native selector differential, 264 seen slots, no save writes, transition guards, original global submission, both HUD callsites/ABI, four-corner collision/fallback, native window/font queue, French/English, GPU/font state restoration without scene reset')
+
+    if 'artesphere' in manifest['features']:
+        from test_artesphere_patch import check_artesphere
+        count,checks=check_artesphere(uc,BASE,manifest,ACTORS,SP,reset,put,get,reg,REGS)
+        passed.extend(f'{BASE:x}: {check}' for check in checks)
+        passed.append(f'{BASE:x}: {count} artesphere native execution cases')
 
 report={'passed':True,'patched_sha256':digest(binary),'checks':passed,
         'runtime_validated':False,'note':'Actual x64 hook execution in an emulator; rendering, engine concurrency, Quickie routing and gameplay still require user testing.'}

@@ -6,7 +6,8 @@ ROOT=Path(__file__).resolve().parents[1]
 STAGE=ROOT/'build/shareable'
 SOURCE=ROOT/'build/combat-test'
 TEMPLATES=ROOT/'tools/release'
-NAME='Tales-of-Eternia-Waters-Edition-0.10.4-Easy-Install'
+VERSION='0.12.5'
+NAME=f'Tales-of-Eternia-Waters-Edition-{VERSION}-Easy-Install'
 FILES=['Install.cmd','Uninstall.cmd','README.txt','Support/Patch-Mod.ps1',
        'Support/patch.json','Support/Mod-details.txt','Support/SHARE.txt',
        'Support/Compatibility-Mode.cmd','Support/Status.cmd','Support/SHA256SUMS.txt']
@@ -32,7 +33,7 @@ def delta(original,result):
 
 def stage():
     manifest=read_json(SOURCE/'manifest.json');tests=read_json(SOURCE/'verification.json')
-    assert manifest['version']=='combat-test-0.10.4'
+    assert manifest['version']==f'combat-test-{VERSION}'
     original=(ROOT/'backups/build-25190541/GameNative.dll').read_bytes()
     patched=(SOURCE/'GameNative.dll').read_bytes()
     assert sha(original)==manifest['original_sha256']
@@ -54,7 +55,7 @@ def stage():
         data=(TEMPLATES/source).read_text(encoding='utf-8-sig')
         data.encode('ascii')  # All public scripts and prose are English / PS 5.1-safe.
         (STAGE/dest).write_bytes(data.replace('\r\n','\n').replace('\n','\r\n').encode('ascii'))
-    payload=dict(format=1,name="Tales of Eternia - Water's Edition",version='0.10.4-test',
+    payload=dict(format=1,name="Tales of Eternia - Water's Edition",version=f'{VERSION}-test',
                  steam_build=manifest['steam_build'],base_sha256=sha(original),base_size=len(original),
                  profiles=dict(Full=delta(original,patched),Compatibility=delta(original,bytes(fallback))))
     (STAGE/'Support/patch.json').write_text(json.dumps(payload,separators=(',',':')),encoding='ascii')

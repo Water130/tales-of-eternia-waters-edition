@@ -1,5 +1,24 @@
 # Changelog
 
+## 0.12.5 - Experimental release
+
+- Fix shared native spell palettes: loading a later supported spell no longer
+  replaces an earlier spell's palette. The Air Thrust -> Spread case is covered
+  by native load/draw regressions; final in-game rendering still needs confirmation.
+- Show native R2 and RT button images, separated by a slash, on the seventh arte row.
+- Includes the changes since 0.10.4: two seven-slot arte pages, per-save assignments,
+  configurable keyboard aliases, and native seventh-row selection and descriptions.
+- Add an optional skit notification for the overworld and fields/dungeons, with
+  HUD collision avoidance, bottom-center fallback and dialogue/menu suppression.
+- Improve spell texture isolation and particle capacity for supported simultaneous casts.
+- Refine elemental colors, Craymel miniature size/rotation and Keele's fast-cast pad position.
+- Preserve the original camera on unsupported battle layouts and move victory TP
+  recovery numbers above the HUD.
+- Refresh the English Install/Uninstall package and current feature documentation.
+
+Native x64 checks pass at two image bases. Installer and uninstaller checks pass
+on disposable test copies. These are not a guarantee of whole-game stability.
+
 ## 0.10.4 - Experimental release
 
 - Documentation refreshed on 18 October 2026: human authorship and entirely AI-written code,

@@ -14,10 +14,15 @@ FEATURES = [
     ('CustomHUD', 'HUD personnalisé', 'Custom HUD'),
     ('CastBars', "Barres d'incantation", 'Casting progress bars'),
     ('ItemBar', "Barre de recharge des objets", 'Item cooldown bar'),
+    ('SkitNotice', 'Notification des saynètes', 'Skit notification'),
 ]
 
 
 def emit_settings(emit, mem, jump, data, symbols):
+    count = len(FEATURES)
+    header = count
+    keyboard = count + 1
+    assert count == 8  # Eight bytes in the opening-state snapshot.
     payload = bytearray()
     strings = {}
     def string(name, text, wide=False):
@@ -32,6 +37,8 @@ def emit_settings(emit, mem, jump, data, symbols):
         string(f'key{index}',key,True);string(f'fr{index}',fr);string(f'en{index}',en)
     for name,fr,en in [
         ('menu','Options de mods','Mod settings'),
+        ('keyboard','Commandes clavier (PC)','Keyboard controls (PC)'),
+        ('open','Configurer','Configure'),
         ('heading',"Water's Edition — Options de mods","Water's Edition — Mod settings"),
         ('on','Activé','On'),('off','Désactivé','Off'),
         ('back','Retour','Back'),('select','Sélect.','Select'),('modify','Modifier','Modify'),
@@ -45,7 +52,7 @@ def emit_settings(emit, mem, jump, data, symbols):
     # Tables contain RVAs, not absolute addresses; they survive ASLR.
     payload.extend(b'\0'*((-len(payload))%4))
     table=data+0x2000+len(payload)
-    for index in range(7):
+    for index in range(count):
         payload.extend(struct.pack('<III',strings[f'key{index}'],strings[f'fr{index}'],strings[f'en{index}']))
     assert len(payload)<0x1000
     flags=data+0x1a00
@@ -130,7 +137,7 @@ def emit_settings(emit, mem, jump, data, symbols):
         mov byte ptr [rdx+rdi], al
         add rsi, 12
         inc edi
-        cmp edi, 7
+        cmp edi, {count}
         jb load
         mov byte ptr {mem(initialized)}, 1
         mov byte ptr {mem(error)}, 0
@@ -148,7 +155,7 @@ def emit_settings(emit, mem, jump, data, symbols):
         cmp byte ptr {mem(initialized)}, 1
         jne done
         movzx eax, byte ptr {mem(selection)}
-        cmp eax, 7
+        cmp eax, {count}
         jae done
         lea rdx, {mem(flags)}
         lea r8, {address('zero')}
@@ -189,9 +196,9 @@ def emit_settings(emit, mem, jump, data, symbols):
         call {save:#x}
         or sil, byte ptr {mem(error)}
         inc ebx
-        cmp ebx, 7
+        cmp ebx, {count}
         jb next
-        mov byte ptr {mem(selection)}, 7
+        mov byte ptr {mem(selection)}, {header}
         mov byte ptr {mem(error)}, sil
         add rsp, 0x28
         pop rsi
@@ -218,22 +225,55 @@ def emit_settings(emit, mem, jump, data, symbols):
         cmp byte ptr {mem(page)}, 0
         je native
         mov dword ptr {mem(0x10e1c8c)}, 0x4650
+        cmp byte ptr {mem(page)}, 2
+        je sub_page_input
         cmp esi, 0x4000
         je close
         cmp esi, 8
         je close
+    sub_page_input:
+        cmp byte ptr {mem(page)}, 2
+        jne main_page
+        mov eax, dword ptr {mem(data+0x1a30)}
+        test eax, eax
+        je handled
+        lea rcx, {mem(0)}
+        add rax, rcx
+        call rax
+        jmp handled
+    main_page:
         movzx eax, byte ptr {mem(selection)}
         cmp r13d, 0x10
         jne down
+        cmp eax, {count}
+        jne up_eight
+        mov eax, {keyboard}
+        jmp selected
+    up_eight:
+        cmp eax, {keyboard}
+        jne up_normal
+        mov eax, {count-1}
+        jmp selected
+    up_normal:
         dec eax
         jns selected
-        mov eax, 7
+        mov eax, {header}
         jmp selected
     down:
         cmp r13d, 0x40
         jne action
+        cmp eax, {count-1}
+        jne down_eight
+        mov eax, {keyboard}
+        jmp selected
+    down_eight:
+        cmp eax, {keyboard}
+        jne down_normal
+        mov eax, {header}
+        jmp selected
+    down_normal:
         inc eax
-        cmp eax, 8
+        cmp eax, {keyboard}
         jb selected
         xor eax, eax
     selected:
@@ -241,7 +281,16 @@ def emit_settings(emit, mem, jump, data, symbols):
         mov edi, 0x8d
         jmp handled
     action:
-        cmp eax, 7
+        cmp eax, {keyboard}
+        jne feature_action
+        cmp esi, 0x2000
+        jne handled
+        cmp dword ptr {mem(data+0x1a30)}, 0
+        je handled
+        mov byte ptr {mem(page)}, 2
+        jmp handled
+    feature_action:
+        cmp eax, {count}
         je header_action
         cmp esi, 0x2000
         je toggle
@@ -250,7 +299,7 @@ def emit_settings(emit, mem, jump, data, symbols):
         cmp esi, 0x80
         jne handled
     toggle:
-        cmp eax, 7
+        cmp eax, {count}
         jae handled
         lea rdx, {mem(flags)}
         xor byte ptr [rdx+rax], 1
@@ -319,12 +368,8 @@ def emit_settings(emit, mem, jump, data, symbols):
         cmp esi, 0x2000
         jne continue_native
         call {initialize:#x}
-        mov eax, dword ptr {mem(flags)}
-        mov dword ptr {mem(snapshot)}, eax
-        mov ax, word ptr {mem(flags+4)}
-        mov word ptr {mem(snapshot+4)}, ax
-        mov al, byte ptr {mem(flags+6)}
-        mov byte ptr {mem(snapshot+6)}, al
+        mov rax, qword ptr {mem(flags)}
+        mov qword ptr {mem(snapshot)}, rax
         mov byte ptr {mem(reset_choice)}, 0
         mov byte ptr {mem(page)}, 1
         mov byte ptr {mem(selection)}, 0
@@ -468,8 +513,12 @@ def emit_settings(emit, mem, jump, data, symbols):
         mov dword ptr [rsp+0x30], 255
         call 0x25aaa0
         movzx edx, byte ptr {mem(selection)}
-        cmp edx, 7
-        jae done
+        cmp edx, {header}
+        je done
+        cmp edx, {keyboard}
+        jne regular_row
+        mov edx, {count}
+    regular_row:
         imul edx, edx, 17
         add edx, 55
         cvtsi2ss xmm1, edx
@@ -508,8 +557,8 @@ def emit_settings(emit, mem, jump, data, symbols):
         xor edx, edx
         mov r8d, 0xa0
         {localized('modify','r9')}
-        cmp byte ptr {mem(selection)}, 7
-        jne modify
+        cmp byte ptr {mem(selection)}, {header}
+        jb modify
         mov r8d, 0x2000
         {localized('confirm','r9')}
     modify:
@@ -552,6 +601,16 @@ def emit_settings(emit, mem, jump, data, symbols):
         call {text:#x}
         jmp done
     panel:
+        cmp byte ptr {mem(page)}, 2
+        jne normal_panel
+        mov eax, dword ptr {mem(data+0x1a34)}
+        test eax, eax
+        je done
+        lea rcx, {mem(0)}
+        add rax, rcx
+        call rax
+        jmp done
+    normal_panel:
         call {backdrop:#x}
         {localized('menu','r10')}
         mov rcx, r10
@@ -623,10 +682,28 @@ def emit_settings(emit, mem, jump, data, symbols):
     next_row:
         add rsi, 12
         inc ebx
-        cmp ebx, 7
+        cmp ebx, {count}
         jb row
+        {localized('keyboard')}
+        mov edx, 34
+        mov r8d, {55+17*count}
+        mov r9d, 111
+        mov eax, 0xff49bfff
+        call {field:#x}
+        {localized('open')}
+        mov edx, 150
+        mov r8d, {55+17*count}
+        xor r9d, r9d
+        mov eax, 0xfffffdfa
+        call {field:#x}
         movzx eax, byte ptr {mem(selection)}
-        cmp eax, 7
+        cmp eax, {keyboard}
+        jne feature_cursor
+        mov edx, 55
+        mov r8d, {43+17*count}
+        jmp cursor
+    feature_cursor:
+        cmp eax, {count}
         je header_cursor
         lea rdx, {mem(flags)}
         movzx edx, byte ptr [rdx+rax]

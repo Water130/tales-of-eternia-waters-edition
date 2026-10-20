@@ -66,6 +66,8 @@ def check_spirit_icons(uc, base, manifest, sp, reset, put, get, reg, regs):
                 setup();x=slot*48-35+element*14;y=237
                 put(base+0x12cea40,'I',tick)
                 frame=[0,1,2,3,4,3,2,1][tick//8%8]
+                u=element//5*120+frame*24;v=element%5*24
+                u0,u1=(u+24,u) if tick//8%8>4 else (u,u+24)
                 reg('rdi',element);reg('rsi',x&0xffffffff);reg('rbp',y)
                 submitted=[]
                 def capture(rva,rsp):
@@ -80,9 +82,9 @@ def check_spirit_icons(uc, base, manifest, sp, reset, put, get, reg, regs):
                 assert bytes(uc.mem_read(obj+8,16))==struct.pack('<4I',7,0,4,element)
                 assert get(obj,'Q')==data+0x1900
                 dims=submitted[-2];quad=submitted[-1]
-                assert struct.unpack('<4f',uc.mem_read(dims+8,16))==(24.,24.,10.,10.)
-                assert struct.unpack('<5f',uc.mem_read(quad+8,20))==(float(x+82),float(y+16),509.,float(element//5*120+frame*24),float(element%5*24))
-                assert x+82>=0 and x+92<=480 and y+16+10<=270
+                assert struct.unpack('<4f',uc.mem_read(dims+8,16))==(float(u1-u0),24.,8.,8.)
+                assert struct.unpack('<5f',uc.mem_read(quad+8,20))==(float(x+83),float(y+17),509.,float(u0),float(v))
+                assert x+83>=0 and x+91<=480 and y+17+8<=270
                 # Run the actual deferred binding command. The special PSX group-8
                 # remapping must not replace our native UI atlas group/sub/item.
                 reg('rcx',context);reg('rdx',state);reg('r8',bind)
@@ -95,9 +97,8 @@ def check_spirit_icons(uc, base, manifest, sp, reset, put, get, reg, regs):
                     run(0x5e710,[0x62010])
                 assert get(vertices+0x2000008,'I')==80
                 actual_vertices=[struct.unpack('<5f',uc.mem_read(vertices+8+j*20,20)) for j in range(4)]
-                u=element//5*120+frame*24;v=element%5*24
-                assert actual_vertices==[(u,v,x+82,y+16,509),(u+24,v,x+92,y+16,509),
-                                         (u,v+24,x+82,y+26,509),(u+24,v+24,x+92,y+26,509)],actual_vertices
+                assert actual_vertices==[(u0,v,x+83,y+17,509),(u1,v,x+91,y+17,509),
+                                         (u0,v+24,x+83,y+25,509),(u1,v+24,x+91,y+25,509)],actual_vertices
                 # Run the real renderer's vertex conversion, including its actual
                 # state+8 ABI. This caught the old 1x1 binding that sampled outside
                 # cage_pic despite apparently correct raw pixel coordinates.

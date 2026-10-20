@@ -6,7 +6,7 @@
 
 A combat and interface mod for **Tales of Eternia Remastered on Windows / Steam**.
 
-**[Download Water's Edition 0.10.4 - Easy Install](https://github.com/Water130/tales-of-eternia-waters-edition/releases/download/v0.10.4-test/Tales-of-Eternia-Waters-Edition-0.10.4-Easy-Install.zip)**
+**[Download Water's Edition 0.12.5 - Easy Install](https://github.com/Water130/tales-of-eternia-waters-edition/releases/download/v0.12.5-test/Tales-of-Eternia-Waters-Edition-0.12.5-Easy-Install.zip)**
 
 Experimental test release. Supports **Steam build 25190541**. The installer
 checks the exact game file before making any changes.
@@ -16,18 +16,28 @@ checks the exact game file before making any changes.
 - Basic physical hits restore **1 TP**, or **2 TP for Keele and Meredy**.
 - Post-battle TP recovery starts at **8% on Normal**. Native minimums and modifiers remain.
 - A smoother dynamic battle camera follows the controlled character and selected target.
-- Reduced spell cinematic freezes and limited overlap between supported, different spell effects.
+  Unsupported stage layouts retain the original framing.
+- Reduced spell cinematic freezes and overlap between supported, different ordinary spells.
+  Spell texture descriptors and color palettes are isolated to prevent cross-spell replacement.
 - Hold **Arte** through an elemental cast to choose the matching owned, learned Craymel at full vitality;
   hold **L1** to keep a completed spell ready.
+- **Artesphere: two pages of seven assignments (14 total)**, with **L2/LT** for page B
+  and **R2/RT** for the seventh shortcut. Assignments are stored separately per save slot.
+- Configurable keyboard aliases: **F7** for the page key and **F8** for the seventh shortcut,
+  changeable under **Mod settings > Keyboard controls (PC)**.
 - Compact custom HUD with animated green HP and blue TP gauges, casting bars and an item cooldown bar.
-- Element-colored casting effects and damage numbers.
-- Animated Craymel miniatures and elemental vitality counters below the mage portraits.
+  Victory TP numbers appear above the party HUD.
+- Vivid elemental casting effects and damage numbers.
+- Smaller rotating Craymel miniatures and element-colored vitality counters below mage portraits.
+- Optional **skit notification**, enabled by default, on the overworld and in fields/dungeons.
+  It avoids occupied HUD space and hides during menus, dialogue and story scenes.
 - Startup skips the presentation screens and goes directly to the opening movie.
 - Blue **Water's Edition** title lettering with a cyan glow.
-- A native-style **Mod settings** page with keyboard/controller hints and seven independent switches.
+- A native-style **Mod settings** page with keyboard/controller hints, eight independent switches,
+  and a dedicated keyboard configuration page.
 
 The settings page can toggle the camera, post-battle TP, basic-hit TP, damage colors,
-custom HUD, casting bars and item cooldown bar. Settings are saved automatically.
+custom HUD, casting bars, item cooldown bar and skit notification. Settings save automatically.
 
 Mod text is **French when the game's text language is French**, and **English for
 every other language**. All installation archives and public documentation are in English.
@@ -92,6 +102,10 @@ Steam libraries are detected automatically. If asked for a folder, use
 **Steam > Manage > Browse local files** and paste that folder's path.
 No Python, mod loader or extra download is needed to install the release.
 
+Extra arte assignments are stored per save slot in
+`%LOCALAPPDATA%\TalesOfEternia-WatersEdition.ini`. Back up this file with your saves
+and copy it when moving to another PC; Steam Cloud does not automatically include it.
+
 Download the **Easy-Install.zip** release asset, rather than GitHub's automatically
 generated **Source code** archive. Keep the extracted launchers and Support folder together.
 
@@ -120,7 +134,8 @@ compatible original game DLL; it is **not** included. See [BUILDING.md](BUILDING
 The shared ZIP contains binary differences, not a complete game executable or DLL.
 The installer preserves a verified original backup and refuses unknown game-file hashes.
 Automated tests cover native hooks and installation/restoration on disposable test copies;
-they do not prove stability in every battle. The 0.10.4 settings menu was also confirmed in-game by the tester.
+they do not prove stability in every battle. The 0.12.5 palette-isolation fix passes offline
+regressions, but its final in-game rendering still needs visual confirmation.
 
 Unofficial fan mod, not affiliated with or endorsed by Bandai Namco Entertainment.
 Tales of Eternia and its original assets belong to their respective rights holders.

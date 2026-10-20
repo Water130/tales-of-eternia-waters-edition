@@ -33,7 +33,7 @@ def build(features):
     pe = pefile.PE(data=original)
     section_alignment = pe.OPTIONAL_HEADER.SectionAlignment
     code_rva = align(max(s.VirtualAddress + max(s.Misc_VirtualSize,s.SizeOfRawData) for s in pe.sections), section_alignment)
-    code_capacity = 0x8000
+    code_capacity = 0xc000
     data_rva = code_rva + code_capacity
     credit = data_rva
     projectile_tags = data_rva+0x100  # one byte for each native 0x30 projectile slot
@@ -455,7 +455,7 @@ def build(features):
     if 'summon_hold' in features:
         if 'summon_modifier' in features:raise ValueError('Choose one summon input scheme')
         from cast_hold_patch import emit_cast_hold
-        emit_cast_hold(emit, mem, jump, edit, data_rva, 'concurrent_spells' in features)
+        emit_cast_hold(emit, mem, jump, edit, data_rva, 'concurrent_spells' in features, 'artesphere' in features)
     color_data = b''
     if 'casting_colors' in features:
         from casting_color_patch import emit_casting_colors
@@ -468,7 +468,7 @@ def build(features):
         damage_palette = emit_damage_colors(emit, mem, jump, data_rva)
         active_gate = None
     if 'combat_ui' in features:
-        active_gate = {site:4 for site in (0xd1aa5,0xd1b38,0x80af8,0x80b1b,0xd1c23,0xd1cd4,0xd1d46)}
+        active_gate = {site:4 for site in (0xd1aa5,0xd1b38,0x80af8,0x80b1b,0xd1c23,0xd1cd4,0xd1d46,0xd53a5)}
         active_gate.update({site:5 for site in (0x112ff8,0x8152f,0xd458e)})
         active_gate[0xd5ad4] = 6
         from combat_ui_patch import emit_combat_ui
@@ -496,6 +496,31 @@ def build(features):
         from mod_settings_patch import emit_settings
         settings_info, settings_data, logo_png = emit_settings(emit, mem, jump, data_rva, symbols)
 
+    skit_info, skit_data = None, b''
+    if 'skit_notice' in features:
+        if not {'mod_settings', 'combat_ui'}.issubset(features):
+            raise ValueError('skit_notice requires mod_settings and combat_ui rendering helpers')
+        from skit_notice_patch import emit_skit_notice
+        skit_info, skit_data = emit_skit_notice(emit, mem, jump, data_rva, symbols)
+
+    artesphere_info, artesphere_data = None, b''
+    artesphere_offset = align(0x4000+len(logo_png),0x1000)
+    if 'artesphere' in features:
+        if not {'mod_settings','combat_ui','summon_hold'}.issubset(features):
+            raise ValueError('artesphere requires mod_settings, combat_ui and summon_hold')
+        from artesphere_patch import emit_artesphere
+        artesphere_info,artesphere_data=emit_artesphere(emit,mem,jump,edit,data_rva,symbols,data_rva+artesphere_offset)
+
+    particle_info = None
+    texture_info = None
+    particle_offset = align(max(0x4000+len(logo_png), artesphere_offset+len(artesphere_data)),0x1000)
+    if 'concurrent_spells' in features:
+        from particle_capacity_patch import emit_particle_capacity
+        particle_info = emit_particle_capacity(emit, mem, jump, data_rva+particle_offset)
+        from spell_texture_patch import emit_spell_textures
+        texture_offset = align(particle_offset+particle_info['size'],0x1000)
+        texture_info = emit_spell_textures(emit, mem, jump, data_rva+texture_offset)
+
     if len(code)>code_capacity:
         raise RuntimeError('Hook code exceeds reserved section')
     # Two sections: executable code and nonexecutable writable state. Original
@@ -510,10 +535,18 @@ def build(features):
     raw_data = len(result)
     state_size = 0x4000 if settings_info else (0x2000 if ui_info or damage_palette or color_data else (0x1000 if floor_info else 0x400))
     if logo_png:state_size=align(0x4000+len(logo_png),pe.OPTIONAL_HEADER.FileAlignment)
+    if artesphere_data:state_size=artesphere_offset+len(artesphere_data)
+    if particle_info:state_size=align(particle_offset+particle_info['size'],pe.OPTIONAL_HEADER.FileAlignment)
+    if texture_info:state_size=align(texture_offset+texture_info['size'],pe.OPTIONAL_HEADER.FileAlignment)
     state = bytearray(state_size)
+    if artesphere_data:state[artesphere_offset:artesphere_offset+len(artesphere_data)]=artesphere_data
     if logo_png:state[0x4000:0x4000+len(logo_png)] = logo_png
-    if state_size >= 0x2000:state[0x1a00:0x1a07] = b'\1'*7
+    if state_size >= 0x2000:state[0x1a00:0x1a08] = b'\1'*8
     if settings_data:state[0x2000:0x2000+len(settings_data)] = settings_data
+    if artesphere_info:
+        kbui=artesphere_info['keyboard']['ui']
+        struct.pack_into('<II',state,0x1a30,kbui['input_rva'],kbui['draw_rva'])
+    if skit_data:state[0x3800:0x3800+len(skit_data)] = skit_data
     for effect in allowed:
         state[0x200+effect]=1
     state[0x700:0x700+len(color_data)] = color_data
@@ -544,28 +577,35 @@ def build(features):
     struct.pack_into('<I',result,pe.OPTIONAL_HEADER.get_field_absolute_offset('CheckSum'),check_pe.generate_checksum())
     OUT.mkdir(parents=True,exist_ok=True)
     (OUT/'GameNative.dll').write_bytes(result)
-    manifest = {'version':'combat-test-0.10.4','steam_build':25190541,'original_sha256':ORIGINAL_SHA256,
+    manifest = {'version':'combat-test-0.12.5','steam_build':25190541,'original_sha256':ORIGINAL_SHA256,
                 'patched_sha256':digest(result),'features':features,'edits':edits,'hooks':hooks,
                 'symbols':symbols,'code_rva':code_rva,'data_rva':data_rva,
                 'concurrent_effect_allowlist':allowed,'runtime_validated':False,
                 'limits':['Distinct ordinary large effects only; same effect and special sequences remain serialized.',
-                          'Camera bounds cover 82 audited rectangular stage grids. Forest stages 6-8 additionally account for their offset backdrop at depth 576; native projection tests pass, visual confirmation remains pending. Other backdrop families can still expose side seams. Unsupported grids keep fallback framing.',
-                          'Seven per-user title-screen switches, French for text language 3 and English otherwise, tested in emulation. Use controller or keyboard; custom mouse selection is not implemented. Title branding, panel layout and real settings persistence still need in-game validation.',
+                          'Dynamic camera bounds cover 82 audited rectangular stage grids. Unsupported grids retain their original camera rotation and position. Forest stages 6-8 additionally account for their offset backdrop at depth 576. New background behavior still requires in-game visual validation.',
+                          'Eight per-user title-screen switches, French for text language 3 and English otherwise, tested in emulation. Use controller or keyboard; custom mouse selection is not implemented. Title branding, panel layout and real settings persistence still need in-game validation.',
                           'Ordinary large effects 1-25, 61, 62 and 66 preserve battle pitch; special sequences retain native cameras. Spread retains its vanilla column with an added small textured top cap; the new cap needs in-game visual validation. Ondine perimeter and zoom-scaled shadows remain experimental. Other summon backdrops were not extended.',
-                          'User confirmed cage_pic miniatures visible in 0.9.1. New five-pose ping-pong animation, font-metric centering and elemental 0/10 through MAX text need in-game visual validation. Native animation cadence was not identified.',
+                          'Craymel miniatures use an 8x8 quad and eight directional poses: the second half-turn mirrors the native half-turn atlas. New size and continuous rotation require visual confirmation.',
                           'Held Arte at cast completion selects learned owned summons; L1 holds ready casts. Steam controller slot zero only; other slots retain native controls.',
                           'TP origin recognition, controller ergonomics and rendering concurrency require in-game validation.']}
     if color_data:
         from casting_color_patch import COLORS
         manifest['casting_colors'] = COLORS
     if floor_info:manifest['floor_extension']=floor_info
+    if particle_info:manifest['particle_capacity']=particle_info
+    if texture_info:manifest['spell_textures']=texture_info
     if ui_info:manifest['combat_ui']=ui_info
     if settings_info:manifest['mod_settings']=settings_info;manifest['option_gates']=gates
+    if skit_info:manifest['skit_notice']=skit_info
+    if artesphere_info:
+        manifest['artesphere']=artesphere_info
+        manifest['limits'].append('Artesphere: two pages of seven commands, per-save sidecar stored locally beside mod preferences. L2 toggles editor pages and is held for page B in battle; R2 is the seventh command. F7/F8 are configurable foreground keyboard aliases. Only controller zero uses the extra pages. Runtime validation pending; copy the sidecar with saves when changing PCs.')
     if damage_palette:manifest['damage_colors']='actual impact element; party received damage takes precedence; heal/TP recovery preserved'
     if 'concurrent_spells' in features:
         queue_names = ['Allow distinct ordinary spells after resource readiness',
                        'Casting progresses while another spell is active',
                        'Retain context until the last large effect finishes']
+        queue_names += [e['name'] for e in edits if e['name'].startswith(('Particle capacity:', 'Spell textures:', 'Spell palettes:'))]
         fallback = bytearray(result)
         for change in edits:
             if change['name'] in queue_names:
@@ -589,6 +629,6 @@ def build(features):
 
 if __name__=='__main__':
     ap=argparse.ArgumentParser()
-    ap.add_argument('--features',nargs='+',choices=['tp','camera','no_freeze','concurrent_spells','victory_tp','summon_modifier','summon_hold','casting_colors','camera_floor','damage_colors','combat_ui','startup_opening','mod_settings'],
-                    default=['tp','camera','no_freeze','concurrent_spells','victory_tp','summon_hold','casting_colors','camera_floor','damage_colors','combat_ui','startup_opening','mod_settings'])
+    ap.add_argument('--features',nargs='+',choices=['tp','camera','no_freeze','concurrent_spells','victory_tp','summon_modifier','summon_hold','casting_colors','camera_floor','damage_colors','combat_ui','startup_opening','mod_settings','skit_notice','artesphere'],
+                    default=['tp','camera','no_freeze','concurrent_spells','victory_tp','summon_hold','casting_colors','camera_floor','damage_colors','combat_ui','startup_opening','mod_settings','skit_notice','artesphere'])
     build(ap.parse_args().features)

@@ -1,10 +1,10 @@
 """Tag the native damage ring; keep its two low type bits and heal writers intact."""
-from casting_color_patch import COLORS
+from casting_color_patch import DAMAGE_COLORS
 
 
 def emit_damage_colors(emit, mem, jump, data_rva):
     palette = bytes((128, 128, 128, 0)) + b''.join(
-        bytes((v+1)//2 for v in rgb)+b'\0' for rgb in COLORS.values())
+        bytes((v+1)//2 for v in rgb)+b'\0' for rgb in DAMAGE_COLORS.values())
     tag = emit('tag_damage_color', f'''
         push rax
         mov eax, 0x40

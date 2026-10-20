@@ -1,5 +1,5 @@
 TALES OF ETERNIA - WATER'S EDITION
-0.10.4 - Experimental test release
+0.12.5 - Experimental test release
 Windows / Steam build 25190541 only
 
 This is the current combat and interface prototype. It is intended for testing;
@@ -64,7 +64,7 @@ Open the new Mod settings entry at the bottom of the title menu. The title also
 displays a blue, textured Water's Edition wordmark with a soft cyan glow below
 Remastered, inspired by the original title lettering. It appears after the
 original title reveal, including on the Press Start screen.
-Version 0.10.4 places the page after the title's drawing pass so the logo no
+Version 0.12.5 places the page after the title's drawing pass so the logo no
 longer draws over it. It uses the native Options layout: capsule heading,
 window frames and color, gold labels, side-by-side choices, gradient highlight
 and hand cursor. Bottom-right button hints use the game's live keyboard and
@@ -73,10 +73,10 @@ Use the controller or keyboard:
 Up/Down selects a setting, Confirm or Left/Right toggles it, and Back closes
 the panel. Up from the first row selects Reset/Default at the top right.
 Choose one with Left/Right and press Confirm: Reset restores the settings from
-when you opened the page; Default enables all seven features. Mouse selection
+when you opened the page; Default enables all eight features. Mouse selection
 of the custom entry/panel is not implemented.
 
-Seven switches are available and enabled by default:
+Eight switches are available and enabled by default:
 - Dynamic camera (including the related framing/ground/effect adjustments)
 - Post-battle TP recovery (Off restores the native recovery amount)
 - TP from basic physical hits (Off removes the additional TP)
@@ -84,6 +84,7 @@ Seven switches are available and enabled by default:
 - Custom HUD (including the Craymel vitality display)
 - Casting progress bars
 - Item cooldown bar
+- Skit notification
 
 The switches are independent. For example, you can keep the casting/item bars
 while using the original HUD. The menu saves each change automatically to:
@@ -109,6 +110,32 @@ If you used an earlier private version of this mod, restore its original DLL
 with that version's installer first. For an earlier public release, run its
 Uninstall.cmd before installing this version. Other GameNative.dll mods cannot be combined
 automatically. Other platforms and builds have not been verified.
+
+ARTESPHERE AND SKIT NOTICE
+- Two arte pages, seven assignments each (14 total). In the arte menu, tap
+  L2/LT to switch pages. In battle, hold L2/LT for page B; release for page A.
+- R2/RT is the seventh shortcut, assigned through the normal arte menu.
+  It can command an active ally. Its native cursor, description and button
+  images are integrated into the seven-row layout.
+- Keyboard defaults: F7 for the page key, F8 for the seventh shortcut.
+  Change these under Mod settings > Keyboard controls (PC). Choose keys
+  that do not conflict with existing game controls.
+- Extra assignments are saved per game save slot, including autosaves, in
+  %LOCALAPPDATA%\TalesOfEternia-WatersEdition.ini. The game's save format
+  is unchanged. Copy and back up this INI alongside your saves when moving
+  computers; it is not automatically included in Steam Cloud.
+- An optional, enabled-by-default skit notice indicates a camp skit is available.
+  It prefers the lower left on the overworld and lower right in other areas,
+  moves around occupied HUD space, and hides during menus and story scenes.
+
+CHANGES IN 0.12.5
+- Separate native palette ownership prevents a later supported spell from
+  overwriting the palette used by an earlier spell's live projectiles.
+  The Air Thrust -> Spread regression is covered by native offline tests.
+  Final in-game rendering of this change still requires visual validation.
+- Native R2 and RT button images replace the plain seventh-shortcut label.
+- Includes earlier fixes for the seventh-row cursor/description, skit placement,
+  unsupported battle-camera layouts and victory TP numbers above the HUD.
 
 CURRENT FEATURES
 - Basic physical hits restore 1 TP to party members; Keele and Meredy restore
@@ -145,7 +172,8 @@ CURRENT FEATURES
 - Owned Craymel miniatures below Keele/Meredy's HUD portraits show elemental
   0/10 through 9/10 text, then MAX. The first icon aligns with its portrait and
   the text is centered below each icon. Several spirits extend the row to the
-  right. Five original turning poses provide a small ping-pong animation.
+  right. Smaller miniatures use an eight-direction turn, mirroring the original
+  intermediate poses for the other half of the rotation.
 - Startup presentation screens are skipped to reach the opening movie.
 - Spread's water column keeps its original proportions and texture mapping;
   a small textured cap closes its upper edge. Experimental water-backdrop edge
@@ -156,16 +184,15 @@ KNOWN LIMITS / TEST STATUS
   casting. Compatibility mode restores the queue if you need to compare behavior.
 - Camera bounds use 82 audited stage grids. The new forest backdrop constraint
   passed native projection tests; other background families may still show
-  side seams. Unsupported stages fall back to the earlier framing behavior.
+  side seams. Unsupported stages retain the original camera framing.
 - Summons and special sequences retain native cameras. Undine's backdrop and
   other summon scenes can still show framing issues. This is not a fix for every
   spell, stage or summon backdrop.
 - The blue title wordmark and pre-Start glow have been confirmed in-game.
-  The user also confirmed the 0.10.4 native-style settings menu worked correctly.
+  The native-style settings menu was confirmed in earlier builds.
   Machine-code tests cover native frame construction and French/English glyph
   emission; this does not validate every device or setting combination.
-  Forest framing, icon animation, elemental
-  counters and Spread cap also need broader visual feedback.
+  Spell overlap, camera coverage and summon effects still need broader testing.
 - Parts of the earlier HUD/camera have been tested interactively. Emulated native
   code tests passed at two load addresses, including projection, atlas UVs,
   ownership, TP rules and guard cases. These do not prove whole-game stability.

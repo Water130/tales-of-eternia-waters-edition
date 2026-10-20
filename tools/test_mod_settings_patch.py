@@ -6,6 +6,7 @@ from unicorn.x86_const import *
 def check_settings(u,base,m,actors,enemies,stats,sp,reset,put,get,reg,regs):
     sp-=0x1000  # Native title epilogue references its 0x200-byte stack frame.
     info=m['mod_settings'];sym=m['symbols'];data=base+m['data_rva']
+    feature_count=len(info['features'])
     flags=base+info['flags_rva'];page=base+info['page_rva'];selected=base+info['selection_rva']
     initialized=base+info['initialized_rva'];error=base+info['error_rva']
     sentinel=m['data_rva']-16;api=0x60000000
@@ -81,7 +82,7 @@ def check_settings(u,base,m,actors,enemies,stats,sp,reset,put,get,reg,regs):
             rects.append(True);ret()
     h=u.hook_add(UC_HOOK_CODE,callback)
     def setup():
-        reset();u.mem_write(flags,b'\1'*7);u.mem_write(initialized,b'\0'*16)
+        reset();u.mem_write(flags,b'\1'*feature_count);u.mem_write(initialized,b'\0'*16)
         put(base+0x644a18,'Q',0);put(base+0x11c9ce8,'H',0x103)
         put(base+0x10e1d3c,'H',0);put(base+0x11cc540,'Q',0)
         put(base+0x644a10,'Q',0)
@@ -111,14 +112,16 @@ def check_settings(u,base,m,actors,enemies,stats,sp,reset,put,get,reg,regs):
         return reached[0]
     try:
         # Existing/missing settings, Unicode path, bounds, idempotent loading.
-        setup();run('settings_initialize');assert bytes(u.mem_read(flags,7))==b'\1'*7 and len(reads)==7
+        setup();run('settings_initialize');assert bytes(u.mem_read(flags,feature_count))==b'\1'*feature_count and len(reads)==feature_count
         assert get(initialized,'B')==1 and get(error,'B')==0
-        run('settings_initialize');assert len(reads)==7
+        run('settings_initialize');assert len(reads)==feature_count
+        values={k:0 for k in info['features'][:-1]};setup();run('settings_initialize')
+        assert bytes(u.mem_read(flags,feature_count))==b'\0'*(feature_count-1)+b'\1', 'new skit option defaults on without resetting existing preferences'
         values={k:i%2 for i,k in enumerate(info['features'])};setup();run('settings_initialize')
-        assert list(u.mem_read(flags,7))==[i%2 for i in range(7)]
+        assert list(u.mem_read(flags,feature_count))==[i%2 for i in range(feature_count)]
         for missing in names:
             setup();run('settings_initialize');assert get(initialized,'B')==2 and get(error,'B')==1
-            assert bytes(u.mem_read(flags,7))==b'\1'*7
+            assert bytes(u.mem_read(flags,feature_count))==b'\1'*feature_count
         missing=None;saved_env=environment
         for environment in ('','x'*960,'x'*1024):
             setup();run('settings_initialize');assert get(initialized,'B')==2 and not reads
@@ -144,30 +147,31 @@ def check_settings(u,base,m,actors,enemies,stats,sp,reset,put,get,reg,regs):
         setup();run('settings_initialize');put(page,'B',1)
         for i,key in enumerate(info['features']):
             for button in (0x2000,0x20,0x80):
-                before=bytes(u.mem_read(flags,7));put(selected,'B',i)
+                before=bytes(u.mem_read(flags,feature_count));put(selected,'B',i)
                 reg('rsi',button);reg('r13',0)
                 run('settings_panel_input',(0x1b98d7,),True)
                 after=bytearray(before);after[i]^=1
-                assert bytes(u.mem_read(flags,7))==bytes(after)
+                assert bytes(u.mem_read(flags,feature_count))==bytes(after)
                 assert writes[-1]==(key,str(after[i]))
         fail_write=True;reg('rsi',0x2000);reg('r13',0)
         run('settings_panel_input',(0x1b98d7,),True);assert get(error,'B')==1
         fail_write=False
-        for cursor in range(8):
+        order=list(range(feature_count))+[feature_count+1,feature_count]
+        for cursor in order:
             for button,delta in ((0x10,-1),(0x40,1)):
                 put(selected,'B',cursor);reg('rsi',0);reg('r13',button)
                 run('settings_panel_input',(0x1b98d7,),True)
-                assert get(selected,'B')==(cursor+delta)%8
+                assert get(selected,'B')==order[(order.index(cursor)+delta)%len(order)]
         # Header reset restores the values captured on opening; defaults turn
-        # all seven features on. Both persist each key without touching saves.
+        # all eight features on. Both persist each key without touching saves.
         snapshot=base+info['snapshot_rva'];choice=base+info['reset_choice_rva']
-        u.mem_write(snapshot,b'\0\1\0\1\0\1\0')
+        u.mem_write(snapshot,bytes(i%2 for i in range(feature_count)))
         for default in (0,1):
-            put(selected,'B',7);put(choice,'B',default);reg('rsi',0x2000);reg('r13',0)
+            put(selected,'B',feature_count);put(choice,'B',default);reg('rsi',0x2000);reg('r13',0)
             run('settings_panel_input',(0x1b98d7,),True)
-            assert bytes(u.mem_read(flags,7))==(b'\1'*7 if default else bytes(u.mem_read(snapshot,7)))
-            assert get(selected,'B')==7 and get(error,'B')==0
-            assert [key for key,_ in writes[-7:]]==info['features']
+            assert bytes(u.mem_read(flags,feature_count))==(b'\1'*feature_count if default else bytes(u.mem_read(snapshot,feature_count)))
+            assert get(selected,'B')==feature_count and get(error,'B')==0
+            assert [key for key,_ in writes[-feature_count:]]==info['features']
         for button in (0x4000,8):
             put(page,'B',1);reg('rsi',button);reg('r13',0)
             run('settings_panel_input',(0x1b98d7,),True);assert get(page,'B')==0
@@ -187,10 +191,10 @@ def check_settings(u,base,m,actors,enemies,stats,sp,reset,put,get,reg,regs):
                 texts.clear();put(page,'B',1);run('settings_draw')
                 strings=[t['text'] for t in texts]
                 for _,fr,en in __import__('mod_settings_patch').FEATURES:assert (fr if lang==3 else en) in strings
-                assert len(texts)==25 and rects
+                assert len(texts)==6+3*feature_count and rects
                 assert all(25<t['x']<455 and 26<=t['y']<=236 for t in texts)
-                labels=[t for t in texts if t['y'] in range(55,158,17) and t['x']==34]
-                assert len(labels)==7 and all(t['size']==8.5 and t['color']==0xff49bfff for t in labels)
+                labels=[t for t in texts if t['y'] in range(55,55+17*feature_count,17) and t['x']==34]
+                assert len(labels)==feature_count and all(t['size']==8.5 and t['color']==0xff49bfff for t in labels)
                 assert cursors[-1]==(1,55,43,2)
         # Mid-function wrapper must restore live volatile registers/XMM values.
         setup();put(initialized,'B',1);put(base+0x10e1d3c,'H',20)
@@ -250,8 +254,8 @@ def check_settings(u,base,m,actors,enemies,stats,sp,reset,put,get,reg,regs):
         title_end=next(i for i,p in enumerate(submitted) if get(p,'I')==0x3c)
         panel_start=next(i for i,p in enumerate(submitted) if get(p,'I')==5)
         assert title_end<panel_start
-        # All seven cursor strips use real native geometry and stay inside body.
-        for row in range(7):
+        # All eight cursor strips use real native geometry and stay inside body.
+        for row in range(feature_count):
             submitted.clear();put(context+0x4e0,'I',0);put(allocation+0x2000008,'I',0)
             put(selected,'B',row);run('settings_backdrop')
             p=[p for p in submitted if get(p,'I')==5][-1];v=get(p+32,'Q')
@@ -267,7 +271,7 @@ def check_settings(u,base,m,actors,enemies,stats,sp,reset,put,get,reg,regs):
             put(base+0x11c9ce8,'B',language);put(selected,'B',0)
             submitted.clear();texts.clear();put(context+0x4e0,'I',0);put(allocation+0x2000008,'I',0)
             run('settings_draw')
-            assert len(texts)==25
+            assert len(texts)==6+3*feature_count
             glyphs=[p for p in submitted if get(p,'I')==9]
             assert len(glyphs)>200,len(glyphs)
             sizes=[p for p in submitted if get(p,'I')==12]
@@ -275,7 +279,7 @@ def check_settings(u,base,m,actors,enemies,stats,sp,reset,put,get,reg,regs):
             assert all(get(p+8,'f')>0 and get(p+12,'f')>0 for p in sizes)
             assert all(get(p+16,'f')==0 for p in glyphs)
             assert all(20<=get(p+8,'f')<455 and 20<=get(p+12,'f')<248 for p in glyphs)
-            for y in range(55,158,17):
+            for y in range(55,55+17*feature_count,17):
                 assert any(y<=get(p+12,'f')<y+10 for p in glyphs)
             assert any(get(p,'I')==0x1b and get(p+8,'I')==4 for p in submitted)
         real_font=False
@@ -296,7 +300,7 @@ def check_settings(u,base,m,actors,enemies,stats,sp,reset,put,get,reg,regs):
                 assert texts[0]['x']>texts[1]['x']>texts[2]['x']
                 families.append(tuple(b[0] for b in hint_buttons))
         assert len(set(families))>=3,families
-        put(selected,'B',7);texts.clear();run('settings_hints')
+        put(selected,'B',feature_count);texts.clear();run('settings_hints')
         assert texts[-1]['text']=='Confirm'
         # Missing/exhausted renderer must be harmless and submit nothing.
         for missing in ('context','buffer','capacity','arena','arena_capacity','atlas'):
@@ -325,7 +329,7 @@ def check_settings(u,base,m,actors,enemies,stats,sp,reset,put,get,reg,regs):
                     assert all(u.reg_read(r)==v for r,v in xmms.items())
                     assert bool(u.reg_read(UC_X86_REG_EFLAGS)&1)==(phase<230)
         # Exercise actual native entry sites with features disabled.
-        setup();u.mem_write(flags,b'\0'*7)
+        setup();u.mem_write(flags,b'\0'*feature_count)
         put(data+0x20,'B',1);put(base+0x12cea98,'hhhh',12,32,512,0)
         run(0x10d515,(0x10d51c,),True)
         assert get(data+0x20,'B')==0 and get(base+0x12cea98,'h')==12
@@ -339,8 +343,8 @@ def check_settings(u,base,m,actors,enemies,stats,sp,reset,put,get,reg,regs):
             put(flags+4,'B',enabled);run(0x80af8,(0x80afd,),True)
             assert u.reg_read(regs['rax'])==y
         # Confirm no cross-feature switches are written by rendering or fallback.
-        assert bytes(u.mem_read(flags,7))==b'\0\0\0\0\1\0\0'
+        assert bytes(u.mem_read(flags,feature_count))==bytes(int(i==4) for i in range(feature_count))
     finally:
         u.hook_del(h);u.mem_unmap(api,0x1000);u.mem_unmap(allocation,0x2001000)
-        u.mem_write(flags,b'\1'*7)
+        u.mem_write(flags,b'\1'*feature_count)
     return count

@@ -1,7 +1,7 @@
 """Execute native casting, patched controls and per-instance particle constructors."""
 from unicorn import UC_HOOK_CODE
 from unicorn.x86_const import UC_X86_REG_RSP, UC_X86_REG_RIP
-from casting_color_patch import COLORS
+from casting_color_patch import COLORS, NEUTRAL_CAST
 
 
 def check_cast_hold(uc, base, manifest, actors, enemies, stats, impact, sp,
@@ -90,6 +90,20 @@ def check_cast_hold(uc, base, manifest, actors, enemies, stats, impact, sp,
                             assert get(actor+0x34,'H') == 500
                             assert get(master+0xbba+(family-1)*8,'H') == 0xa000
         checks.append('Native cast ticks: L1 priority, release, ten elements, healing, direct and both shortcut buttons')
+        if 'artesphere' in manifest['features']:
+            for char in [2,3,6]:
+                for held in [False,True]:
+                    for l1 in [False,True]:
+                        actor=setup(char,71,held,l1,0x100)
+                        put(base+0x8c9180,'I',(0x80000 if held else 0)|(0x100 if l1 else 0))
+                        tick(actor)
+                        assert get(actor+0x6d,'B')==(43 if char in (2,3) and held and not l1 else 71)
+                        assert get(actor+0x8c,'H')==(4 if l1 or (char==6 and held) else 2)
+            # Native release path must also retarget ally healing for R2.
+            for source in (0x400,0x800,0x100):
+                actor=setup(2,55,False,False,source);reg('rbx',actor);reg('rdx',source)
+                execute(0xd53f0,[0x90690])
+            checks.append('R2 casts: release/hold/invocation, L1 priority and native ally-healing target branch')
 
         for exclusion in ['low_gauge','owner','unlearned','enemy','autonomous','other_controller']:
             actor = setup()
@@ -193,7 +207,7 @@ def check_cast_hold(uc, base, manifest, actors, enemies, stats, impact, sp,
     if 'casting_colors' in manifest['features']:
         effect,particle=impact,impact+0x200
         for char in [2,3]:
-            for family,rgb in enumerate(COLORS.values(),1):
+            for family,rgb in enumerate([NEUTRAL_CAST]+list(COLORS.values())):
                 for offset in [0x10,0x22,0xa]:
                     for intensity in [0,64,128,255]:
                         actor=setup(char)
@@ -207,7 +221,7 @@ def check_cast_hold(uc, base, manifest, actors, enemies, stats, impact, sp,
                         expected=bytearray(before);expected[offset:offset+3]=bytes(x*intensity//255 for x in rgb)
                         assert bytes(uc.mem_read(particle,0x80))==expected
                         assert saved=={k:uc.reg_read(v) for k,v in regs.items()}
-        checks.append('240 particle tints: ten families and both mages; RGB only, intensity/phase/geometry/register preservation')
+        checks.append('264 particle tints: neutral plus ten families and both mages; RGB only, intensity/phase/geometry/register preservation')
 
         particle_pool=0x21000000
         uc.mem_map(particle_pool,0x10000)
@@ -244,7 +258,7 @@ def check_cast_hold(uc, base, manifest, actors, enemies, stats, impact, sp,
         real_templates={0xcc73e:(0x590db0,0x58),0xcc860:(0x592f38,0x4a),
                         0xcc8da:(0x591a68,0x58),0xcc900:(0x592bc0,0x4a),0xcc92a:(0x58ff54,0x6a)}
         for char in [2,3]:
-            for family,rgb in enumerate(COLORS.values(),1):
+            for family,rgb in enumerate([NEUTRAL_CAST]+list(COLORS.values())):
                 for profile_index,(site,records) in enumerate(PROFILES.items()):
                     actor=setup(char);put(actor+0x6c,'B',family*4);put(effect,'Q',actor)
                     template,length=real_templates[site]

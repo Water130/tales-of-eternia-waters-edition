@@ -221,6 +221,16 @@ def emit_camera(emit, mem, jump, data_rva, bounded=False):
         cmp eax, 40
         ja native_cinematic
     normal_pitch:
+        # Never widen an unaudited arena: its floor may have a different
+        # topology and cannot be covered by the rectangular-border extension.
+        # Test before changing pitch/XYZ so its original framing stays intact.
+        {f'''movzx eax, word ptr {mem(0x12d0eb2)}
+        cmp eax, 128
+        jae native_cinematic
+        shl eax, 4
+        lea r10, {mem(data_rva+0x800)}
+        cmp word ptr [r10+rax+8], 0
+        je native_cinematic''' if bounded else ''}
         mov word ptr {mem(0x12cea90)}, 64
         mov word ptr {mem(0x12ceab0)}, 64
         mov byte ptr {mem(data_rva+0x6c)}, 0
