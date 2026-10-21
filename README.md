@@ -40,7 +40,6 @@ checks the exact game file before making any changes.
 - Optional **skit notification**, on the overworld and in fields/dungeons.
   It avoids occupied HUD space and hides during menus, dialogue and story scenes.
 - Startup skips presentation screens and goes directly to the opening movie.
-- Blue **Water's Edition** title lettering with a cyan glow.
 - A native-style **Mod settings** page with keyboard/controller hints, independent
   switches in four categories with detailed help and a dedicated keyboard configuration page.
 
