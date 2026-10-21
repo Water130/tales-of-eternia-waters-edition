@@ -1,5 +1,5 @@
 TALES OF ETERNIA - WATER'S EDITION
-0.12.13 - Experimental test release
+0.13.8 - Experimental test release
 Windows / Steam build 25190541 only
 
 This is the current combat and interface prototype. It is intended for testing;
@@ -73,10 +73,10 @@ Use the controller or keyboard:
 Up/Down selects a setting, Confirm or Left/Right toggles it, and Back closes
 the panel. Up from the first row selects Reset/Default at the top right.
 Choose one with Left/Right and press Confirm: Reset restores the settings from
-when you opened the page; Default enables all twelve features. Mouse selection
+when you opened the page; Default enables all eighteen features. Mouse selection
 of the custom entry/panel is not implemented.
 
-Twelve switches are available and enabled by default:
+Eighteen switches are available and enabled by default. The original switches:
 - Dynamic camera (including the related framing/ground/effect adjustments)
 - Post-battle TP recovery (Off restores the native recovery amount)
 - TP from basic physical hits (Off removes the additional TP)
@@ -228,3 +228,33 @@ No complete game executable/DLL, original game textures, music, saves, personal
 logs or local developer paths are included. The new blue wordmark is embedded
 in the patch data. The patch requires your own compatible installation.
 Support/SHARE.txt contains a short English introduction you can copy into your server.
+
+NEW IN 0.13.8
+Mod settings are grouped into Quality of Life, Combat, Progression and Other,
+with a detailed description on the right. Guard + Up for Reid/Farah is a
+separate optional setting. Arte category labels align with the name/TP cost.
+L2/LT plays an available skit while exploring; use L2 + Select when L2 is
+rebound to another exploration action. The notice avoids the overworld compass.
+
+Open Stats and press Square (or the displayed mapped equivalent) for Mastery.
+The persistent list selects a mastery/Craymel; confirm focuses its skill tree.
+Titles are blue, numerical benefits green, and links brighten when requirements
+are met. Unknown Craymels show silhouettes. A level 1-30 meter appears above.
+Physical combo faculties and Craymel faculties are previews without gameplay
+effects. Farah's six Energy faculties and spell usage bonuses are implemented.
+Energy uses the lower Punch/Kick level and has no independent experience pool.
+Farah: Healer restores 40% max HP at 10; Detoxify adds 25% healing at 15;
+Healer adds a second target at 50% at 20; extended Detoxify purification at 25;
+a third target at 25% and Life at 35% max HP at 30. Individual toggles are saved.
+
+Keele/Meredy: Triangle switches between Faculties and Spell progression.
+Page 1: Undine, Sylph, Efreet, Rem, Maxwell.
+Page 2: Gnome, Celsius, Volt, Shadow, Sekundes.
+Move left/right between columns and pages; up/down scrolls the spell list.
+Starting spells remain visible before their spirit joins. White means currently
+available; gray means known but unavailable. Usage counts are separate for
+each mage and save slot. Offensive spells gain 1% damage per 25 casts, up to
+25%. Single-target buffs add 1/2/3 allies at 100/250/500 uses, retaining native
+duration. Healing spells gain no usage bonus. The next-gain meter shows MAX
+at the cap. Mod settings and per-spell choices can disable these bonuses.
+Back up saves and the mod INI independently before updating.

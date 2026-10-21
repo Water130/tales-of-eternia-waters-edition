@@ -19,6 +19,24 @@ FEATURES = [
     ('MultipleMaxVitality', 'Vitalités multiples au MAX', 'Multiple MAX vitality gauges'),
     ('GuardSpellCancel', 'Annulation de sort par garde', 'Guard cancels casting'),
     ('MageGuardJump', 'Saut des mages : Garde + Haut', 'Mage jump: Guard + Up'),
+    ('SpellMastery', 'Maîtrise des sorts', 'Spell mastery'),
+    ('FighterGuardJump', 'Saut Reid/Farah : Garde + Haut', 'Reid/Farah jump: Guard + Up'),
+    ('FarahEnergyBar', 'Barre Énergie de Farah', 'Farah Energy gauge'),
+    ('ArteCategoryLabels', 'Catégories des artes', 'Arte category labels'),
+    ('SkitShortcut', 'Lecture rapide des saynètes', 'Quick skit playback'),
+    ('FarahEnergyMastery', 'Facultés Énergie de Farah', 'Farah Energy faculties'),
+]
+
+# Preserve the sixteen existing flag addresses and the menu control bytes.
+# Extra flags/snapshots have their own bank, leaving room for future options.
+FLAG_OFFSETS = [0x1a00+i if i < 16 else 0x1a40+i-16 for i in range(len(FEATURES))]
+
+# Display order only: persistent feature IDs, flag banks and INI keys stay fixed.
+CATEGORIES = [
+    ('Quality of Life', 'Quality of Life', [0,3,4,5,6,7,16,15]),
+    ('Combat', 'Combat', [1,2,8,9,10,11,13]),
+    ('Progression', 'Progression', [12,14,17]),
+    ('Autres', 'Other', [len(FEATURES)+1]),
 ]
 
 
@@ -26,9 +44,10 @@ def emit_settings(emit, mem, jump, data, symbols):
     count = len(FEATURES)
     header = count
     keyboard = count + 1
-    assert count <= 16  # Two qwords reserved for flags and opening snapshot.
-    row_step = min(17, 160//count)
-    assert row_step >= 12 and 64.5 + row_step*count < 225
+    category_first = count + 2
+    assert sorted(i for _,_,ids in CATEGORIES for i in ids)==list(range(count))+[keyboard]
+    assert count <= 32
+    row_step, visible_rows = 17, 10
     payload = bytearray()
     strings = {}
     def string(name, text, wide=False):
@@ -45,6 +64,7 @@ def emit_settings(emit, mem, jump, data, symbols):
         ('menu','Options de mods','Mod settings'),
         ('keyboard','Commandes clavier (PC)','Keyboard controls (PC)'),
         ('open','Configurer','Configure'),
+        ('enter','Ouvrir','Open'),
         ('heading',"Water's Edition — Options de mods","Water's Edition — Mod settings"),
         ('on','Activé','On'),('off','Désactivé','Off'),
         ('back','Retour','Back'),('select','Sélect.','Select'),('modify','Modifier','Modify'),
@@ -55,11 +75,27 @@ def emit_settings(emit, mem, jump, data, symbols):
         string(name+'_fr',fr);string(name+'_en',en)
     string('brand',"Water's Edition")
     string('cursor','>')
+    string('scroll_up','^');string('scroll_down','v')
+    for i,(fr,en,_) in enumerate(CATEGORIES):
+        string(f'category{i}_fr',fr);string(f'category{i}_en',en)
     # Tables contain RVAs, not absolute addresses; they survive ASLR.
     payload.extend(b'\0'*((-len(payload))%4))
     table=data+0x2000+len(payload)
     for index in range(count):
         payload.extend(struct.pack('<III',strings[f'key{index}'],strings[f'fr{index}'],strings[f'en{index}']))
+    item_labels=data+0x2000+len(payload)
+    for index in range(count):
+        payload.extend(struct.pack('<2I',strings[f'fr{index}'],strings[f'en{index}']))
+    for name in ['reset','keyboard']+[f'category{i}' for i in range(len(CATEGORIES))]:
+        payload.extend(struct.pack('<2I',strings[name+'_fr'],strings[name+'_en']))
+    menus=[list(range(category_first,category_first+len(CATEGORIES)))+[header]]+[ids for _,_,ids in CATEGORIES]
+    menu_entries=[]
+    for ids in menus:
+        menu_entries.append((data+0x2000+len(payload),len(ids)))
+        payload.extend(bytes(ids))
+    payload.extend(b'\0'*((-len(payload))%4))
+    menu_table=data+0x2000+len(payload)
+    for entry in menu_entries:payload.extend(struct.pack('<2I',*entry))
     assert len(payload)<0x1000
     flags=data+0x1a00
     initialized=data+0x1a10
@@ -67,7 +103,19 @@ def emit_settings(emit, mem, jump, data, symbols):
     selection=data+0x1a12
     error=data+0x1a13
     reset_choice=data+0x1a14
+    scroll_top=data+0x1a15
+    category_state=data+0x1a16 # zero = category list; 1..4 = category contents
     snapshot=data+0x1a20
+    address_serial = 0
+    def indexed_flag(register, index, opening=False):
+        nonlocal address_serial
+        address_serial += 1
+        label = f'flag_address_{address_serial}'
+        return f'''lea {register}, {mem(snapshot if opening else flags)}
+            cmp {index}, 16
+            jb {label}
+            add {register}, {0x20 if opening else 0x30}
+        {label}:'''
     path=data+0x3000
     def address(name):return mem(strings[name])
     def localized(name,register='rcx'):
@@ -139,7 +187,7 @@ def emit_settings(emit, mem, jump, data, symbols):
         call qword ptr {mem(data+0x1b08)}
         test eax, eax
         setne al
-        lea rdx, {mem(flags)}
+        {indexed_flag('rdx', 'rdi')}
         mov byte ptr [rdx+rdi], al
         add rsi, 12
         inc edi
@@ -163,7 +211,7 @@ def emit_settings(emit, mem, jump, data, symbols):
         movzx eax, byte ptr {mem(selection)}
         cmp eax, {count}
         jae done
-        lea rdx, {mem(flags)}
+        {indexed_flag('rdx', 'rax')}
         lea r8, {address('zero')}
         cmp byte ptr [rdx+rax], 0
         je value_ready
@@ -193,10 +241,10 @@ def emit_settings(emit, mem, jump, data, symbols):
         mov al, 1
         cmp byte ptr {mem(reset_choice)}, 0
         jne default_value
-        lea rdx, {mem(snapshot)}
+        {indexed_flag('rdx', 'rbx', True)}
         mov al, byte ptr [rdx+rbx]
     default_value:
-        lea rdx, {mem(flags)}
+        {indexed_flag('rdx', 'rbx')}
         mov byte ptr [rdx+rbx], al
         mov byte ptr {mem(selection)}, bl
         call {save:#x}
@@ -227,19 +275,81 @@ def emit_settings(emit, mem, jump, data, symbols):
 
     # Entry immediately before native mouse/action dispatch. While the panel
     # is open, consume its input, including the native Quit shortcut.
+    menu_items=emit('settings_menu_items',f'''
+        movzx eax, byte ptr {mem(category_state)}
+        cmp eax, {len(CATEGORIES)}
+        jbe valid
+        xor eax, eax
+        mov byte ptr {mem(category_state)}, 0
+    valid:
+        lea rdx, {mem(menu_table)}
+        lea rdx, [rdx+rax*8]
+        mov ecx, dword ptr [rdx+4]
+        mov edx, dword ptr [rdx]
+        lea rax, {mem(0)}
+        add rdx, rax
+        ret
+    ''')
+    menu_index=emit('settings_menu_index',f'''
+        sub rsp, 0x28
+        call {menu_items:#x}
+        movzx r8d, byte ptr {mem(selection)}
+        xor eax, eax
+    find:
+        cmp r8b, byte ptr [rdx+rax]
+        je done
+        inc eax
+        cmp eax, ecx
+        jb find
+        xor eax, eax
+        mov r8b, byte ptr [rdx]
+        mov byte ptr {mem(selection)}, r8b
+    done:
+        add rsp, 0x28
+        ret
+    ''')
+    item_label=emit('settings_item_label',f'''
+        lea rcx, {mem(item_labels)}
+        lea rcx, [rcx+rax*8]
+        cmp byte ptr {mem(0x11c9ce8)}, 3
+        je french
+        add rcx, 4
+    french:
+        mov ecx, dword ptr [rcx]
+        lea rax, {mem(0)}
+        add rcx, rax
+        ret
+    ''')
     panel_input=emit('settings_panel_input',f'''
         cmp byte ptr {mem(page)}, 0
         je native
         mov dword ptr {mem(0x10e1c8c)}, 0x4650
         cmp byte ptr {mem(page)}, 2
-        je sub_page_input
+        je keyboard_input
         cmp esi, 0x4000
-        je close
+        je back
         cmp esi, 8
-        je close
-    sub_page_input:
-        cmp byte ptr {mem(page)}, 2
-        jne main_page
+        je back
+        call {menu_index:#x}
+        cmp r13d, 0x10
+        jne down
+        dec eax
+        jns selected
+        lea eax, [rcx-1]
+        jmp selected
+    down:
+        cmp r13d, 0x40
+        jne action
+        inc eax
+        cmp eax, ecx
+        jb selected
+        xor eax, eax
+    selected:
+        mov al, byte ptr [rdx+rax]
+        mov byte ptr {mem(selection)}, al
+        mov edi, 0x8d
+        jmp handled
+    keyboard_input:
         mov eax, dword ptr {mem(data+0x1a30)}
         test eax, eax
         je handled
@@ -247,46 +357,23 @@ def emit_settings(emit, mem, jump, data, symbols):
         add rax, rcx
         call rax
         jmp handled
-    main_page:
-        movzx eax, byte ptr {mem(selection)}
-        cmp r13d, 0x10
-        jne down
-        cmp eax, {count}
-        jne up_eight
-        mov eax, {keyboard}
-        jmp selected
-    up_eight:
-        cmp eax, {keyboard}
-        jne up_normal
-        mov eax, {count-1}
-        jmp selected
-    up_normal:
-        dec eax
-        jns selected
-        mov eax, {header}
-        jmp selected
-    down:
-        cmp r13d, 0x40
-        jne action
-        cmp eax, {count-1}
-        jne down_eight
-        mov eax, {keyboard}
-        jmp selected
-    down_eight:
-        cmp eax, {keyboard}
-        jne down_normal
-        mov eax, {header}
-        jmp selected
-    down_normal:
-        inc eax
-        cmp eax, {keyboard}
-        jb selected
-        xor eax, eax
-    selected:
-        mov byte ptr {mem(selection)}, al
-        mov edi, 0x8d
-        jmp handled
     action:
+        movzx eax, byte ptr [rdx+rax]
+        cmp byte ptr {mem(category_state)}, 0
+        jne category_action
+        cmp eax, {header}
+        je header_action
+        cmp esi, 0x2000
+        jne handled
+        sub eax, {category_first-1}
+        mov byte ptr {mem(category_state)}, al
+        mov byte ptr {mem(scroll_top)}, 0
+        call {menu_items:#x}
+        mov al, byte ptr [rdx]
+        mov byte ptr {mem(selection)}, al
+        mov edi, 0x8e
+        jmp handled
+    category_action:
         cmp eax, {keyboard}
         jne feature_action
         cmp esi, 0x2000
@@ -296,8 +383,6 @@ def emit_settings(emit, mem, jump, data, symbols):
         mov byte ptr {mem(page)}, 2
         jmp handled
     feature_action:
-        cmp eax, {count}
-        je header_action
         cmp esi, 0x2000
         je toggle
         cmp esi, 0x20
@@ -307,7 +392,7 @@ def emit_settings(emit, mem, jump, data, symbols):
     toggle:
         cmp eax, {count}
         jae handled
-        lea rdx, {mem(flags)}
+        {indexed_flag('rdx', 'rax')}
         xor byte ptr [rdx+rax], 1
         call {save:#x}
         mov edi, 0x8e
@@ -329,6 +414,16 @@ def emit_settings(emit, mem, jump, data, symbols):
     restore_values:
         call {restore:#x}
         mov edi, 0x8e
+        jmp handled
+    back:
+        movzx eax, byte ptr {mem(category_state)}
+        test eax, eax
+        je close
+        add eax, {category_first-1}
+        mov byte ptr {mem(selection)}, al
+        mov byte ptr {mem(category_state)}, 0
+        mov byte ptr {mem(scroll_top)}, 0
+        mov edi, 0x8f
         jmp handled
     close:
         mov byte ptr {mem(page)}, 0
@@ -378,9 +473,15 @@ def emit_settings(emit, mem, jump, data, symbols):
         mov qword ptr {mem(snapshot)}, rax
         mov rax, qword ptr {mem(flags+8)}
         mov qword ptr {mem(snapshot+8)}, rax
+        mov rax, qword ptr {mem(data+0x1a40)}
+        mov qword ptr {mem(data+0x1a50)}, rax
+        mov rax, qword ptr {mem(data+0x1a48)}
+        mov qword ptr {mem(data+0x1a58)}, rax
         mov byte ptr {mem(reset_choice)}, 0
         mov byte ptr {mem(page)}, 1
-        mov byte ptr {mem(selection)}, 0
+        mov byte ptr {mem(selection)}, {category_first}
+        mov byte ptr {mem(category_state)}, 0
+        mov byte ptr {mem(scroll_top)}, 0
         mov edi, 0x8e
         xor r14d, r14d
         jmp 0x1b98d7
@@ -472,6 +573,30 @@ def emit_settings(emit, mem, jump, data, symbols):
         add rsp, 0x58
         ret
     ''')
+    # Scroll a fixed-height viewport; keep stable option IDs and INI keys.
+    scroll=emit('settings_scroll',f'''
+        sub rsp, 0x28
+        call {menu_index:#x}
+        movzx r9d, byte ptr {mem(scroll_top)}
+        sub ecx, {visible_rows}
+        xor edx, edx
+        cmp ecx, edx
+        cmovl ecx, edx
+        cmp r9d, ecx
+        cmova r9d, ecx
+        cmp byte ptr {mem(selection)}, {header}
+        je done
+        cmp eax, r9d
+        cmovb r9d, eax
+        lea edx, [r9+{visible_rows}]
+        cmp eax, edx
+        jb done
+        lea r9d, [rax-{visible_rows-1}]
+    done:
+        mov byte ptr {mem(scroll_top)}, r9b
+        add rsp, 0x28
+        ret
+    ''')
     # Use the same capsule, nine-slice frame and gradient as 1349f0.
     # Window RGB comes from saved options, not uninitialized menu scratch.
     backdrop=emit('settings_backdrop',f'''
@@ -502,6 +627,8 @@ def emit_settings(emit, mem, jump, data, symbols):
         mov qword ptr [rsp+0x28], rax
         mov dword ptr [rsp+0x30], 255
         call 0x25a090
+        cmp byte ptr {mem(category_state)}, 0
+        jne body
         mov ecx, 297
         mov edx, 16
         xor r8d, r8d
@@ -511,6 +638,7 @@ def emit_settings(emit, mem, jump, data, symbols):
         mov qword ptr [rsp+0x28], rax
         mov dword ptr [rsp+0x30], 255
         call 0x25aaa0
+    body:
         mov ecx, -55
         mov edx, 34
         xor r8d, r8d
@@ -520,20 +648,21 @@ def emit_settings(emit, mem, jump, data, symbols):
         mov qword ptr [rsp+0x28], rax
         mov dword ptr [rsp+0x30], 255
         call 0x25aaa0
-        movzx edx, byte ptr {mem(selection)}
-        cmp edx, {header}
+        call {scroll:#x}
+        cmp byte ptr {mem(selection)}, {header}
         je done
-        cmp edx, {keyboard}
-        jne regular_row
-        mov edx, {count}
-    regular_row:
+        call {menu_index:#x}
+        mov edx, eax
+        movzx eax, byte ptr {mem(scroll_top)}
+        sub edx, eax
         imul edx, edx, {row_step}
         add edx, 55
         cvtsi2ss xmm1, edx
         mov eax, 31
         cvtsi2ss xmm0, eax
         xorps xmm2, xmm2
-        movss xmm3, dword ptr {mem(0x524f50)}
+        mov eax, 209
+        cvtsi2ss xmm3, eax
         mov dword ptr [rsp+0x20], 0x41080000
         mov dword ptr [rsp+0x30], 0xbf800000
         mov dword ptr [rsp+0x40], 0x40000000
@@ -622,11 +751,19 @@ def emit_settings(emit, mem, jump, data, symbols):
         call {backdrop:#x}
         {localized('menu','r10')}
         mov rcx, r10
+        movzx eax, byte ptr {mem(category_state)}
+        test eax, eax
+        je heading_ready
+        add eax, {category_first-1}
+        call {item_label:#x}
+    heading_ready:
         mov edx, 33
         mov r8d, 34
         mov r9d, 68
         mov eax, 0xfffffdfa
         call {field:#x}
+        cmp byte ptr {mem(category_state)}, 0
+        jne start_list
         {localized('reset')}
         mov edx, 387
         mov r8d, 36
@@ -647,78 +784,113 @@ def emit_settings(emit, mem, jump, data, symbols):
         mov eax, 0xfffffdfa
     default_text:
         call {field:#x}
-        xor ebx, ebx
-        lea rsi, {mem(table)}
-        lea rdi, {mem(0)}
+    start_list:
+        movzx ebp, byte ptr {mem(scroll_top)}
+        mov ebx, ebp
+        call {menu_items:#x}
+        mov rsi, rdx
+        mov edi, ecx
     row:
-        mov ecx, dword ptr [rsi+8]
-        cmp byte ptr {mem(0x11c9ce8)}, 3
-        jne label_ready
-        mov ecx, dword ptr [rsi+4]
-    label_ready:
-        add rcx, rdi
+        cmp ebx, edi
+        jae list_end
+        movzx eax, byte ptr [rsi+rbx]
+        cmp eax, {header}
+        je list_end
+        call {item_label:#x}
         mov edx, 34
-        imul r8d, ebx, {row_step}
+        mov r8d, ebx
+        sub r8d, ebp
+        imul r8d, r8d, {row_step}
         add r8d, 55
         mov r9d, 111
         mov eax, 0xff49bfff
         call {field:#x}
+        movzx eax, byte ptr [rsi+rbx]
+        cmp eax, {count}
+        jae open_item
         mov edx, 150
-        imul r8d, ebx, {row_step}
+        mov r8d, ebx
+        sub r8d, ebp
+        imul r8d, r8d, {row_step}
         add r8d, 55
         xor r9d, r9d
+        {indexed_flag('rcx', 'rax')}
+        cmp byte ptr [rcx+rax], 0
         mov eax, 0xff808080
-        lea rcx, {mem(flags)}
-        cmp byte ptr [rcx+rbx], 0
         je on_inactive
         mov eax, 0xfffffdfa
     on_inactive:
         {localized('on','rcx')}
         call {field:#x}
         mov edx, 190
-        imul r8d, ebx, {row_step}
+        mov r8d, ebx
+        sub r8d, ebp
+        imul r8d, r8d, {row_step}
         add r8d, 55
         xor r9d, r9d
+        movzx eax, byte ptr [rsi+rbx]
+        {indexed_flag('rcx', 'rax')}
+        cmp byte ptr [rcx+rax], 0
         mov eax, 0xfffffdfa
-        lea rcx, {mem(flags)}
-        cmp byte ptr [rcx+rbx], 0
         je off_active
         mov eax, 0xff808080
     off_active:
         {localized('off','rcx')}
         call {field:#x}
-    next_row:
-        add rsi, 12
-        inc ebx
-        cmp ebx, {count}
-        jb row
-        {localized('keyboard')}
-        mov edx, 34
-        mov r8d, {55+row_step*count}
-        mov r9d, 111
-        mov eax, 0xff49bfff
-        call {field:#x}
+        jmp next_row
+    open_item:
+        {localized('enter')}
+        cmp byte ptr [rsi+rbx], {keyboard}
+        jne open_ready
         {localized('open')}
+    open_ready:
         mov edx, 150
-        mov r8d, {55+row_step*count}
-        xor r9d, r9d
+        mov r8d, ebx
+        sub r8d, ebp
+        imul r8d, r8d, {row_step}
+        add r8d, 55
+        mov r9d, 80
         mov eax, 0xfffffdfa
         call {field:#x}
-        movzx eax, byte ptr {mem(selection)}
-        cmp eax, {keyboard}
-        jne feature_cursor
-        mov edx, 55
-        mov r8d, {43+row_step*count}
-        jmp cursor
-    feature_cursor:
-        cmp eax, {count}
+    next_row:
+        inc ebx
+        lea eax, [rbp+{visible_rows}]
+        cmp ebx, eax
+        jb row
+    list_end:
+        test ebp, ebp
+        je below
+        lea rcx, {address('scroll_up')}
+        mov edx, 238
+        mov r8d, 52
+        mov r9d, 9
+        mov eax, 0xffffad61
+        call {field:#x}
+    below:
+        lea eax, [rbp+{visible_rows}]
+        cmp eax, edi
+        jae list_cursor
+        lea rcx, {address('scroll_down')}
+        mov edx, 238
+        mov r8d, 216
+        mov r9d, 9
+        mov eax, 0xffffad61
+        call {field:#x}
+    list_cursor:
+        cmp byte ptr {mem(selection)}, {header}
         je header_cursor
-        lea rdx, {mem(flags)}
-        movzx edx, byte ptr [rdx+rax]
-        imul edx, edx, -40
-        add edx, 95
+        call {menu_index:#x}
+        movzx r10d, byte ptr [rdx+rax]
+        sub eax, ebp
         imul r8d, eax, {row_step}
         add r8d, 43
+        mov edx, 55
+        cmp r10d, {count}
+        jae cursor
+        {indexed_flag('rcx', 'r10')}
+        movzx edx, byte ptr [rcx+r10]
+        imul edx, edx, -40
+        add edx, 95
         jmp cursor
     header_cursor:
         movzx edx, byte ptr {mem(reset_choice)}
@@ -741,9 +913,15 @@ def emit_settings(emit, mem, jump, data, symbols):
         mov eax, 0xff9090ff
     footer:
         mov edx, 240
-        mov r8d, 225
+        mov r8d, 232
         mov r9d, 6
         call {text:#x}
+        mov eax, dword ptr {mem(data+0x1a38)}
+        test eax, eax
+        je done
+        lea rcx, {mem(0)}
+        add rax, rcx
+        call rax
     done:
         add rsp, 0xf8
         pop rdi
@@ -817,7 +995,11 @@ def emit_settings(emit, mem, jump, data, symbols):
     logo_info['visibility']='After native title reveal (phase >=230), before and after Start; hidden in settings and transitions'
     return dict(flags_rva=flags, initialized_rva=initialized,page_rva=page,selection_rva=selection,
                 error_rva=error,reset_choice_rva=reset_choice,snapshot_rva=snapshot,path_rva=path,strings=strings,table_rva=table,
-                features=[k for k,_,_ in FEATURES],default='enabled',french_text_language=3,row_step=row_step,
+                features=[k for k,_,_ in FEATURES],flag_rvas=[data+i for i in FLAG_OFFSETS],
+                snapshot_rvas=[snapshot+i if i<16 else data+0x1a50+i-16 for i in range(count)],default='enabled',french_text_language=3,row_step=row_step,
+                visible_rows=visible_rows,scroll_top_rva=scroll_top,
+                category_state_rva=category_state,category_first=category_first,
+                categories=[dict(fr=fr,en=en,items=ids) for fr,en,ids in CATEGORIES],
                 configuration='%LOCALAPPDATA%/TalesOfEternia-WatersEdition.ini',
                 input='native controller/keyboard confirm, back, directions; page uses separate cursor',
                 native_entries_preserved=True,visual_validation=False,

@@ -11,7 +11,7 @@ PROFILE_SIZE = 96
 
 
 def emit_artesphere(emit, mem, jump, edit, data, symbols, state):
-    payload = bytearray(0xd000)
+    payload = bytearray(0xf000)
     strings = {}
     cursor = 0x1000
     def string(key, value, wide=False):
@@ -256,7 +256,7 @@ def emit_artesphere(emit, mem, jump, edit, data, symbols, state):
     storage = emit_storage(emit,mem,jump,data,state,profile,string,symbols,usage)
 
     from artesphere_keyboard import emit_keyboard
-    keyboard = emit_keyboard(emit,mem,jump,data,state,string,init)
+    keyboard = emit_keyboard(emit,mem,jump,data,state,string,init,symbols.get('skit_shortcut_input'))
 
     from artesphere_keys_ui import emit_keys_ui
     keyboard['ui']=emit_keys_ui(emit,mem,data,state,string,loc,symbols,keyboard)

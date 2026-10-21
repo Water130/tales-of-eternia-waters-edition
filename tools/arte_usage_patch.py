@@ -163,15 +163,25 @@ def emit_usage(emit, mem, jump, state):
                 per_character=True, native_physical_counters_preserved=True)
 
 
-def emit_usage_storage(emit, mem, data, state, string, fingerprint, usage):
+def emit_usage_storage(emit, mem, data, state, string, fingerprint, usage, *,
+                       record_name='arte_usage', section_name='ArteUsage-v1',
+                       record_size=SIZE, layout=None, reset_extra=''):
     """Independent INI section; existing Artesphere-v1 records stay compatible."""
-    section = string('usage_section', 'ArteUsage-v1', True)
+    native_emit, native_string = emit, string
+    emit = lambda name, code: native_emit(name.replace('arte_usage', record_name), code)
+    string = lambda name, value, wide=False: native_string(record_name+'_'+name, value, wide)
+    SIZE = record_size
+    assert 0 < SIZE <= 1792 and SIZE % 8 == 0
+    section = string('usage_section', section_name, True)
     kernel = string('usage_kernel', 'kernel32.dll')
     get = string('usage_get', 'GetPrivateProfileStructW')
     put = string('usage_put', 'WritePrivateProfileStructW')
     live = usage['live_rva']
     snapshot, pending, workers = state+0x2700, state+0x2e00, state+0x3600
     valid, pending_ptr = state+0x3500, state+0x3508
+    if layout:
+        snapshot, pending, workers, valid, pending_ptr = [layout[k] for k in
+            ('snapshot', 'pending', 'workers', 'valid', 'pending_ptr')]
     # 1800-byte record stays comfortably below a Windows guard page.
     io = emit('arte_usage_storage_io', f'''
         push rbx
@@ -295,6 +305,7 @@ def emit_usage_storage(emit, mem, data, state, string, fingerprint, usage):
     ''')
     # Import must keep RCX (native save source) and all incoming arguments.
     load = emit('arte_usage_import', f'''
+        {reset_extra}
         lea r10, {mem(live)}
         xor eax, eax
     clear:
@@ -312,6 +323,7 @@ def emit_usage_storage(emit, mem, data, state, string, fingerprint, usage):
         ret
     ''')
     reset = emit('arte_usage_new_game', f'''
+        {reset_extra}
         lea r10, {mem(live)}
         xor eax, eax
     clear:
@@ -324,7 +336,7 @@ def emit_usage_storage(emit, mem, data, state, string, fingerprint, usage):
     ''')
     usage.update(snapshot_rva=snapshot, pending_rva=pending,
                  pending_valid_rva=valid, pending_ptr_rva=pending_ptr,
-                 worker_profiles_rva=workers, section='ArteUsage-v1',
+                 worker_profiles_rva=workers, section=section_name,
                  save_format_modified=False)
     return dict(capture=f'call {capture:#x}', queue=f'call {queue:#x}',
                 load=f'sub rsp, 0x28; call {load:#x}; add rsp, 0x28',

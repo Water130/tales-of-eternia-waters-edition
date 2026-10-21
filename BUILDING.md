@@ -37,10 +37,10 @@ The builder creates build/combat-test/GameNative.dll and local reports. It never
 the result or starts the game. Offline tests execute injected x64 code in Unicorn with
 controlled game structures. Real gameplay/rendering testing is still needed.
 
-Expected 0.12.13 Full-mode SHA-256:
+Expected 0.13.8 Full-mode SHA-256:
 
 ```text
-09560d2547cbdab17e2f32c387eaeb0414bcad68ceac5c35d8608f048169312d
+9eafc9a25863d3daf74322e9bf7d49ff032d68aa34be10be78990fe544bba128
 ```
 
 ## Package and check the English installer

@@ -1,4 +1,4 @@
-Tales of Eternia - Water's Edition - 0.12.13 test release
+Tales of Eternia - Water's Edition - 0.13.8 test release
 
 An experimental combat and UI mod for Tales of Eternia Remastered on Steam.
 

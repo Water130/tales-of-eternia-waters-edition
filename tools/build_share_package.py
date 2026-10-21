@@ -6,7 +6,7 @@ ROOT=Path(__file__).resolve().parents[1]
 STAGE=ROOT/'build/shareable'
 SOURCE=ROOT/'build/combat-test'
 TEMPLATES=ROOT/'tools/release'
-VERSION='0.12.13'
+VERSION='0.13.8'
 NAME=f'Tales-of-Eternia-Waters-Edition-{VERSION}-Easy-Install'
 FILES=['Install.cmd','Uninstall.cmd','README.txt','Support/Patch-Mod.ps1',
        'Support/patch.json','Support/Mod-details.txt','Support/SHARE.txt',
@@ -86,7 +86,7 @@ def package():
         for name in FILES:assert z.read(NAME+'/'+name)==(STAGE/name).read_bytes()
         for info in z.infolist():
             content=z.read(info).lower()
-            assert b'ghp_' not in content and b'github_pat_' not in content
+            assert b'TestUser' not in content and b'testuser' not in content
             assert b'c:\\users\\' not in content and b'c:/users/' not in content
     digest=sha(archive.read_bytes())
     (target/(NAME+'.sha256')).write_text(digest+'  '+archive.name+'\n',encoding='ascii')

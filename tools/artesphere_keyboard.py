@@ -1,6 +1,6 @@
 """Configurable keyboard trigger aliases, polled only for this foreground PID."""
 
-def emit_keyboard(emit,mem,jump,data,state,string,initialize):
+def emit_keyboard(emit,mem,jump,data,state,string,initialize,skit_shortcut=None):
     section=string('keys_section','ArtesphereControls',True)
     page=string('keys_page','PageKey',True)
     extra=string('keys_c','PageCKey',True)
@@ -119,6 +119,7 @@ def emit_keyboard(emit,mem,jump,data,state,string,initialize):
         push rax
         sub rsp, 0x28
         call {update:#x}
+        {f'mov rcx, rbx; call {skit_shortcut:#x}' if skit_shortcut else ''}
         add rsp, 0x28
         pop rax
         mov rbx, qword ptr [rsp+0x30]

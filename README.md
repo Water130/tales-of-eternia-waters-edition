@@ -6,7 +6,7 @@
 
 A combat and interface mod for **Tales of Eternia Remastered on Windows / Steam**.
 
-**[Download Water's Edition 0.12.13 - Easy Install](https://github.com/Water130/tales-of-eternia-waters-edition/releases/download/v0.12.13-test/Tales-of-Eternia-Waters-Edition-0.12.13-Easy-Install.zip)**
+**[Download Water's Edition 0.13.8 - Easy Install](https://github.com/Water130/tales-of-eternia-waters-edition/releases/download/v0.13.8-test/Tales-of-Eternia-Waters-Edition-0.13.8-Easy-Install.zip)**
 
 Experimental test release. Supports **Steam build 25190541**. The installer
 checks the exact game file before making any changes.
@@ -27,7 +27,7 @@ checks the exact game file before making any changes.
   Hold a modifier in battle; tap it in the editor to toggle that page/A.
   Assignments are stored separately per save. Existing A/B assignments are preserved.
 - Configurable keyboard modifiers: **F7** for B and **F8** for C, changeable under
-  **Mod settings > Keyboard controls (PC)**.
+  **Mod settings > Other > Keyboard controls (PC)**.
 - Per-character spell usage counters, with element icons to their left.
   Physical artes retain their native counters and also show their elements.
 - Optional **Rebalanced difficulties**: Hard/Extreme/Unknown enemy HP **×1.5/×3/×5**,
@@ -41,15 +41,32 @@ checks the exact game file before making any changes.
   It avoids occupied HUD space and hides during menus, dialogue and story scenes.
 - Startup skips presentation screens and goes directly to the opening movie.
 - Blue **Water's Edition** title lettering with a cyan glow.
-- A native-style **Mod settings** page with keyboard/controller hints, twelve independent
-  switches and a dedicated keyboard configuration page.
+- A native-style **Mod settings** page with keyboard/controller hints, independent
+  switches in four categories with detailed help and a dedicated keyboard configuration page.
 
-All twelve switches are enabled by default and saved automatically. Existing
+The feature switches are enabled by default and saved automatically. Existing
 preferences are retained. Configure the new combat settings at the title screen
 before loading your save.
 
 Mod text is **French when the game's text language is French**, and **English for
 every other language**. All installation archives and public documentation are in English.
+
+- Add a persistent Mastery list and rooted skill trees from Stats (Square),
+  with level meters, prerequisite links, readable colored cards and descriptions.
+- Implement optional Farah Energy healing faculties with six independently saved
+  choices. Energy is the lower Punch/Kick level, without independent experience.
+- Implement optional spell usage mastery: +1% offensive damage per 25 casts,
+  capped at +25%; buffs reach +1/2/3 allies at 100/250/500 uses with native duration.
+  Healing is excluded. Counts and choices are separate for each mage/save.
+- Add two fixed five-column spell pages, unknown/available/unavailable states,
+  starting spells before Craymel acquisition and next-gain bars with MAX caps.
+- Character combo and Craymel faculty trees are previews with no battle effects.
+- Group mod options into Quality of Life, Combat, Progression and Other, with
+  detailed help. Add separate Guard + Up controls for Reid/Farah.
+- Add arte category labels, aligned with the native name and TP cost.
+- Add L2/LT skit playback (L2 + Select if rebound) and improve compass avoidance.
+
+See [the changelog](CHANGELOG.md) for details.
 
 ## Authorship, bugs and use at your own risk
 

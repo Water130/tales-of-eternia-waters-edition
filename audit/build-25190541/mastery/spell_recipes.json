@@ -1,0 +1,342 @@
+{
+  "table_rva": "0x564d40",
+  "known_bits_rva": "0x11cb0b8",
+  "recipes": [
+    {
+      "arte": 54,
+      "primary": 0,
+      "secondary": 1,
+      "level": 1,
+      "secondary_level": 1
+    },
+    {
+      "arte": 55,
+      "primary": 0,
+      "secondary": 4,
+      "level": 10,
+      "secondary_level": 1
+    },
+    {
+      "arte": 56,
+      "primary": 0,
+      "secondary": 8,
+      "level": 15,
+      "secondary_level": 1
+    },
+    {
+      "arte": 57,
+      "primary": 0,
+      "secondary": 6,
+      "level": 20,
+      "secondary_level": 1
+    },
+    {
+      "arte": 58,
+      "primary": 0,
+      "secondary": 9,
+      "level": 20,
+      "secondary_level": 1
+    },
+    {
+      "arte": 59,
+      "primary": 5,
+      "secondary": 3,
+      "level": 6,
+      "secondary_level": 11
+    },
+    {
+      "arte": 60,
+      "primary": 5,
+      "secondary": 1,
+      "level": 5,
+      "secondary_level": 13
+    },
+    {
+      "arte": 61,
+      "primary": 7,
+      "secondary": 0,
+      "level": 5,
+      "secondary_level": 15
+    },
+    {
+      "arte": 62,
+      "primary": 0,
+      "secondary": 3,
+      "level": 10,
+      "secondary_level": 5
+    },
+    {
+      "arte": 63,
+      "primary": 2,
+      "secondary": 0,
+      "level": 5,
+      "secondary_level": 7
+    },
+    {
+      "arte": 64,
+      "primary": 4,
+      "secondary": 3,
+      "level": 10,
+      "secondary_level": 7
+    },
+    {
+      "arte": 65,
+      "primary": 1,
+      "secondary": 2,
+      "level": 6,
+      "secondary_level": 5
+    },
+    {
+      "arte": 66,
+      "primary": 7,
+      "secondary": 5,
+      "level": 5,
+      "secondary_level": 10
+    },
+    {
+      "arte": 67,
+      "primary": 6,
+      "secondary": 2,
+      "level": 15,
+      "secondary_level": 20
+    },
+    {
+      "arte": 68,
+      "primary": 9,
+      "secondary": 4,
+      "level": 5,
+      "secondary_level": 30
+    },
+    {
+      "arte": 69,
+      "primary": 9,
+      "secondary": 3,
+      "level": 20,
+      "secondary_level": 30
+    },
+    {
+      "arte": 71,
+      "primary": 0,
+      "secondary": 0,
+      "level": 1,
+      "secondary_level": 1
+    },
+    {
+      "arte": 73,
+      "primary": 1,
+      "secondary": 1,
+      "level": 1,
+      "secondary_level": 1
+    },
+    {
+      "arte": 74,
+      "primary": 1,
+      "secondary": 7,
+      "level": 20,
+      "secondary_level": 9
+    },
+    {
+      "arte": 76,
+      "primary": 2,
+      "secondary": 2,
+      "level": 1,
+      "secondary_level": 1
+    },
+    {
+      "arte": 77,
+      "primary": 2,
+      "secondary": 3,
+      "level": 12,
+      "secondary_level": 9
+    },
+    {
+      "arte": 78,
+      "primary": 2,
+      "secondary": 5,
+      "level": 15,
+      "secondary_level": 9
+    },
+    {
+      "arte": 80,
+      "primary": 3,
+      "secondary": 3,
+      "level": 1,
+      "secondary_level": 1
+    },
+    {
+      "arte": 81,
+      "primary": 3,
+      "secondary": 7,
+      "level": 21,
+      "secondary_level": 10
+    },
+    {
+      "arte": 83,
+      "primary": 4,
+      "secondary": 4,
+      "level": 1,
+      "secondary_level": 1
+    },
+    {
+      "arte": 84,
+      "primary": 4,
+      "secondary": 1,
+      "level": 12,
+      "secondary_level": 15
+    },
+    {
+      "arte": 85,
+      "primary": 4,
+      "secondary": 5,
+      "level": 14,
+      "secondary_level": 12
+    },
+    {
+      "arte": 87,
+      "primary": 5,
+      "secondary": 5,
+      "level": 1,
+      "secondary_level": 1
+    },
+    {
+      "arte": 88,
+      "primary": 5,
+      "secondary": 6,
+      "level": 15,
+      "secondary_level": 10
+    },
+    {
+      "arte": 89,
+      "primary": 6,
+      "secondary": 6,
+      "level": 1,
+      "secondary_level": 1
+    },
+    {
+      "arte": 90,
+      "primary": 6,
+      "secondary": 8,
+      "level": 21,
+      "secondary_level": 20
+    },
+    {
+      "arte": 91,
+      "primary": 7,
+      "secondary": 7,
+      "level": 1,
+      "secondary_level": 1
+    },
+    {
+      "arte": 92,
+      "primary": 7,
+      "secondary": 9,
+      "level": 23,
+      "secondary_level": 18
+    },
+    {
+      "arte": 93,
+      "primary": 8,
+      "secondary": 8,
+      "level": 1,
+      "secondary_level": 1
+    },
+    {
+      "arte": 95,
+      "primary": 9,
+      "secondary": 9,
+      "level": 1,
+      "secondary_level": 1
+    },
+    {
+      "arte": 94,
+      "primary": 8,
+      "secondary": 9,
+      "level": 26,
+      "secondary_level": 26
+    },
+    {
+      "arte": 114,
+      "primary": 3,
+      "secondary": 1,
+      "level": 5,
+      "secondary_level": 10
+    },
+    {
+      "arte": 115,
+      "primary": 1,
+      "secondary": 6,
+      "level": 10,
+      "secondary_level": 10
+    },
+    {
+      "arte": 116,
+      "primary": 8,
+      "secondary": 4,
+      "level": 10,
+      "secondary_level": 10
+    },
+    {
+      "arte": 117,
+      "primary": 9,
+      "secondary": 2,
+      "level": 10,
+      "secondary_level": 10
+    },
+    {
+      "arte": 118,
+      "primary": 1,
+      "secondary": 8,
+      "level": 10,
+      "secondary_level": 10
+    },
+    {
+      "arte": 119,
+      "primary": 3,
+      "secondary": 6,
+      "level": 10,
+      "secondary_level": 10
+    },
+    {
+      "arte": 120,
+      "primary": 3,
+      "secondary": 8,
+      "level": 20,
+      "secondary_level": 20
+    },
+    {
+      "arte": 121,
+      "primary": 8,
+      "secondary": 7,
+      "level": 10,
+      "secondary_level": 10
+    },
+    {
+      "arte": 122,
+      "primary": 5,
+      "secondary": 0,
+      "level": 10,
+      "secondary_level": 10
+    },
+    {
+      "arte": 123,
+      "primary": 4,
+      "secondary": 2,
+      "level": 10,
+      "secondary_level": 10
+    },
+    {
+      "arte": 124,
+      "primary": 9,
+      "secondary": 6,
+      "level": 10,
+      "secondary_level": 10
+    },
+    {
+      "arte": 125,
+      "primary": 6,
+      "secondary": 7,
+      "level": 10,
+      "secondary_level": 10
+    }
+  ]
+}

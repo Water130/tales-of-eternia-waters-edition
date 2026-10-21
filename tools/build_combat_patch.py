@@ -1,6 +1,7 @@
 """Build a reversible, version-locked native combat experiment. Never installs it.
 
 RVA addresses refer ONLY to Steam build 25190541 / ORIGINAL_SHA256.
+Native extension eligibility may be adjusted; no save edits.
 x64 hooks are position independent.
 """
 from pathlib import Path
@@ -32,6 +33,8 @@ def build(features):
         raise ValueError('multiple_vitality requires mod_settings for its optional switch')
     if 'cast_defense' in features and 'mod_settings' not in features:
         raise ValueError('cast_defense requires mod_settings for its independent switches')
+    if 'spell_mastery' in features and not {'mod_settings','artesphere'}.issubset(features):
+        raise ValueError('spell_mastery requires mod_settings and the saved arte usage counters')
     source = BACKUP if BACKUP.exists() else GAME
     original = source.read_bytes()
     if digest(original) != ORIGINAL_SHA256:
@@ -39,7 +42,7 @@ def build(features):
     pe = pefile.PE(data=original)
     section_alignment = pe.OPTIONAL_HEADER.SectionAlignment
     code_rva = align(max(s.VirtualAddress + max(s.Misc_VirtualSize,s.SizeOfRawData) for s in pe.sections), section_alignment)
-    code_capacity = 0xc000
+    code_capacity = 0x10000
     data_rva = code_rva + code_capacity
     credit = data_rva
     projectile_tags = data_rva+0x100  # one byte for each native 0x30 projectile slot
@@ -124,7 +127,12 @@ def build(features):
         active_gate = 2
         # The same impact routine receives spells and artes. Identify the origin at
         # entry; award only at the native HP subtraction, never on effect creation.
-        # Ordinary melee: native actor hitboxes + normal combo class (<0x0f).
+        # Ordinary melee: native actor hitboxes + normal combo class (<=0x0f).
+        # Native 0x112720 sets 0x0f for aerial/final normal attacks (selectors
+        # 0x112420/0x112560), including Keele and Quickie. It means the combo
+        # cannot continue, NOT that the hit is an arte. Physical artes instead
+        # set category bits in the high nibble at 0x112c58. State 8 still guards
+        # against the same 0x0f sentinel used during landing/recovery.
         # Ranged: tags captured ONLY at actor animation projectile creation, not
         # inferred from the caster's later action (which could already have changed).
         start = emit('projectile_origin',f'''
@@ -162,7 +170,7 @@ def build(features):
             cmp byte ptr [r8+0x52], 8
             jne tagged
             cmp byte ptr [r8+0x64], 0x0f
-            jae tagged
+            ja tagged
             mov byte ptr [r10+rax], 1
         tagged:
             pop r11
@@ -201,7 +209,7 @@ def build(features):
             cmp byte ptr [rcx+0x52], 8
             jne done
             cmp byte ptr [rcx+0x64], 0x0f
-            jae done
+            ja done
             jmp owner
         ranged:
             lea r10, {mem(0x1164e3)}
@@ -508,6 +516,8 @@ def build(features):
             raise ValueError('skit_notice requires mod_settings and combat_ui rendering helpers')
         from skit_notice_patch import emit_skit_notice
         skit_info, skit_data = emit_skit_notice(emit, mem, jump, data_rva, symbols)
+        from skit_shortcut_patch import emit_skit_shortcut
+        skit_info['shortcut'] = emit_skit_shortcut(emit, mem, jump, data_rva, symbols, 'artesphere' in features)
 
     artesphere_info, artesphere_data = None, b''
     artesphere_offset = align(0x4000+len(logo_png),0x1000)
@@ -546,6 +556,33 @@ def build(features):
         from cast_defense_patch import emit_cast_defense
         defense_info = emit_cast_defense(emit, mem, jump, data_rva)
 
+    mastery_info = None
+    energy_info = None
+    mastery_menu_info, mastery_menu_data = None, b''
+    if 'spell_mastery' in features:
+        from spell_mastery_patch import emit_mastery
+        mastery_offset = align(texture_offset+texture_info['size'] if texture_info
+                               else particle_offset, 0x1000)
+        mastery_info = emit_mastery(emit, mem, jump, data_rva,
+                                   data_rva+mastery_offset, artesphere_info['usage'])
+        from energy_mastery_patch import emit_energy
+        energy_info = emit_energy(emit, mem, jump, data_rva, artesphere_info['usage'])
+        from mastery_menu_patch import emit_mastery_menu
+        mastery_menu_offset = mastery_offset+mastery_info['size']
+        mastery_menu_info, mastery_menu_data = emit_mastery_menu(emit, mem, jump,
+            data_rva, data_rva+mastery_menu_offset, symbols, artesphere_info['usage'])
+
+    progression_ui_info, progression_ui_data = None, b''
+    if settings_info:
+        from progression_ui_patch import emit_progression_ui
+        progression_ui_offset = align(
+            mastery_menu_offset+len(mastery_menu_data) if mastery_menu_info else
+            texture_offset+texture_info['size'] if texture_info else
+            particle_offset+particle_info['size'] if particle_info else
+            artesphere_offset+len(artesphere_data), 0x1000)
+        progression_ui_info, progression_ui_data = emit_progression_ui(
+            emit, mem, jump, data_rva, data_rva+progression_ui_offset, symbols)
+
     if len(code)>code_capacity:
         raise RuntimeError('Hook code exceeds reserved section')
     # Two sections: executable code and nonexecutable writable state. Original
@@ -563,12 +600,19 @@ def build(features):
     if artesphere_data:state_size=artesphere_offset+len(artesphere_data)
     if particle_info:state_size=align(particle_offset+particle_info['size'],pe.OPTIONAL_HEADER.FileAlignment)
     if texture_info:state_size=align(texture_offset+texture_info['size'],pe.OPTIONAL_HEADER.FileAlignment)
+    if mastery_info:state_size=mastery_offset+mastery_info['size']
+    if mastery_menu_info:state_size=mastery_menu_offset+len(mastery_menu_data)
+    if progression_ui_info:state_size=progression_ui_offset+len(progression_ui_data)
     state = bytearray(state_size)
+    if progression_ui_info:
+        state[progression_ui_offset:progression_ui_offset+len(progression_ui_data)]=progression_ui_data
+        struct.pack_into('<I',state,0x1a38,progression_ui_info['help_draw_rva'])
+    if mastery_menu_info:state[mastery_menu_offset:mastery_menu_offset+len(mastery_menu_data)]=mastery_menu_data
     if artesphere_data:state[artesphere_offset:artesphere_offset+len(artesphere_data)]=artesphere_data
     if logo_png:state[0x4000:0x4000+len(logo_png)] = logo_png
     if state_size >= 0x2000:
-        from mod_settings_patch import FEATURES
-        state[0x1a00:0x1a00+len(FEATURES)] = b'\1'*len(FEATURES)
+        from mod_settings_patch import FLAG_OFFSETS
+        for offset in FLAG_OFFSETS:state[offset] = 1
     if settings_data:state[0x2000:0x2000+len(settings_data)] = settings_data
     if artesphere_info:
         kbui=artesphere_info['keyboard']['ui']
@@ -604,13 +648,13 @@ def build(features):
     struct.pack_into('<I',result,pe.OPTIONAL_HEADER.get_field_absolute_offset('CheckSum'),check_pe.generate_checksum())
     OUT.mkdir(parents=True,exist_ok=True)
     (OUT/'GameNative.dll').write_bytes(result)
-    manifest = {'version':'combat-test-0.12.13','steam_build':25190541,'original_sha256':ORIGINAL_SHA256,
+    manifest = {'version':'combat-test-0.13.8','steam_build':25190541,'original_sha256':ORIGINAL_SHA256,
                 'patched_sha256':digest(result),'features':features,'edits':edits,'hooks':hooks,
                 'symbols':symbols,'code_rva':code_rva,'data_rva':data_rva,
                 'concurrent_effect_allowlist':allowed,'runtime_validated':False,
                 'limits':['Distinct ordinary large effects only; same effect and special sequences remain serialized.',
                           'Dynamic camera bounds cover 82 audited rectangular stage grids. Unsupported grids retain their original camera rotation and position. Forest stages 6-8 additionally account for their offset backdrop at depth 576. New background behavior still requires in-game visual validation.',
-                          'Twelve per-user title-screen switches, French for text language 3 and English otherwise, tested in emulation. Use controller or keyboard; custom mouse selection is not implemented. Title branding, panel layout and real settings persistence still need in-game validation.',
+                          'Seventeen per-user title-screen switches, French for text language 3 and English otherwise. Use controller or keyboard; custom mouse selection is not implemented. Title branding, panel layout and real settings persistence still need in-game validation.',
                           'Ordinary large effects 1-25, 61, 62 and 66 preserve battle pitch; special sequences retain native cameras. Spread retains its vanilla column with an added small textured top cap; the new cap needs in-game visual validation. Ondine perimeter and zoom-scaled shadows remain experimental. Other summon backdrops were not extended.',
                           'Craymel miniatures use an 8x8 quad and eight directional poses: the second half-turn mirrors the native half-turn atlas. New size and continuous rotation require visual confirmation.',
                           'Held Arte at cast completion selects learned owned summons; L1 holds ready casts. Steam controller slot zero only; other slots retain native controls.',
@@ -621,6 +665,10 @@ def build(features):
     if difficulty_info:manifest['difficulty_rebalance']=difficulty_info
     if vitality_info:manifest['multiple_vitality']=vitality_info
     if defense_info:manifest['cast_defense']=defense_info
+    if mastery_info:manifest['spell_mastery']=mastery_info
+    if energy_info:manifest['energy_mastery']=energy_info
+    if mastery_menu_info:manifest['mastery_menu']=mastery_menu_info
+    if progression_ui_info:manifest['progression_ui']=progression_ui_info
     if floor_info:manifest['floor_extension']=floor_info
     if particle_info:manifest['particle_capacity']=particle_info
     if texture_info:manifest['spell_textures']=texture_info
@@ -660,6 +708,6 @@ def build(features):
 
 if __name__=='__main__':
     ap=argparse.ArgumentParser()
-    ap.add_argument('--features',nargs='+',choices=['tp','camera','no_freeze','concurrent_spells','victory_tp','summon_modifier','summon_hold','casting_colors','camera_floor','damage_colors','combat_ui','startup_opening','mod_settings','skit_notice','artesphere','difficulty_rebalance','multiple_vitality','cast_defense'],
-                    default=['tp','camera','no_freeze','concurrent_spells','victory_tp','summon_hold','casting_colors','camera_floor','damage_colors','combat_ui','startup_opening','mod_settings','skit_notice','artesphere','difficulty_rebalance','multiple_vitality','cast_defense'])
+    ap.add_argument('--features',nargs='+',choices=['tp','camera','no_freeze','concurrent_spells','victory_tp','summon_modifier','summon_hold','casting_colors','camera_floor','damage_colors','combat_ui','startup_opening','mod_settings','skit_notice','artesphere','difficulty_rebalance','multiple_vitality','cast_defense','spell_mastery'],
+                    default=['tp','camera','no_freeze','concurrent_spells','victory_tp','summon_hold','casting_colors','camera_floor','damage_colors','combat_ui','startup_opening','mod_settings','skit_notice','artesphere','difficulty_rebalance','multiple_vitality','cast_defense','spell_mastery'])
     build(ap.parse_args().features)

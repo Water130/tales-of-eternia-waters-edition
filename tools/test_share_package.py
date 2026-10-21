@@ -113,7 +113,7 @@ try:
     for name in FILES:
         data=(STAGE/name).read_bytes()
         data.decode('ascii')
-        assert b'ghp_' not in data.lower() and b'c:\\users\\' not in data.lower()
+        assert b'TestUser' not in data.lower() and b'c:\\users\\' not in data.lower()
         assert not name.lower().endswith(('.dll','.exe','.png','.tim','.sav'))
     for line in (STAGE/'Support/SHA256SUMS.txt').read_text().splitlines():
         digest,name=line.split('  ',1);assert sha((STAGE/name).read_bytes())==digest

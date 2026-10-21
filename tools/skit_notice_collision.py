@@ -47,6 +47,21 @@ def emit_collision(emit, mem, state):
         # boundary so terrain exclusion cannot also exclude the map.
         cmp word ptr {mem(0x119ea28)}, 2
         jne map_clear
+        # The rotating compass also precedes the objective-HUD boundary.
+        # Protect its whole top-left footprint, including cardinal labels,
+        # even when camera/terrain commands are deliberately ignored.
+        cmp r12d, 100
+        jge compass_clear
+        cmp r13d, 0
+        jle compass_clear
+        mov eax, dword ptr {mem(state+16)}
+        sub eax, 4
+        cmp eax, 64
+        jge compass_clear
+        add eax, 33
+        test eax, eax
+        jg busy
+    compass_clear:
         cmp r13d, 380
         jle map_clear
         cmp dword ptr {mem(state+16)}, 151

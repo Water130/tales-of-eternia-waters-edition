@@ -100,10 +100,46 @@ for BASE in [0x180000000,0x7ffb00000000]:
         assert saved=={r:uc.reg_read(v) for r,v in REGS.items()},'entry register corruption'
         return get(DATA,'Q')
 
+    if '--skit-shortcut-only' in sys.argv:
+        from test_skit_shortcut_patch import check_skit_shortcut
+        n=check_skit_shortcut(uc,BASE,manifest,ACTORS,SP,reset,put,get,reg,REGS)
+        passed.append(f'{BASE:x}: skit shortcut: {n}')
+        continue
+
+    if '--settings-only' in sys.argv:
+        from test_mod_settings_patch import check_settings
+        n=check_settings(uc,BASE,manifest,ACTORS,ENEMIES,STATS,SP,reset,put,get,reg,REGS)
+        passed.append(f'{BASE:x}: settings: {n}')
+        continue
+
+    if '--energy-only' in sys.argv:
+        from test_energy_mastery_patch import check_energy
+        n=check_energy(uc,BASE,manifest,ACTORS,SP,reset,put,get,reg,REGS)
+        passed.append(f'{BASE:x}: Energy: {n} native execution cases')
+        continue
+
+    if '--mastery-menu-only' in sys.argv:
+        from test_mastery_menu_patch import check_mastery_menu
+        n=check_mastery_menu(uc,BASE,manifest,ACTORS,SP,reset,put,get,reg,REGS)
+        passed.append(f'{BASE:x}: mastery menu: {n}')
+        continue
+
+    if '--mastery-only' in sys.argv:
+        from test_spell_mastery_patch import check_spell_mastery
+        n=check_spell_mastery(uc,BASE,manifest,ACTORS,ENEMIES,IMPACT,SP,reset,put,get,reg,REGS)
+        passed.append(f'{BASE:x}: {n} mastery-only execution cases')
+        continue
+
+    if 'tp' in manifest['features'] and 'mod_settings' in manifest:
+        from test_basic_tp_patch import check_basic_tp
+        n = check_basic_tp(uc,BASE,manifest,ACTORS,ENEMIES,STATS,IMPACT,SP,
+                           reset,put,get,reg,REGS)
+        passed.append(f'{BASE:x}: {n} native basic TP cases; ground/running/aerial commands, Keele, Meredy/Quickie attribution, projectile lifetime, option off, physical arte/landing/magic exclusions and TP caps')
+
     if 'cast_defense' in manifest:
         from test_cast_defense_patch import check_cast_defense
         n = check_cast_defense(uc,BASE,manifest,ACTORS,ENEMIES,STATS,SP,reset,put,get,reg,REGS)
-        passed.append(f'{BASE:x}: {n} native defense controls cases; independent toggles, mapped Guard cancel, cleanup, no debit, guard state, deliberate mage jumps, manual/semi-auto, AI/enemy/stun/air/pause exclusions')
+        passed.append(f'{BASE:x}: {n} native defense controls cases; separate mage/fighter jump toggles, mapped Guard cancel, cleanup, no debit, guard state, manual/semi-auto, AI/enemy/stun/air/pause exclusions')
 
     if 'multiple_vitality' in manifest:
         from test_multiple_vitality_patch import check_multiple_vitality
@@ -115,6 +151,7 @@ for BASE in [0x180000000,0x7ffb00000000]:
         n = check_difficulty(uc,BASE,manifest,ACTORS,STATS,IMPACT,SP,
                              reset,put,get,reg,REGS)
         passed.append(f'{BASE:x}: {n} native difficulty cases; on/off, all modes, HP/DEF/fixed-hit factors, unchanged adjacent stats and party hits, integer limits')
+
 
     if 'spell_textures' in manifest:
         from test_spell_palette_patch import check_spell_palettes
@@ -131,7 +168,9 @@ for BASE in [0x180000000,0x7ffb00000000]:
     if 'tp' in manifest['features']:
         for ch in range(4):assert impact_origin(ch)==ACTORS+ch*0x248
         assert impact_origin(4)==ACTORS+3*0x248,'Quickie owner'
-        for action in [15,31,47,255]:assert impact_origin(action=action)==0
+        for ch in range(5):
+            assert impact_origin(ch,action=15)==ACTORS+(3 if ch==4 else ch)*0x248
+        for action in [16,31,47,255]:assert impact_origin(action=action)==0
         assert impact_origin(side=1)==0
         assert impact_origin(magic=True)==0
         assert impact_origin(return_rva=0x976a9)==0
@@ -265,6 +304,9 @@ for BASE in [0x180000000,0x7ffb00000000]:
         passed.append(f'{BASE:x}: {count} mod settings cases; native title navigation, French/English fallback, per-feature switches, Unicode per-user INI persistence, errors and ABI')
 
     if 'skit_notice' in manifest['features']:
+        from test_skit_shortcut_patch import check_skit_shortcut
+        count=check_skit_shortcut(uc,BASE,manifest,ACTORS,SP,reset,put,get,reg,REGS)
+        passed.append(f'{BASE:x}: {count} skit playback input, native selector/player, release latch, remapped actions, guards and ABI cases')
         from test_skit_notice_patch import check_skit_notice
         count=check_skit_notice(uc,BASE,manifest,ACTORS,SP,reset,put,get,reg,REGS)
         passed.append(f'{BASE:x}: {count} camp-skit notice cases; world/field native selector differential, 264 seen slots, no save writes, transition guards, original global submission, both HUD callsites/ABI, four-corner collision/fallback, native window/font queue, French/English, GPU/font state restoration without scene reset')
@@ -278,7 +320,28 @@ for BASE in [0x180000000,0x7ffb00000000]:
         usage_checks=check_arte_usage(uc,BASE,manifest,ACTORS,SP,reset,put,get,reg,REGS)
         passed.append(f'{BASE:x}: arte usage counters: {usage_checks}')
 
+    if 'spell_mastery' in manifest:
+        from test_spell_mastery_patch import check_spell_mastery
+        n=check_spell_mastery(uc,BASE,manifest,ACTORS,ENEMIES,IMPACT,SP,reset,put,get,reg,REGS)
+        passed.append(f'{BASE:x}: {n} native spell mastery cases; frozen effect/projectile origin, overlaps, thresholds, native damage queue/HP/cap, switch, exclusions, buff recipients/lifetime/exclusivity and ABI')
+
+    if 'mastery_menu' in manifest:
+        from test_mastery_menu_patch import check_mastery_menu
+        n=check_mastery_menu(uc,BASE,manifest,ACTORS,SP,reset,put,get,reg,REGS)
+        passed.append(f'{BASE:x}: mastery menu: {n}')
+
+    if 'energy_mastery' in manifest:
+        from test_energy_mastery_patch import check_energy
+        n=check_energy(uc,BASE,manifest,ACTORS,SP,reset,put,get,reg,REGS)
+        passed.append(f'{BASE:x}: Energy: {n} native battle/menu heal, resurrection, purification, threshold, recipient, toggle, cost/counter and ABI cases')
+
 report={'passed':True,'patched_sha256':digest(binary),'checks':passed,
         'runtime_validated':False,'note':'Actual x64 hook execution in an emulator; rendering, engine concurrency, Quickie routing and gameplay still require user testing.'}
-(OUT/'verification.json').write_text(json.dumps(report,indent=2),encoding='utf-8')
+report_name = 'mastery-verification.json' if '--mastery-only' in sys.argv else 'verification.json'
+if '--mastery-menu-only' in sys.argv:report_name='mastery-menu-verification.json'
+if '--browser-stress-only' in sys.argv:report_name='browser-stress-verification.json'
+if '--skit-shortcut-only' in sys.argv:report_name='skit-shortcut-verification.json'
+if '--settings-only' in sys.argv:report_name='settings-verification.json'
+if '--energy-only' in sys.argv:report_name='energy-verification.json'
+(OUT/report_name).write_text(json.dumps(report,indent=2),encoding='utf-8')
 print(json.dumps(report,indent=2))

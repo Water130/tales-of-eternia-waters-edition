@@ -31,10 +31,8 @@ def emit_skit_notice(emit, mem, jump, data, symbols):
     # Return the ready exploration mode; world terrain queries additionally
     # require the world context. Never query during fades or field events.
     # 866f80 is the active skit; 8c9f98 is the event interpreter wait state.
-    available = emit('skit_notice_context', f'''
+    ready = emit('skit_exploration_context', f'''
         xor eax, eax
-        cmp byte ptr {mem(data+0x1a07)}, 0
-        je done
         # Native menu-background capture is requested before switching the
         # exploration renderer. Do not bake the notice into that background.
         cmp byte ptr {mem(0x119ea49)}, 0
@@ -105,6 +103,15 @@ def emit_skit_notice(emit, mem, jump, data, symbols):
         jne done
         mov eax, 6
     done:
+        ret
+    ''')
+
+    available = emit('skit_notice_context', f'''
+        xor eax, eax
+        cmp byte ptr {mem(data+0x1a07)}, 0
+        je disabled
+        jmp {ready:#x}
+    disabled:
         ret
     ''')
 

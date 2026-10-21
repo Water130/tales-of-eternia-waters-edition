@@ -286,9 +286,10 @@ def check_skit_notice(u, base, m, actors, sp, reset, put, get, reg, regs):
                 run('skit_notice_frame')
                 # Nearby fallback candidates overlap, so calculate the first
                 # genuinely free rectangle rather than assuming list indices.
+                reserved=rects+([(0,0,100,64),(380,147,100,125)] if mode==2 else [])
                 expected=next((p for p in points if all(
                     p[0]+74<=x or p[0]-4>=x+w or p[1]+29<=y or p[1]-4>=y+h
-                    for x,y,w,h in rects)),None)
+                    for x,y,w,h in reserved)),None)
                 if expected is not None:
                     assert (get(state+12,'I'),get(state+16,'I'))==expected,(mode,used)
                     assert len(texts)==2,(mode,used,'bubble missing')
@@ -321,6 +322,19 @@ def check_skit_notice(u, base, m, actors, sp, reset, put, get, reg, regs):
         seed([])
         put(state+12,'II',405,242)
         assert run('skit_notice_occupied')==1
+        # Compass/cardinal labels are protected even before the queue boundary.
+        # Exact padded-edge cases and the field exception prevent an oversized
+        # reservation from unnecessarily hiding/moving the notification.
+        for mode in (2,6):
+            put(base+0x119ea28,'H',mode)
+            for x,y,overlaps in [(5,5,True),(99,5,True),(104,5,False),
+                                 (5,67,True),(5,68,False),(205,5,False)]:
+                seed([]);put(state+12,'II',x,y)
+                assert run('skit_notice_occupied')==int(mode==2 and overlaps),(mode,x,y)
+        put(base+0x119ea28,'H',2)
+        seed([(0,200,380,72)])
+        assert run('skit_notice_placement')==1
+        assert (get(state+12,'I'),get(state+16,'I'))==(405,5), 'never fall back onto compass'
         seed([(8,230,48,28)])
         run('skit_notice_placement')
         assert (get(state+12,'I'),get(state+16,'I'))==(205,242)
@@ -350,6 +364,14 @@ def check_skit_notice(u, base, m, actors, sp, reset, put, get, reg, regs):
         put(manager+0x4e0,'I',10)
         assert run('skit_notice_placement')==1
         assert (get(state+12,'I'),get(state+16,'I'))==(205,242)
+        # Obstruct the remaining bottom positions AFTER the native HUD marker:
+        # the compass stays reserved although its commands are before it.
+        p=commands+10*80;u.mem_write(p,b'\0'*160)
+        put(p,'I',12);put(p+16,'ff',380.,72.)
+        put(p+80,'I',9);put(p+88,'ff',0.,200.)
+        put(manager+0x4e0,'I',12)
+        assert run('skit_notice_placement')==1
+        assert (get(state+12,'I'),get(state+16,'I'))==(405,5)
         put(state+32,'Q',0);put(state+28,'I',0)
 
         # Restored GPU commands must be the most recent value of each changed

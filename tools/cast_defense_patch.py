@@ -57,12 +57,18 @@ def emit_cast_defense(emit, mem, jump, data):
         mov word ptr [rcx+0x90], 6
         jmp done
     jump_option:
+        movzx edx, byte ptr [rcx+0x4f]
+        cmp edx, 3
+        ja done
+        cmp edx, 1
+        jbe fighter_jump
         cmp byte ptr {mem(data+0x1a0b)}, 0
         je done
-        movzx edx, byte ptr [rcx+0x4f]
-        sub edx, 2
-        cmp edx, 1
-        ja done
+        jmp deliberate_jump
+    fighter_jump:
+        cmp byte ptr {mem(data+0x1a0d)}, 0
+        je done
+    deliberate_jump:
         cmp byte ptr [rcx+0x52], 3
         ja done
         test byte ptr [rax], 0x80
@@ -112,14 +118,15 @@ def emit_cast_defense(emit, mem, jump, data):
         movzx r13d, word ptr [rcx+0x90]
         jmp 0xd5214
     ''')
-    jump(0xd520c, 8, entry, 'Mapped Guard cancels pending casts; mage jumps require Guard plus Up')
+    jump(0xd520c, 8, entry, 'Mapped Guard cancels pending casts; separately optional mage and fighter Guard plus Up jumps')
     return dict(hook=0xd520c, continuation=0xd5214, native_cleanup=0x712e0,
                 cancel_option='GuardSpellCancel', cancel_flag_index=10,
                 jump_option='MageGuardJump', jump_flag_index=11,
+                fighter_jump_option='FighterGuardJump', fighter_jump_flag_index=13,
                 input='Per-actor native mapped Guard press/hold and Up direction',
                 scope='Living grounded party characters under manual/semi-auto control in active combat',
                 cancel='Fresh Guard press during a pending cast; native cleanup then native guard transition',
-                jump='Keele/Meredy: Guard held + Up for the native two-tick threshold',
+                jump='Keele/Meredy and Reid/Farah: independent switches, Guard held + Up for the native two-tick threshold',
                 cancel_takes_priority=True, input_buffer_unchanged=True,
                 diagonal_walk_and_dash_brake_preserved=True,
                 released_effects_unchanged=True, ai_unchanged=True)

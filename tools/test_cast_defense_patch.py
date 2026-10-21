@@ -12,9 +12,10 @@ def check_cast_defense(uc, base, manifest, actors, enemies, stats, sp,
     cases = 0
 
     def setup(char=2, state=10, timer=100, control=2, guard=True, press=True,
-              up=False, duration=2, cancel=1, jump=1, pending=0):
+              up=False, duration=2, cancel=1, jump=1, pending=0, fighter=1):
         reset()
         put(flags+10,'BB',cancel,jump)
+        put(flags+13,'B',fighter)
         put(base+0x12cea60,'Q',master)
         put(base+0x12cea68,'Q',actors+0xc100)
         put(base+0x12cea70,'Q',base+0x562a50)
@@ -119,15 +120,15 @@ def check_cast_defense(uc, base, manifest, actors, enemies, stats, sp,
 
         # Jump option is independent, and never touches spells, attacks,
         # other characters, airborne motion, or autonomous AI.
-        for enabled in (0,1):
+        for enabled, fighter in ((0,0),(0,1),(1,0),(1,1)):
             for char in range(7):
                 for state in (0,1,2,3,4,8,9,10):
                     for guard in (False,True):
                         for up,duration in ((False,2),(True,1),(True,2)):
                             setup(char=char,state=state,guard=guard,up=up,
-                                  duration=duration,press=False,cancel=0,jump=enabled,pending=3)
+                                  duration=duration,press=False,cancel=0,jump=enabled,fighter=fighter,pending=3)
                             before=bytearray(uc.mem_read(actor,0x248))
-                            affected=enabled and char in (2,3) and state<=3
+                            affected=(enabled if char in (2,3) else fighter if char in (0,1) else False) and state<=3
                             if affected:
                                 if guard and up and duration>=2:
                                     if state==2:before[0x52]=0
@@ -151,11 +152,11 @@ def check_cast_defense(uc, base, manifest, actors, enemies, stats, sp,
         # update through its native guard/jump state initialization.
         for reader,control in ((0x114300,2),(0x72490,1)):
             for enabled in (0,1):
-                for char in (2,3):
+                for char in (0,1,2,3):
                     for state in (0,1,2,3):
                         for guard,up in ((False,True),(True,True),(True,False)):
                             setup(char=char,state=state,timer=0,control=control,
-                                  guard=guard,up=up,press=False,jump=enabled)
+                                  guard=guard,up=up,press=False,jump=enabled,fighter=enabled)
                             put(actor+0x64,'B',0)
                             reg('rcx',actor)
                             execute(reader,stubs=(0x111fe0,0x1140f0,0x8fa90))
@@ -179,7 +180,7 @@ def check_cast_defense(uc, base, manifest, actors, enemies, stats, sp,
         # and dash braking. Compare complete native transitions with the same
         # inputs lacking only Up, using real direction readers in both modes.
         for reader,control in ((0x114300,2),(0x72490,1)):
-            for char in (2,3):
+            for char in (0,1,2,3):
                 for state in (0,1,3):
                     for facing in (-1,1):
                         for horizontal in (2,8):
@@ -231,4 +232,5 @@ def check_cast_defense(uc, base, manifest, actors, enemies, stats, sp,
                     assert get(actor+0x8c,'H')>0
     finally:
         put(flags+10,'BB',1,1)
+        put(flags+13,'B',1)
     return cases

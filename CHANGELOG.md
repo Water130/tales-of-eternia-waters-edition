@@ -1,5 +1,25 @@
 # Changelog
 
+## 0.13.8 - Experimental release
+
+- Add a persistent Mastery list and rooted skill trees from Stats (Square),
+  with level meters, prerequisite links, readable colored cards and descriptions.
+- Implement optional Farah Energy healing faculties with six independently saved
+  choices. Energy is the lower Punch/Kick level, without independent experience.
+- Implement optional spell usage mastery: +1% offensive damage per 25 casts,
+  capped at +25%; buffs reach +1/2/3 allies at 100/250/500 uses with native duration.
+  Healing is excluded. Counts and choices are separate for each mage/save.
+- Add two fixed five-column spell pages, unknown/available/unavailable states,
+  starting spells before Craymel acquisition and next-gain bars with MAX caps.
+- Character combo and Craymel faculty trees are previews with no battle effects.
+- Group mod options into Quality of Life, Combat, Progression and Other, with
+  detailed help. Add separate Guard + Up controls for Reid/Farah.
+- Add arte category labels, aligned with the native name and TP cost.
+- Add L2/LT skit playback (L2 + Select if rebound) and improve compass avoidance.
+
+Offline x64 regression and installer fixture checks pass. Real in-game rendering
+and whole-game stability still require player testing; bugs and regressions may occur.
+
 ## 0.12.13 - Experimental release
 
 - Replace the seventh shortcut with **three Artesphere pages of six commands

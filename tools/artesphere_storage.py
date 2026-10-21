@@ -30,6 +30,17 @@ def emit_storage(emit,mem,jump,data,state,profile,string,symbols,usage):
     ''')
     from arte_usage_patch import emit_usage_storage
     usage_hooks = emit_usage_storage(emit,mem,data,state,string,fingerprint,usage)
+    # Independent, zero-default disable bits: 256 stable faculty IDs per hero.
+    # A legacy/missing record enables everything without changing usage counts.
+    preferences = dict(live_rva=state+0xd000, size=224, ui_state_rva=state+0xe600)
+    pref_hooks = emit_usage_storage(emit,mem,data,state,string,fingerprint,preferences,
+        record_name='mastery_preferences', section_name='MasteryChoices-v1', record_size=224,
+        layout=dict(snapshot=state+0xd100,pending=state+0xd200,workers=state+0xd300,
+                    valid=state+0xd2f0,pending_ptr=state+0xd2f8),
+        reset_extra=f'mov dword ptr {mem(state+0xe600)}, 0')
+    for key in usage_hooks:
+        usage_hooks[key] += '\n' + pref_hooks[key]
+    usage['preferences'] = preferences
     # ECX write flag, EDX slot, R8 serialized buffer, R9 96-byte mod profile.
     io=emit('artesphere_storage_io',f'''
         push rbx
