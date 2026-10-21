@@ -4,7 +4,7 @@
   <img src="assets/branding/waters-edition-blue.png" alt="Water's Edition — blue title logo" width="860">
 </p>
 
-A combat and interface mod for **Tales of Eternia Remastered on Windows / Steam**.
+An overhaul mod for **Tales of Eternia Remastered on Windows / Steam**.
 
 **[Download Water's Edition 0.13.8 - Easy Install](https://github.com/Water130/tales-of-eternia-waters-edition/releases/download/v0.13.8-test/Tales-of-Eternia-Waters-Edition-0.13.8-Easy-Install.zip)**
 
