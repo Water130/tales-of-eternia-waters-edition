@@ -6,6 +6,7 @@
 | --- | --- |
 | Download, install, update or remove the mod | [Installation](INSTALLATION.md) |
 | Features, progression and compatibility | [Features and limits](FEATURES.md) |
+| In-game screenshots of combat, progression and settings | [Screenshot gallery](GALLERY.md) |
 | Artesphere pages and keyboard/controller inputs | [Controls](CONTROLS.md) |
 | What changed between versions | [Changelog](../CHANGELOG.md) |
 | Creator's statement and sharing permissions | [About Water's Edition](ABOUT.md) |

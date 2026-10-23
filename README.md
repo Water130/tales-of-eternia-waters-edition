@@ -40,6 +40,16 @@ and Reid progression. You do not have to use the whole overhaul.
 
 [Features and limits →](docs/FEATURES.md) · [Controls →](docs/CONTROLS.md) · [Changelog →](CHANGELOG.md)
 
+## See it in game
+
+| Combat interface | Craymel faculties |
+| --- | --- |
+| [![Spread in combat with the custom HUD](assets/screenshots/battle-spread.png)](assets/screenshots/battle-spread.png) | [![Undine's faculty tree and level milestones](assets/screenshots/undine-faculties.png)](assets/screenshots/undine-faculties.png) |
+| Spell mastery | Farah's Energy |
+| [![Meredy's spell progression and individual bonus gauges](assets/screenshots/spell-mastery.png)](assets/screenshots/spell-mastery.png) | [![Farah's Energy tree and healing faculties](assets/screenshots/farah-energy.png)](assets/screenshots/farah-energy.png) |
+
+[View all 12 screenshots →](docs/GALLERY.md) · [Nexus Mods gallery](https://www.nexusmods.com/talesofeterniaremastered/mods/13?tab=images)
+
 ## Before you play
 
 Created and directed by **Water**; **all mod code was written by AI**.
