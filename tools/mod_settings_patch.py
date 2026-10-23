@@ -9,34 +9,59 @@ import struct
 FEATURES = [
     ('DynamicCamera', 'Caméra dynamique', 'Dynamic camera'),
     ('VictoryTP', 'PT après le combat', 'Post-battle TP recovery'),
-    ('BasicHitTP', 'PT par coup physique de base', 'TP from basic physical hits'),
+    ('BasicHitTP', 'PT par attaque normale', 'TP from normal attacks'),
     ('DamageColors', 'Couleurs des dégâts', 'Elemental damage colors'),
     ('CustomHUD', 'HUD personnalisé', 'Custom HUD'),
     ('CastBars', "Barres d'incantation", 'Casting progress bars'),
-    ('ItemBar', "Barre de recharge des objets", 'Item cooldown bar'),
+    ('ItemBar', "Recharge des objets", 'Item cooldown bar'),
     ('SkitNotice', 'Notification des saynètes', 'Skit notification'),
     ('DifficultyRebalance', 'Difficultés rééquilibrées', 'Rebalanced difficulties'),
     ('MultipleMaxVitality', 'Vitalités multiples au MAX', 'Multiple MAX vitality gauges'),
     ('GuardSpellCancel', 'Annulation de sort par garde', 'Guard cancels casting'),
     ('MageGuardJump', 'Saut des mages : Garde + Haut', 'Mage jump: Guard + Up'),
-    ('SpellMastery', 'Maîtrise des sorts', 'Spell mastery'),
+    ('SpellMastery', 'Progression magique', 'Magic progression'),
     ('FighterGuardJump', 'Saut Reid/Farah : Garde + Haut', 'Reid/Farah jump: Guard + Up'),
     ('FarahEnergyBar', 'Barre Énergie de Farah', 'Farah Energy gauge'),
     ('ArteCategoryLabels', 'Catégories des artes', 'Arte category labels'),
     ('SkitShortcut', 'Lecture rapide des saynètes', 'Quick skit playback'),
-    ('FarahEnergyMastery', 'Facultés Énergie de Farah', 'Farah Energy faculties'),
+    ('FarahEnergyMastery', 'Progression de Farah', 'Farah progression'),
+    ('RelaxedFringe', 'Fringe : cages libres', 'Fringe: free cages'),
+    ('SummonProgression', 'Progression des invocations', 'Summon progression'),
+    ('NoSpellFreeze', 'Retirer les pauses des sorts', 'Remove spell pauses'),
+    ('ConcurrentSpells', 'Sorts simultanés', 'Concurrent spells'),
+    ('CastingColors', "Couleurs d'incantation", 'Casting colors'),
+    ('ArtespherePages', 'Pages Artesphere', 'Artesphere pages'),
+    ('HoldSummon', 'Maintien et invocation', 'Hold and summon'),
+    ('SpellExtensions', 'Extensions améliorées', 'Enhanced extensions'),
+    ('SpellUsageDisplay', 'Compteurs de sorts', 'Spell counters'),
+    ('ScannedEnemyHP', 'PV des ennemis scannés', 'Scanned enemy HP'),
+    ('SkipStartupScreens', 'Passer les écrans de lancement', 'Skip startup'),
+    ('AirThrustHits', 'Impacts séparés : Air Thrust', 'Air Thrust hits'),
+    ('ActionStopsRun', 'Actions : arrêter la course', 'Actions stop running'),
+    ('BasicAttackMastery', 'Progression de Reid', 'Reid progression'),
+    ('CraymelFaculties', 'Facultés des Craymel', 'Craymel faculties'),
+    ('CraymelSpellEXP', 'EXP des Craymel par les sorts', 'Craymel EXP from spells'),
+    ('ReidSpecials', 'Techniques spéciales de Reid', 'Reid special techniques'),
+    ('StandaloneTeamups', 'Artes combinés autonomes', 'Standalone team-up artes'),
 ]
+DEFAULTS = [0 if key == 'RelaxedFringe' else 1 for key, _, _ in FEATURES]
 
 # Preserve the sixteen existing flag addresses and the menu control bytes.
 # Extra flags/snapshots have their own bank, leaving room for future options.
-FLAG_OFFSETS = [0x1a00+i if i < 16 else 0x1a40+i-16 for i in range(len(FEATURES))]
+FLAG_OFFSETS = [0x1a00+i if i < 16 else 0x1a40+i-16 if i<32 else 0x1a60+i-32 for i in range(len(FEATURES))]
+
+# Stable INI keys and flag addresses remain readable by older builds. The
+# visible master controls all members, including after loading conflicting
+# legacy settings. Individual saved faculty choices are not touched.
+GROUPS = {12: (12,19,25,32,33), 17: (17,14)}
+HIDDEN = {i for master, members in GROUPS.items() for i in members if i != master}
 
 # Display order only: persistent feature IDs, flag banks and INI keys stay fixed.
 CATEGORIES = [
-    ('Quality of Life', 'Quality of Life', [0,3,4,5,6,7,16,15]),
-    ('Combat', 'Combat', [1,2,8,9,10,11,13]),
-    ('Progression', 'Progression', [12,14,17]),
-    ('Autres', 'Other', [len(FEATURES)+1]),
+    ('Quality of Life', 'Quality of Life', [0,3,4,5,6,7,16,15,22,26,27]),
+    ('Combat', 'Combat', [1,2,8,9,10,11,13,20,21,29,30,23,24,34]),
+    ('Progression', 'Progression', [12,17,31,18,35]),
+    ('Autres', 'Other', [28,len(FEATURES)+1]),
 ]
 
 
@@ -45,20 +70,28 @@ def emit_settings(emit, mem, jump, data, symbols):
     header = count
     keyboard = count + 1
     category_first = count + 2
-    assert sorted(i for _,_,ids in CATEGORIES for i in ids)==list(range(count))+[keyboard]
-    assert count <= 32
+    assert sorted(i for _,_,ids in CATEGORIES for i in ids)==[i for i in range(count) if i not in HIDDEN]+[keyboard]
+    assert count <= 48
     row_step, visible_rows = 17, 10
     payload = bytearray()
     strings = {}
+    interned = {}
     def string(name, text, wide=False):
+        if (text,wide) in interned:
+            strings[name]=interned[text,wide]
+            return strings[name]
         if wide and len(payload)&1:payload.append(0)
         strings[name] = data+0x2000+len(payload)
+        interned[text,wide]=strings[name]
         payload.extend((text+'\0').encode('utf-16-le' if wide else 'utf-8'))
         return strings[name]
     string('kernel','kernel32.dll')
     for name in ('GetEnvironmentVariableW','GetPrivateProfileIntW','WritePrivateProfileStringW'):string(name,name)
     for name,text in [('environment','LOCALAPPDATA'),('suffix','\\TalesOfEternia-WatersEdition.ini'),('section','Features'),('zero','0'),('one','1')]:string(name,text,True)
     for index,(key,fr,en) in enumerate(FEATURES):
+        if index in HIDDEN:
+            master=next(k for k,v in GROUPS.items() if index in v)
+            _,fr,en=FEATURES[master]
         string(f'key{index}',key,True);string(f'fr{index}',fr);string(f'en{index}',en)
     for name,fr,en in [
         ('menu','Options de mods','Mod settings'),
@@ -69,7 +102,7 @@ def emit_settings(emit, mem, jump, data, symbols):
         ('on','Activé','On'),('off','Désactivé','Off'),
         ('back','Retour','Back'),('select','Sélect.','Select'),('modify','Modifier','Modify'),
         ('confirm','Valider','Confirm'),('reset','Réinit.','Reset'),('default','Défaut','Default'),
-        ('saved','Réglages enregistrés automatiquement','Settings are saved automatically'),
+        ('saved','Enregistrement automatique','Saved automatically'),
         ('error','Échec de sauvegarde : réglages valables pour cette session','Could not save: settings apply to this session only'),
     ]:
         string(name+'_fr',fr);string(name+'_en',en)
@@ -96,7 +129,7 @@ def emit_settings(emit, mem, jump, data, symbols):
     payload.extend(b'\0'*((-len(payload))%4))
     menu_table=data+0x2000+len(payload)
     for entry in menu_entries:payload.extend(struct.pack('<2I',*entry))
-    assert len(payload)<0x1000
+    assert len(payload)<0x1000, len(payload)
     flags=data+0x1a00
     initialized=data+0x1a10
     page=data+0x1a11
@@ -112,6 +145,11 @@ def emit_settings(emit, mem, jump, data, symbols):
         address_serial += 1
         label = f'flag_address_{address_serial}'
         return f'''lea {register}, {mem(snapshot if opening else flags)}
+            cmp {index}, 32
+            jb {label}_bank
+            add {register}, {0x70 if opening else 0x40}
+            jmp {label}
+        {label}_bank:
             cmp {index}, 16
             jb {label}
             add {register}, {0x20 if opening else 0x30}
@@ -125,6 +163,10 @@ def emit_settings(emit, mem, jump, data, symbols):
             lea {register}, {address(name+'_fr')}
         language_{name}_{register}:'''
 
+    synchronize=emit('settings_synchronize_groups', '\n'.join(
+        f'mov al, byte ptr {mem(data+FLAG_OFFSETS[master])}\n'+ '\n'.join(
+            f'mov byte ptr {mem(data+FLAG_OFFSETS[i])}, al' for i in members if i!=master)
+        for master,members in GROUPS.items())+'\nret')
     initialize=emit('settings_initialize',f'''
         cmp byte ptr {mem(initialized)}, 0
         jne fast_return
@@ -182,7 +224,9 @@ def emit_settings(emit, mem, jump, data, symbols):
         lea rcx, {address('section')}
         mov edx, dword ptr [rsi]
         add rdx, rbx
-        mov r8d, 1
+        xor r8d, r8d
+        cmp edi, 18
+        setne r8b
         lea r9, {mem(path)}
         call qword ptr {mem(data+0x1b08)}
         test eax, eax
@@ -193,6 +237,7 @@ def emit_settings(emit, mem, jump, data, symbols):
         inc edi
         cmp edi, {count}
         jb load
+        call {synchronize:#x}
         mov byte ptr {mem(initialized)}, 1
         mov byte ptr {mem(error)}, 0
     done:
@@ -203,7 +248,7 @@ def emit_settings(emit, mem, jump, data, symbols):
     fast_return:
         ret
     ''')
-    save=emit('settings_save_selected',f'''
+    write=emit('settings_write_selected',f'''
         sub rsp, 0x28
         mov byte ptr {mem(error)}, 1
         cmp byte ptr {mem(initialized)}, 1
@@ -231,6 +276,33 @@ def emit_settings(emit, mem, jump, data, symbols):
         add rsp, 0x28
         ret
     ''')
+    # Write every member when a master changes, so the INI is coherent as well
+    # as the runtime flags. Preserve all errors, including a failed member write.
+    grouped_writes=[]
+    for master,members in GROUPS.items():
+        grouped_writes.append(f'cmp ebx, {master}\njne group_{master}_done')
+        for member in members:
+            if member==master:continue
+            grouped_writes.append(f'''mov byte ptr {mem(selection)}, {member}
+                call {write:#x}
+                or sil, byte ptr {mem(error)}''')
+        grouped_writes.append(f'group_{master}_done:')
+    save=emit('settings_save_selected',f'''
+        push rbx
+        push rsi
+        sub rsp, 0x28
+        call {synchronize:#x}
+        movzx ebx, byte ptr {mem(selection)}
+        call {write:#x}
+        movzx esi, byte ptr {mem(error)}
+        {chr(10).join(grouped_writes)}
+        mov byte ptr {mem(selection)}, bl
+        mov byte ptr {mem(error)}, sil
+        add rsp, 0x28
+        pop rsi
+        pop rbx
+        ret
+    ''')
     restore=emit('settings_restore',f'''
         push rbx
         push rsi
@@ -238,7 +310,8 @@ def emit_settings(emit, mem, jump, data, symbols):
         xor ebx, ebx
         xor esi, esi
     next:
-        mov al, 1
+        cmp ebx, 18
+        setne al
         cmp byte ptr {mem(reset_choice)}, 0
         jne default_value
         {indexed_flag('rdx', 'rbx', True)}
@@ -246,12 +319,18 @@ def emit_settings(emit, mem, jump, data, symbols):
     default_value:
         {indexed_flag('rdx', 'rbx')}
         mov byte ptr [rdx+rbx], al
-        mov byte ptr {mem(selection)}, bl
-        call {save:#x}
-        or sil, byte ptr {mem(error)}
         inc ebx
         cmp ebx, {count}
         jb next
+        call {synchronize:#x}
+        xor ebx, ebx
+    persist:
+        mov byte ptr {mem(selection)}, bl
+        call {write:#x}
+        or sil, byte ptr {mem(error)}
+        inc ebx
+        cmp ebx, {count}
+        jb persist
         mov byte ptr {mem(selection)}, {header}
         mov byte ptr {mem(error)}, sil
         add rsp, 0x28
@@ -330,6 +409,15 @@ def emit_settings(emit, mem, jump, data, symbols):
         je back
         cmp esi, 8
         je back
+        mov eax, dword ptr {mem(data+0x1a3c)}
+        test eax, eax
+        je option_navigation
+        lea rcx, {mem(0)}
+        add rax, rcx
+        call rax
+        test eax, eax
+        jne handled
+    option_navigation:
         call {menu_index:#x}
         cmp r13d, 0x10
         jne down
@@ -477,6 +565,10 @@ def emit_settings(emit, mem, jump, data, symbols):
         mov qword ptr {mem(data+0x1a50)}, rax
         mov rax, qword ptr {mem(data+0x1a48)}
         mov qword ptr {mem(data+0x1a58)}, rax
+        mov rax, qword ptr {mem(data+0x1a60)}
+        mov qword ptr {mem(data+0x1ab0)}, rax
+        mov rax, qword ptr {mem(data+0x1a68)}
+        mov qword ptr {mem(data+0x1ab8)}, rax
         mov byte ptr {mem(reset_choice)}, 0
         mov byte ptr {mem(page)}, 1
         mov byte ptr {mem(selection)}, {category_first}
@@ -996,7 +1088,8 @@ def emit_settings(emit, mem, jump, data, symbols):
     return dict(flags_rva=flags, initialized_rva=initialized,page_rva=page,selection_rva=selection,
                 error_rva=error,reset_choice_rva=reset_choice,snapshot_rva=snapshot,path_rva=path,strings=strings,table_rva=table,
                 features=[k for k,_,_ in FEATURES],flag_rvas=[data+i for i in FLAG_OFFSETS],
-                snapshot_rvas=[snapshot+i if i<16 else data+0x1a50+i-16 for i in range(count)],default='enabled',french_text_language=3,row_step=row_step,
+                snapshot_rvas=[snapshot+i if i<16 else data+0x1a50+i-16 if i<32 else data+0x1ab0+i-32 for i in range(count)],default=DEFAULTS,french_text_language=3,row_step=row_step,
+                groups=GROUPS, hidden_features=sorted(HIDDEN),
                 visible_rows=visible_rows,scroll_top_rva=scroll_top,
                 category_state_rva=category_state,category_first=category_first,
                 categories=[dict(fr=fr,en=en,items=ids) for fr,en,ids in CATEGORIES],

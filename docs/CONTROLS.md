@@ -22,6 +22,8 @@ Each page has **six assignments**. The original directional artes and two ally s
 | Action | Input |
 | --- | --- |
 | Open Mastery from Stats | Square, or the displayed mapped equivalent |
+| Open Mastery from Techniques in semi-auto/manual | Square |
+| Open Mastery from Techniques in auto | Triangle |
 | Play an available skit | L2 / LT; L2 + Select if L2 is assigned to another exploration action |
 | Cancel casting, with the option enabled | Guard |
 | Jump, with the corresponding mage/fighter option enabled | Guard + Up |
@@ -38,8 +40,7 @@ confirm, release held keys, then press the new key. **Esc** cancels.
 Choose two different keys that do not conflict with the game's own controls.
 Bindings are shared across saves; arte assignments are stored separately per save.
 
-For manual configuration, close the game and run **Configure-ArtesphereKeys.cmd**,
-or edit `%LOCALAPPDATA%\TalesOfEternia-WatersEdition.ini`:
+For manual configuration, close the game and edit `%LOCALAPPDATA%\TalesOfEternia-WatersEdition.ini`:
 
 ```ini
 [ArtesphereControls]

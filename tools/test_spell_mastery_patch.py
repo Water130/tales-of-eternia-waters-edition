@@ -15,6 +15,7 @@ def check_spell_mastery(u, base, m, actors, enemies, impact, sp,
     context = base+info['context_rva']
     effects = base+info['effects_rva']
     tags = base+info['projectiles_rva']
+    roots = base+info['current_roots_rva']
     live = base+info['usage']['live_rva']
     preferences = base+info['usage']['preferences']['live_rva']
     flag = base+m['data_rva']+0x1a00+info['option_flag']
@@ -24,6 +25,14 @@ def check_spell_mastery(u, base, m, actors, enemies, impact, sp,
     callback_kind = 'plain'
     callbacks = []
     raw_damage = None
+    rng_roll = 99
+    rng_calls = []
+    execute_scripts = False
+    script_hits = []
+    script_sprites = []
+    star_active = False
+    star_sprites = []
+    star_impacts = []
     damage_owner = actors+2*0x248
     cases = 0
     saved_tables = {}
@@ -47,13 +56,34 @@ def check_spell_mastery(u, base, m, actors, enemies, impact, sp,
 
     def boundary(emu, address, size, _):
         a = address-base
-        if a == 0x2a4880:
+        if a == 0x283090:
+            rng_calls.append(rng_roll)
+            ret(rng_roll)
+        elif a == 0x2a4880:
             dest, val, n = [u.reg_read(regs[r]) for r in ('rcx','rdx','r8')]
             u.mem_write(dest,bytes([val&255])*n)
             ret(dest)
         elif a == 0x114640:  # Native buff sound only.
             ret()
-        elif address == stub_callback or a == 0x114f50:
+        elif star_active and a == 0x114e60:
+            command=u.reg_read(regs['rdx'])
+            assert command==base+0x58a650
+            assert get(command+2,'h')==1 and get(command+4,'H')==0
+            star_sprites.append(command)
+            ret(actors+0x9000)
+        elif star_active and a == 0x8f6e0:
+            star_impacts.append(bytes(u.mem_read(u.reg_read(regs['rdx']),8)))
+            ret()
+        elif star_active and a == 0x116260:
+            ret(0)
+        elif execute_scripts and a == 0x116260:
+            script_hits.append(get(pool+0x38,'H'))
+            ret(0)
+        elif execute_scripts and a == 0x114e60:
+            command=u.reg_read(regs['rdx'])
+            script_sprites.append((get(pool+0x38,'H'),get(command+2,'h')))
+            ret(0)
+        elif address == stub_callback or (a == 0x114f50 and not execute_scripts):
             callbacks.append((get(context,'Q'),u.reg_read(regs['rcx'])))
             if callback_kind == 'projectile':
                 # Tail-call the real projectile allocator within the scope.
@@ -71,6 +101,7 @@ def check_spell_mastery(u, base, m, actors, enemies, impact, sp,
             reg('rbp',damage_owner);reg('rdi',enemies)
             reg('rsi',raw_damage & 0xffffffffffffffff)
             reg('r8',impact)
+            reg('r12',impact)
             for r in ('r14','r13','r15','rbx'):
                 reg(r,0)
             u.reg_write(UC_X86_REG_RIP,base+0x8effc)
@@ -118,10 +149,10 @@ def check_spell_mastery(u, base, m, actors, enemies, impact, sp,
         put(live+(char*128+arte)*2,'H',uses)
         put(pool+slot*0x120,'QQ',actor,actors)
         reg('r12',actor);reg('r14',pool+slot*0x120);reg('rbp',effect_id)
-        put(sp+0x58,'Q',base+caller)
+        put(sp-8+0x58,'Q',base+caller)
         before={r:u.reg_read(v) for r,v in regs.items() if r!='rax'}
         u.reg_write(UC_X86_REG_EFLAGS,0x246)
-        run(0x114a45,0x114a4f)
+        run(0x114a45,0x114a4f,rsp=sp-8)
         assert before=={r:u.reg_read(regs[r]) for r in before}
         assert u.reg_read(UC_X86_REG_EFLAGS)==0x246
         assert get(pool+slot*0x120+0x36,'B')==effect_id & 255
@@ -139,13 +170,13 @@ def check_spell_mastery(u, base, m, actors, enemies, impact, sp,
         assert get(projectiles+slot*0x30+8,'Q')==actor
         return tags+slot*16
 
-    def damage(amount, expected, caller=0x1164e3, slot=5):
+    def damage(amount, expected, caller=0x1164e3, slot=5, immediate=False):
         nonlocal raw_damage
         raw_damage=amount
         put(enemies+0x2c,'i',100000)
         put(base+0x865a08,'I',0)  # native damage ring write cursor
         reg('rcx',damage_owner);reg('rdx',enemies)
-        reg('r9',impact);reg('rsi',projectiles+slot*0x30)
+        reg('r9',impact);reg('rsi',base+0x12cf988 if immediate else projectiles+slot*0x30)
         put(impact,'B',0x80)
         run(0x8e910,0x8f0a1,call_return=caller)
         assert get(enemies+0x2c,'i')==100000-expected,(amount,expected,get(enemies+0x2c,'i'))
@@ -153,6 +184,441 @@ def check_spell_mastery(u, base, m, actors, enemies, impact, sp,
         raw_damage=None
 
     try:
+        extra=base+info['usage']['catchup']['live_rva']
+        for char in (2,3):
+            setup()
+            put(live+((char^1)*128+73)*2,'H',500)
+            put(extra+(char*128+73)*2,'H',20)
+            rec,actor=capture(char,73,98)
+            assert get(rec+10,'H')==121
+            assert get(rec+12,'I')==6
+            assert get(extra+(char*128+73)*2,'H')==20
+            reg('rcx',actor);reg('rdx',73);run('mastery_actor_uses')
+            assert u.reg_read(regs['rax'])==118
+            # Accepted cast then commits exactly the predicted EXP.
+            reg('rcx',char);reg('rdx',73);run('arte_usage_increment')
+            assert get(live+(char*128+73)*2,'H')==99
+            assert get(extra+(char*128+73)*2,'H')==22
+        from spell_growth import PROJECTILE_CAPS
+        import struct
+        # Summons snapshot native Craymel levels, not use counts. Independent
+        # toggle, exact level-one/native behavior and no spell critical stacking.
+        from summon_growth import bonus
+        summon_flag=base+m['data_rva']+0x1a43
+        # A summon released while a previous spell callback is scoped must
+        # snapshot its own Craymel level, never inherit that spell's mastery.
+        for char in (2,3):
+            for spirit in range(10):
+                setup()
+                master=actors+0xa000
+                put(base+0x12cea60,'Q',master)
+                put(master+0xbb8+spirit*8,'BB',3,10)
+                previous,actor=capture(char,73,998)
+                put(context,'Q',previous)
+                rec,_=capture(char,43+spirit,9999,slot=1)
+                assert get(rec+8,'H')==43+spirit
+                assert get(rec+10,'H')==10
+                assert get(rec+12,'I')==bonus(spirit,10)
+                put(context,'Q',rec)
+                child,_=capture(char,43+spirit,0,slot=2,caller=0xc0000)
+                assert bytes(u.mem_read(child,16))==bytes(u.mem_read(rec,16))
+        for char in (2,3):
+            for spirit in range(10):
+                for level in (1,2,10,20,29,30,255):
+                    for enabled in (0,1):
+                        setup()
+                        master=actors+0xa000
+                        put(base+0x12cea60,'Q',master)
+                        put(master+0xbb8+spirit*8,'BB',3,level)
+                        rec,actor=capture(char,43+spirit,9999)
+                        damage_owner=actor
+                        assert get(rec,'Q')==actor
+                        assert get(rec+8,'H')==43+spirit
+                        assert get(rec+10,'H')==min(level,30)
+                        assert get(rec+12,'I')==bonus(spirit,level)
+                        put(context,'Q',rec)
+                        projectile(actor)
+                        put(master+0xbb9+spirit*8,'B',1)
+                        put(summon_flag,'B',enabled)
+                        put(flag,'B',0)
+                        rng_roll=0
+                        rng_calls.clear()
+                        damage(100,100+(bonus(spirit,level) if enabled else 0))
+                        assert not rng_calls
+                        put(flag,'B',1)
+                        damage(100,100+(bonus(spirit,level) if enabled else 0))
+                        assert not rng_calls
+                        # Both native scratch and persistent collisions use the
+                        # same frozen level, and do not mutate their rectangle.
+                        for immediate in (False,True):
+                            obj=base+0x12cf988 if immediate else projectiles+5*0x30
+                            put(obj+8,'Q',actor)
+                            for _ in range(2):
+                                reg('rsi',obj)
+                                packed=int.from_bytes(struct.pack('<4h',-100,-80,100,0),'little')
+                                reg('rbx',packed)
+                                run(0x1162b5,0x1162ba,rsp=sp-8)
+                                lv=min(level,30)-1 if enabled else 0
+                                dx=(720-200)*lv//58
+                                dy=80*(lv*50//29)//200
+                                expected=(-100-dx,-80-dy,100+dx,dy)
+                                got=struct.unpack('<4h',u.reg_read(regs['rbx']).to_bytes(8,'little'))
+                                assert got==expected,(spirit,level,enabled,got,expected)
+        rng_roll=99
+        put(summon_flag,'B',0)
+        for uses in (0,165,166,498,998):
+            for enabled,disabled,side in ((1,0,0),(0,0,0),(1,1,0),(1,0,1)):
+                setup();rec,actor=capture(2,94,uses,side=side)
+                put(context,'Q',rec);put(flag,'B',enabled)
+                if disabled:put(preferences+2*32+94//8,'B',1<<(94%8))
+                extra=min(999,uses+1)*6//999 if enabled and not disabled and not side else 0
+                star_active=True
+                try:
+                    for tick in range(40,128):
+                        star_sprites.clear();star_impacts.clear()
+                        put(pool+0x38,'H',tick);reg('rdi',pool)
+                        reg('rax',tick%8);reg('rdx',0);reg('rbp',0)
+                        run(0xbce35,0xbcec4,rsp=sp-8)
+                        added=tick in (44,52,60,68,76,84)[:extra]
+                        assert len(star_impacts)==(2 if tick%8==0 else 1 if added else 0),(uses,tick,star_impacts)
+                        assert len(star_sprites)==int(added)
+                        if added:assert bytes(u.mem_read(actors+0x9000,8))==star_impacts[0]
+                finally:
+                    star_active=False
+        for uses in (0,165,166,498,998):
+            for enabled,disabled,side in ((1,0,0),(0,0,0),(1,1,0),(1,0,1)):
+                setup();rec,actor=capture(2,91,uses,side=side)
+                put(pool+0x10,'Q',base+0x5785d0)
+                put(context,'Q',rec);put(flag,'B',enabled)
+                if disabled:put(preferences+2*32+91//8,'B',1<<(91%8))
+                extra=min(999,uses+1)*6//999 if enabled and not disabled and not side else 0
+                reg('rcx',pool);run('mastery_dark_force_script')
+                script=get(pool+0x10,'Q')
+                assert script==(state+0x5000 if extra else base+0x5785d0),(uses,enabled,disabled,side,extra,hex(script),hex(state),get(pool+0x38,'H'),bytes(u.mem_read(rec,16)).hex())
+                for offset in (52,76,100,148):assert get(script+offset,'H')==5+extra
+                # Execute the real native script interpreter for the impact
+                # stage: every added orb gets its own scheduled hit; native
+                # repeat/fade/completion timing is retained or shifted intact.
+                put(pool+0x78,'Q',base+0x578430)
+                put(pool+0x35,'B',24)
+                execute_scripts=True;script_hits.clear();script_sprites.clear()
+                try:
+                    for tick in range(90,145+extra*6):
+                        put(pool+0x38,'H',tick);reg('rcx',pool)
+                        run(0x114f50)
+                    assert script_hits==list(range(92,117+extra*6,6)),(extra,script_hits)
+                    assert get(pool+0x10,'Q')==0
+                    assert (128+extra*6,8) in script_sprites
+                finally:
+                    execute_scripts=False
+        for uses in (0,165,166,498,998):
+            for enabled,disabled,side in ((1,0,0),(0,0,0),(1,1,0),(1,0,1)):
+                setup();rec,actor=capture(2,89,uses,slot=13,side=side)
+                effect=pool+13*0x120
+                put(context,'Q',rec);put(flag,'B',enabled)
+                if disabled:put(preferences+2*32+89//8,'B',1<<(89%8))
+                extra=min(999,uses+1)*6//999 if enabled and not disabled and not side else 0
+                reg('rsi',effect);put(effect+0x38,'H',0)
+                run(0x947f5,0x947fb,rsp=sp-8)
+                record=state+0x4010+13*4
+                assert get(record,'B')==extra
+                for tick in range(32,113):
+                    put(effect+0x38,'H',tick);reg('rsi',effect)
+                    added=tick in (42,50,58,66,74,82)[:extra]
+                    run(0x94d05,0x9498f if added else 0x94d0c,rsp=sp-8)
+                    assert get(effect+0x38,'H')==tick+(2 if added else 0)
+                    if added:
+                        assert get(effect+0x38,'H')%4==0
+                        run(0x94d05,0x94d0c,rsp=sp-8)
+                        assert get(effect+0x38,'H')==tick
+                        # Never loop on the extra beam or retrigger in a
+                        # repeated update for the same native tick.
+                        run(0x94d05,0x94d0c,rsp=sp-8)
+        phases=[]
+        def aqua_phase(emu,address,size,_):
+            if address==base+sym['mastery_aqua_edge_native']:
+                effect=u.reg_read(regs['rcx'])
+                phases.append(get(effect+0x38,'H'))
+                ret()
+        aqua_hook=u.hook_add(UC_HOOK_CODE,aqua_phase)
+        try:
+            for uses in (0,331,332,665,998):
+                for enabled,disabled,side in ((1,0,0),(0,0,0),(1,1,0),(1,0,1)):
+                    setup();rec,actor=capture(2,70,uses,slot=14,side=side)
+                    effect=pool+14*0x120
+                    put(effect+0x10,'Q',impact)
+                    put(context,'Q',rec);put(flag,'B',enabled)
+                    if disabled:put(preferences+2*32+70//8,'B',1<<(70%8))
+                    extra=min(999,uses+1)*3//999 if enabled and not disabled and not side else 0
+                    for tick in range(113):
+                        phases.clear();put(effect+0x38,'H',tick);reg('rcx',effect)
+                        run(0xcefa0)
+                        assert phases==[tick+i*8 for i in range(extra+1) if tick+i*8<=112]
+                        assert get(effect+0x38,'H')==tick
+                    # Native completion/free is called once, regardless of
+                    # the previous number of extra projectile phases.
+                    phases.clear();put(effect+0x10,'Q',0);reg('rcx',effect)
+                    run(0xcefa0)
+                    assert phases==[112]
+        finally:
+            u.hook_del(aqua_hook)
+        for uses in (0,331,332,665,998):
+            for enabled,disabled,side in ((1,0,0),(0,0,0),(1,1,0),(1,0,1)):
+                setup();rec,actor=capture(2,90,uses,slot=15,side=side)
+                effect=pool+15*0x120
+                put(context,'Q',rec);put(flag,'B',enabled)
+                if disabled:put(preferences+2*32+90//8,'B',1<<(90%8))
+                extra=min(999,uses+1)*3//999 if enabled and not disabled and not side else 0
+                array=state+0x3000+15*256
+                put(effect+0x38,'H',0);reg('r14',effect)
+                run(0x9bacd,0x9bad4,rsp=sp-8)
+                assert u.reg_read(regs['rbp'])==array
+                assert get(array+0xf8,'I')==16+2*extra
+                for tick in range(16,80):
+                    for phase in (0,4,7):
+                        reg('rcx',tick);reg('rbp',array);reg('r15',impact)
+                        put(base+0x12ceb40,'I',phase)
+                        dest=0x9bb00 if phase==0 else 0x9bb10 if phase==4 and (tick-16)//8<extra else 0x9bc71
+                        run(0x9baf3,dest,rsp=sp-8)
+                        if dest==0x9bb10:
+                            assert u.reg_read(regs['rax'])==8+(tick-16)//8
+                            assert u.reg_read(regs['rcx'])==impact+0x6a
+                for index in (15,16,21,22):
+                    reg('r14',effect);reg('r12',index)
+                    run(0x9bf67,0x9bc93 if index<16+2*extra else 0x9bf71,rsp=sp-8)
+                for i in range(22):
+                    sprite=actors+0x8000+i*0x80
+                    put(array+i*8,'Q',sprite)
+                    put(sprite+0x5a,'hh',4,100)
+                reg('r14',effect);run(0x9c116,0x9c26d,rsp=sp-8)
+                assert get(effect+0x38,'H')==126
+                for i in range(22):
+                    values=struct.unpack('<hh',u.mem_read(actors+0x8000+i*0x80+0x5a,4))
+                    assert values==((3,36) if i<16+2*extra else (4,100)),(uses,enabled,disabled,side,i,values)
+        for uses in (0,165,498,998):
+            for enabled in (0,1):
+                setup();rec,actor=capture(2,93,uses)
+                put(context,'Q',rec);put(flag,'B',enabled);reg('rbp',pool)
+                put(pool+0x38,'H',0)
+                run(0x9cb8d,0x9cb94,rsp=sp-8)
+                array=state+0x2000
+                extra=min(999,uses+1)*6//999 if enabled else 0
+                assert u.reg_read(regs['rsi'])==array
+                assert get(array+0x78,'I')==8+extra
+                for tick in range(192):
+                    quotient=tick//24
+                    reg('r8',tick);reg('rax',quotient*24);reg('rbx',quotient);reg('rsi',array)
+                    dest=0x9cbca if tick%24==0 else 0x9cbd0 if tick%24==12 and quotient<extra else 0x9cc4e
+                    run(0x9cbc1,dest,rsp=sp-8)
+                    if dest==0x9cbd0:assert u.reg_read(regs['rbx'])==8+quotient
+                reg('rsi',array);run(0x9cc4e,0x9cc55,rsp=sp-8)
+                assert u.reg_read(regs['r13'])==array+(8+extra)*8
+                # A setting change mid-flight keeps the allocated slot count.
+                put(flag,'B',not enabled);put(pool+0x38,'H',1);reg('rbp',pool)
+                run(0x9cb8d,0x9cb94,rsp=sp-8)
+                assert get(array+0x78,'I')==8+extra
+        for uses in (0,331,332,665,998):
+            for enabled,disabled,side in ((1,0,0),(0,0,0),(1,1,0),(1,0,1)):
+                setup();rec,actor=capture(2,72,uses,side=side)
+                put(context,'Q',rec);put(flag,'B',enabled)
+                if disabled:put(preferences+2*32+72//8,'B',1<<(72%8))
+                extra=min(999,uses+1)*3//999 if enabled and not disabled and not side else 0
+                for site,native,ticks,yes,no in ((0xca2c5,12,(24,40,56),0xca2cb,0xca329),(0xca333,32,(44,60,76),0xca33d,0xca3f8)):
+                    for tick in range(1,88):
+                        put(pool+0x38,'H',tick);reg('rbx',pool);reg('rcx',pool);reg('rax',tick)
+                        expected=tick==native or tick in ticks[:extra]
+                        saved={r:u.reg_read(regs[r]) for r in regs}
+                        run(site,yes if expected else no,rsp=sp-8)
+                        assert saved=={r:u.reg_read(regs[r]) for r in saved}
+        # Freeze Lancer's native emission branch creates both a real lance
+        # sprite and its collision object. No fixed VFX array is extended.
+        for uses in (0,165,166,498,998):
+            for enabled,disabled,side in ((1,0,0),(0,0,0),(1,1,0),(1,0,1)):
+                setup();rec,actor=capture(2,83,uses,side=side)
+                put(context,'Q',rec);put(flag,'B',enabled)
+                if disabled:put(preferences+2*32+83//8,'B',1<<(83%8))
+                extra=min(999,uses+1)*6//999 if enabled and not disabled and not side else 0
+                for tick in range(64):
+                    put(pool+0x38,'H',tick)
+                    reg('rdi',pool);reg('rcx',pool);reg('rax',tick%4)
+                    expected=tick%4==0 or (tick%4==2 and tick//4<extra)
+                    saved={r:u.reg_read(regs[r]) for r in regs if r!='rax'}
+                    run(0x931c1,0x931c9 if expected else 0x932f7,rsp=sp-8)
+                    assert saved=={r:u.reg_read(regs[r]) for r in saved}
+        for arte in info['offensive_arte_ids']:
+            for uses in (0,18,19,498,998):
+                for enabled in (0,1):
+                    setup();rec,actor=capture(2,arte,uses)
+                    put(context,'Q',rec);projectile(actor)
+                    put(flag,'B',enabled)
+                    original=(-100,-50,100,50)
+                    packed=int.from_bytes(struct.pack('<4h',*original),'little')
+                    reg('rsi',projectiles+5*0x30);reg('rbx',packed)
+                    before={r:u.reg_read(v) for r,v in regs.items() if r!='rbx'}
+                    put(projectiles+5*0x30+0x28,'Q',packed)
+                    run(0x1162b5,0x1162ba,rsp=sp-8)
+                    pct=(min(999,uses+1)*50//999) if enabled and arte not in PROJECTILE_CAPS else 0
+                    expected=(-100-pct,-50-pct//2,100+pct,50+pct//2)
+                    got=struct.unpack('<4h',u.reg_read(regs['rbx']).to_bytes(8,'little'))
+                    assert got==expected,(arte,uses,enabled,got,expected)
+                    assert get(sp-8+0x38,'Q')==u.reg_read(regs['rbx'])
+                    assert get(projectiles+5*0x30+0x28,'Q')==packed
+                    assert before=={r:u.reg_read(regs[r]) for r in before}
+        # Timing hooks retain the native even-frame mask, character boundaries,
+        # preferences and global opt-out. Cancellation never adds a cast.
+        for char, side, arte in ((2,0,71),(3,0,73),(0,0,71),(2,1,71),(2,0,54)):
+            for uses in (0,33,34,99,100,499,500,999,9999):
+                for enabled in (0,1):
+                    setup()
+                    actor=actors+char*0x248
+                    put(actor+0x51,'B',side)
+                    put(live+(char*128+arte)*2,'H',uses)
+                    put(flag,'B',enabled)
+                    reg('rbx',actor);reg('rbp',arte);reg('rdx',400)
+                    before={r:u.reg_read(v) for r,v in regs.items() if r not in ('rax','rdx')}
+                    run(0x112fe9,0x112fee,rsp=sp-8)
+                    reduction=min(15,uses*15//500) if enabled and char in (2,3) and side==0 and arte>=70 else 0
+                    assert u.reg_read(regs['rdx'])==(400*(100-reduction)+99)//100
+                    assert before=={r:u.reg_read(regs[r]) for r in before}
+                    assert get(live+(char*128+arte)*2,'H')==uses
+
+        # Every possible percentile verifies the exact critical threshold,
+        # doubled native damage, final cap and display flag. No roll when OFF.
+        for uses in (0,32,33,99,499,998):
+            setup();rec,actor=capture(2,71,uses)
+            damage_owner=actor
+            put(context,'Q',rec);projectile(actor)
+            chance=min(15,(uses+1)*15//500)
+            power=min(25,(uses+1)//20)
+            for roll in range(100):
+                rng_roll=roll
+                damage(100,(100+power)*(2 if roll<chance else 1))
+                assert bool(u.reg_read(regs['r15'])&2)==(roll<chance)
+            put(flag,'B',0)
+            prior=len(rng_calls)
+            damage(100,100)
+            assert len(rng_calls)==prior
+        rng_roll=99
+
+        # Earlier release leaves the complete effect untouched. Test the
+        # absolute script clock and exact rounding around every threshold.
+        script=base+0x550000
+        saved_script=bytes(u.mem_read(script,32))
+        try:
+            for uses in (0,32,33,99,499,998):
+                for enabled in (0,1):
+                    for tick in (0,84,85,86,94,95,96,99,100):
+                        setup();rec,actor=capture(2,73,uses)
+                        put(flag,'B',enabled);put(context,'Q',rec)
+                        put(script,'HhI',0,-3,4);put(script+8,'HhI',100,-1,0)
+                        put(pool+0x10,'Q',script);put(pool+0x38,'H',tick)
+                        put(actor+0x52,'B',10);put(actor+0x77,'B',1)
+                        put(actor+0x8c,'H',0);put(actor+0x23a,'B',7)
+                        put(actor+0x23d,'B',4)
+                        fx=bytes(u.mem_read(pool,0x120))
+                        reg('rcx',pool)
+                        before={r:u.reg_read(v) for r,v in regs.items()}
+                        run('mastery_spell_recovery')
+                        reduction=min(15,(uses+1)*15//500)
+                        released=bool(enabled and reduction and tick>=100-reduction)
+                        assert get(actor+0x77,'B')==(0 if released else 1)
+                        assert get(actor+0x23d,'B')==(255 if released else 4)
+                        assert bytes(u.mem_read(pool,0x120))==fx
+                        assert before=={r:u.reg_read(regs[r]) for r in before}
+            for mode in ('preference','casting','stagger','different_arte','not_latest','enemy','no_scope'):
+                setup();rec,actor=capture(2,73,499)
+                put(context,'Q',rec);put(pool+0x10,'Q',script);put(pool+0x38,'H',99)
+                put(actor+0x52,'B',10);put(actor+0x77,'B',1);put(actor+0x8c,'H',0)
+                if mode=='preference':put(preferences+2*32+73//8,'B',1<<(73%8))
+                elif mode=='casting':put(actor+0x8c,'H',10)
+                elif mode=='stagger':put(actor+0x52,'B',7)
+                elif mode=='different_arte':put(actor+0x6d,'B',75)
+                elif mode=='not_latest':put(roots+2*8,'Q',pool+0x120)
+                elif mode=='enemy':put(actor+0x51,'B',1)
+                elif mode=='no_scope':put(context,'Q',0)
+                reg('rcx',pool);run('mastery_spell_recovery')
+                assert get(actor+0x77,'B')==1,mode
+            for arte,duration in ((75,80),(79,36),(82,100)):
+                setup();rec,actor=capture(2,arte,499)
+                put(context,'Q',rec);put(pool+0x10,'Q',0)
+                put(actor+0x52,'B',10);put(actor+0x77,'B',1);put(actor+0x8c,'H',0)
+                threshold=(duration*85+99)//100
+                put(pool+0x38,'H',threshold-1);reg('rcx',pool);run('mastery_spell_recovery')
+                assert get(actor+0x77,'B')==1
+                put(pool+0x38,'H',threshold);reg('rcx',pool);run('mastery_spell_recovery')
+                assert get(actor+0x77,'B')==0
+            # Old cleanup is ignored even when the following spell has the
+            # same native ID. Its own cleanup still follows the original path.
+            setup();rec,actor=capture(2,73,499)
+            newer,_=capture(2,73,500,slot=1)
+            assert get(roots+2*8,'Q')==pool+0x120
+            put(actor+0x8e,'H',4)
+            reg('rcx',actor);reg('rbx',pool);reg('rax',4)
+            run(0x115ef4,0x115f14,rsp=sp-8)
+            reg('rcx',actor);reg('rbx',pool+0x120);reg('rax',4)
+            run(0x115ef4,0x115efd,rsp=sp-8)
+        finally:
+            u.mem_write(script,saved_script)
+
+        # Native immediate collisions inherit only the active effect scope.
+        # A different mage, an absent scope, a buff or a stale scratch owner
+        # must never borrow another spell's power or critical chance.
+        for arte in (71,73,74,79,85,63):
+            setup();rec,actor=capture(2,arte,499)
+            damage_owner=actor
+            put(base+0x12cf990,'Q',actor)
+            put(context,'Q',rec)
+            damage(100,125 if arte>=70 else 100,immediate=True)
+            rng_roll=0
+            damage(100,250 if arte>=70 else 100,immediate=True)
+            rng_roll=99
+            put(context,'Q',0);damage(100,100,immediate=True)
+            put(context,'Q',rec);put(base+0x12cf990,'Q',actors+3*0x248)
+            damage(100,100,immediate=True)
+            put(base+0x12cf990,'Q',actor);put(rec,'Q',actors+3*0x248)
+            damage(100,100,immediate=True)
+
+        # Real Air Thrust loop storage, maximum count and option boundaries.
+        # Each simultaneous effect receives a disjoint ten-projectile array.
+        air=info['projectile_growth'][0]
+        arrays=base+air['arrays_rva']
+        for slot in range(16):
+            for uses in (0,165,166,332,499,665,831,998,9999):
+                for enabled in (0,1):
+                    setup();rec,actor=capture(2,73,uses,slot=slot)
+                    put(flag,'B',enabled)
+                    fx=pool+slot*0x120
+                    reg('rsi',fx)
+                    before={r:u.reg_read(v) for r,v in regs.items() if r!='r14'}
+                    run(0x94234,0x9423b,rsp=sp-8)
+                    count=4+(min(999,uses+1)*6//999 if enabled else 0)
+                    assert get(arrays+slot*128+0x70,'I')==count
+                    assert u.reg_read(regs['r14'])==arrays+slot*128+2
+                    assert before=={r:u.reg_read(regs[r]) for r in before}
+                    run(0x9423f,0x94246,rsp=sp-8)
+                    assert u.reg_read(regs['r15'])==arrays+slot*128+0x50
+                    # A later option/counter change cannot add uninitialized
+                    # projectiles to an already running effect.
+                    put(fx+0x38,'H',1);put(flag,'B',1-enabled)
+                    put(rec+10,'H',9999)
+                    run(0x94234,0x9423b,rsp=sp-8)
+                    assert get(arrays+slot*128+0x70,'I')==count
+                    for i in (count-1,count):
+                        reg('rbp',i)
+                        run(0x94515,0x94251 if i<count else 0x9451e,rsp=sp-8)
+                    for other in range(16):
+                        if other!=slot:
+                            assert get(arrays+other*128+0x70,'I')==0
+        for arte,site,end,countreg in ((75,0xc9ba3,0xc9ba8,'rbp'),(82,0xce252,0xce259,'rdi')):
+            for uses in (0,331,332,665,998,9999):
+                for enabled in (0,1):
+                    for native_count in (3,4):
+                        setup();rec,actor=capture(2,arte,uses)
+                        put(flag,'B',enabled);put(context,'Q',rec)
+                        reg('rbx',pool);reg(countreg,native_count)
+                        run(site,end,rsp=sp-8)
+                        assert u.reg_read(regs[countreg])==native_count+(min(999,uses+1)*3//999 if enabled else 0)
+
         # Thresholds, every ordinary offensive arte, both mages, capped and
         # non-castable/excluded data; records replace stale allocations.
         for char in (2,3):
@@ -163,8 +629,11 @@ def check_spell_mastery(u, base, m, actors, enemies, impact, sp,
                     assert get(rec,'Q')==actor,(char,arte)
                     assert get(rec+8,'H')==arte
                     assert get(rec+10,'H')==min(9999,uses+1)
-                    assert get(rec+12,'I')==min(25,(uses+1)//25)
-        for arte in list(range(43,63))+list(range(67,70))+list(range(102,112)):
+                    assert get(rec+12,'I')==min(25,(uses+1)//20)
+        for arte in range(54,63):
+            setup();rec,actor=capture(2,arte,0)
+            assert get(rec,'Q')==actor and get(rec+8,'H')==arte
+        for arte in list(range(43,54))+list(range(67,70))+list(range(102,112)):
             setup()
             u.mem_write(effects,b'\xff'*16)
             rec,_=capture(2,arte,9999)

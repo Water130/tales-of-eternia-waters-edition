@@ -21,14 +21,8 @@ def emit_spell_textures(emit, mem, jump, data):
         # EAX is a resource ID, not an effect ID.
         return f'''
             lea ecx, [eax-123]
-            cmp ecx, 24
+            cmp ecx, 76
             jbe {yes}
-            cmp eax, 183
-            je {yes}
-            cmp eax, 184
-            je {yes}
-            cmp eax, 188
-            je {yes}
             jmp {no}
         '''
     palette_reuse = emit('spell_palette_reuse', f'''
@@ -50,7 +44,13 @@ def emit_spell_textures(emit, mem, jump, data):
          'Spell palettes: retain native CLUT objects belonging to other resources')
     palette_select = emit('spell_palette_select', f'''
         mov eax, dword ptr [rdi+0x14]
-        {owned('resource', 'coordinates')}
+        {owned('resource', 'unowned')}
+    unowned:
+        # Enemy/character assets also share VRAM coordinates. Never let an
+        # unowned draw borrow a retained party-spell palette; the loader
+        # isolates that pair in both directions, so selection must too.
+        mov eax, dword ptr [rdx+8]
+        {owned('foreign', 'coordinates')}
     resource:
         cmp eax, dword ptr [rdx+8]
         jne foreign
@@ -78,14 +78,6 @@ def emit_spell_textures(emit, mem, jump, data):
         jae done
         test eax, eax
         je done
-        cmp eax, 25
-        jbe allowed
-        cmp eax, 61
-        je allowed
-        cmp eax, 62
-        je allowed
-        cmp eax, 66
-        jne done
     allowed:
         imul ebp, eax, {BANK}
         lea rbx, {mem(data)}
@@ -320,4 +312,5 @@ def emit_spell_textures(emit, mem, jump, data):
     return dict(state_rva=data, size=BANK*COUNT, bank_size=BANK,
                 parts=PARTS, stride=STRIDE,
                 palette_isolation='Native CLUT lifetime; resource-aware reuse and queued-draw selection',
-                note='Per-resource native TIM metadata for ordinary overlap IDs; runtime rendering requires visual validation.')
+                resource_ids=list(range(123,200)),
+                note='Per-resource native TIM metadata for every large effect, including boss-only assets; runtime rendering requires visual validation.')

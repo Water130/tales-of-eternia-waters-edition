@@ -59,6 +59,8 @@ for BASE in [0x180000000,0x7ffb00000000]:
     def reg(name,value):uc.reg_write(REGS[name],value)
     def reset():
         uc.mem_write(ACTORS,b'\0'*0x10000)
+        if manifest.get('artesphere',{}).get('usage',{}).get('catchup'):
+            uc.mem_write(BASE+manifest['artesphere']['usage']['catchup']['live_rva'],bytes(1792))
         uc.mem_write(BASE+0x12cea40,b'\0'*0x26c0)
         uc.mem_write(DATA,b'\0'*0x200) # keep allowlist
         for i,(name,number) in enumerate(REGS.items()):uc.reg_write(number,0x111000+i)
@@ -100,6 +102,42 @@ for BASE in [0x180000000,0x7ffb00000000]:
         assert saved=={r:uc.reg_read(v) for r,v in REGS.items()},'entry register corruption'
         return get(DATA,'Q')
 
+    if '--meredy-cast-only' in sys.argv or '--core-only' in sys.argv:
+        from test_meredy_cast_callback import check_meredy_cast_callback
+        n=check_meredy_cast_callback(uc,BASE,manifest,ACTORS,SP,reset,put,get,reg,REGS)
+        passed.append(f'{BASE:x}: Meredy native casting callback: {n} phase/option/empty-particle/cleanup/ABI cases; shared branch boundaries preserved')
+        if '--meredy-cast-only' in sys.argv:continue
+
+    if '--faculties-only' in sys.argv:
+        from test_craymel_faculties import check_faculties
+        n=check_faculties(uc,BASE,manifest,ACTORS,SP,reset,put,get,reg,REGS)
+        passed.append(f'{BASE:x}: Craymel faculties: {n} eligibility, costs, damage, healing, protection, ailments, cooldown and ABI cases')
+        continue
+
+    if '--catchup-only' in sys.argv or '--core-only' in sys.argv:
+        from test_spell_catchup import check_spell_catchup
+        n=check_spell_catchup(uc,BASE,manifest,ACTORS,SP,reset,put,get,reg,REGS)
+        passed.append(f'{BASE:x}: independent spell catch-up EXP: {n} cases')
+        if '--catchup-only' in sys.argv:continue
+
+    if '--spell-notices-only' in sys.argv or '--core-only' in sys.argv:
+        from test_spell_level_notice import check_spell_notices
+        n=check_spell_notices(uc,BASE,manifest,ACTORS,SP,reset,put,get,reg,REGS)
+        passed.append(f'{BASE:x}: bilingual spell level notices: {n} cases')
+        if '--spell-notices-only' in sys.argv:continue
+
+    if '--teamup-only' in sys.argv:
+        from test_teamup_autonomous import check_teamups
+        n=check_teamups(uc,BASE,manifest,ACTORS,STATS,SP,reset,put,get,reg,REGS)
+        passed.append(f'{BASE:x}: autonomous team-ups: {n} unlock/list/launch/cost/ABI cases')
+        continue
+
+    if '--reid-specials-only' in sys.argv or '--core-only' in sys.argv:
+        from test_reid_specials import check_reid_specials
+        n=check_reid_specials(uc,BASE,manifest,ACTORS,STATS,SP,reset,put,get,reg,REGS)
+        passed.append(f'{BASE:x}: Reid specials: {n} HP/input/quota/reset/ABI cases')
+        if '--reid-specials-only' in sys.argv:continue
+
     if '--skit-shortcut-only' in sys.argv:
         from test_skit_shortcut_patch import check_skit_shortcut
         n=check_skit_shortcut(uc,BASE,manifest,ACTORS,SP,reset,put,get,reg,REGS)
@@ -112,10 +150,48 @@ for BASE in [0x180000000,0x7ffb00000000]:
         passed.append(f'{BASE:x}: settings: {n}')
         continue
 
+    if '--craymel-exp-only' in sys.argv:
+        from test_craymel_experience import check_craymel_exp
+        n=check_craymel_exp(uc,BASE,manifest,ACTORS,SP,reset,put,get,reg,REGS)
+        passed.append(f'{BASE:x}: Craymel EXP: {n}')
+        continue
+
+    if '--basic-mastery-only' in sys.argv or '--core-only' in sys.argv:
+        from test_basic_attack_mastery import check_basic_mastery
+        n=check_basic_mastery(uc,BASE,manifest,ACTORS,SP,reset,put,get,reg,REGS)
+        passed.append(f'{BASE:x}: basic attack mastery: {n}')
+        if '--basic-mastery-only' in sys.argv:continue
+
     if '--energy-only' in sys.argv:
         from test_energy_mastery_patch import check_energy
         n=check_energy(uc,BASE,manifest,ACTORS,SP,reset,put,get,reg,REGS)
         passed.append(f'{BASE:x}: Energy: {n} native execution cases')
+        continue
+
+    if '--maelstrom-only' in sys.argv:
+        from test_maelstrom_level_patch import check_maelstrom_level
+        n=check_maelstrom_level(uc,BASE,manifest,ACTORS,STATS,IMPACT,SP,reset,put,get,reg,REGS)
+        passed.append(f'{BASE:x}: Maelstrom: {n}')
+        continue
+
+    if '--startup-only' in sys.argv:
+        from test_startup_patch import check_startup
+        n=check_startup(uc,BASE,manifest,SP,reset,put,get,reg,REGS)
+        passed.append(f'{BASE:x}: startup: {n}')
+        continue
+
+    if '--fringe-only' in sys.argv:
+        from test_fringe_patch import check_fringe
+        n=check_fringe(uc,BASE,manifest,ACTORS,SP,reset,put,get,reg,REGS)
+        passed.append(f'{BASE:x}: Fringe: {n}')
+        continue
+
+    if '--ui-only' in sys.argv:
+        from test_combat_ui_patch import check_combat_ui
+        checks,n=check_combat_ui(uc,BASE,manifest,ACTORS,ENEMIES,STATS,IMPACT,SP,
+                               reset,put,get,reg,REGS)
+        passed.extend(f'{BASE:x}: {check}' for check in checks)
+        passed.append(f'{BASE:x}: combat UI: {n}')
         continue
 
     if '--mastery-menu-only' in sys.argv:
@@ -124,6 +200,12 @@ for BASE in [0x180000000,0x7ffb00000000]:
         passed.append(f'{BASE:x}: mastery menu: {n}')
         continue
 
+    if '--air-hits-only' in sys.argv or '--core-only' in sys.argv:
+        from test_air_thrust_hits import check_air_hits
+        n=check_air_hits(uc,BASE,manifest,ACTORS,ENEMIES,IMPACT,SP,reset,put,get,reg,REGS)
+        passed.append(f'{BASE:x}: Air Thrust: {n}')
+        if '--air-hits-only' in sys.argv:continue
+
     if '--mastery-only' in sys.argv:
         from test_spell_mastery_patch import check_spell_mastery
         n=check_spell_mastery(uc,BASE,manifest,ACTORS,ENEMIES,IMPACT,SP,reset,put,get,reg,REGS)
@@ -131,6 +213,9 @@ for BASE in [0x180000000,0x7ffb00000000]:
         continue
 
     if 'tp' in manifest['features'] and 'mod_settings' in manifest:
+        from test_option_gates import check_gates
+        n=check_gates(uc,BASE,manifest,SP,put,get,reg,REGS)
+        passed.append(f'{BASE:x}: {n} generated option gates: native OFF/mod ON, GPR/flags/stack preserved')
         from test_basic_tp_patch import check_basic_tp
         n = check_basic_tp(uc,BASE,manifest,ACTORS,ENEMIES,STATS,IMPACT,SP,
                            reset,put,get,reg,REGS)
@@ -152,6 +237,11 @@ for BASE in [0x180000000,0x7ffb00000000]:
                              reset,put,get,reg,REGS)
         passed.append(f'{BASE:x}: {n} native difficulty cases; on/off, all modes, HP/DEF/fixed-hit factors, unchanged adjacent stats and party hits, integer limits')
 
+    if 'maelstrom_level' in manifest:
+        from test_maelstrom_level_patch import check_maelstrom_level
+        n = check_maelstrom_level(uc,BASE,manifest,ACTORS,STATS,IMPACT,SP,
+                                 reset,put,get,reg,REGS)
+        passed.append(f'{BASE:x}: {n} native Maelstrom cases; party Undine level 10, enemy level 15, original vitality/resistance/TP/discount/timing checks and no save writes')
 
     if 'spell_textures' in manifest:
         from test_spell_palette_patch import check_spell_palettes
@@ -320,6 +410,9 @@ for BASE in [0x180000000,0x7ffb00000000]:
         usage_checks=check_arte_usage(uc,BASE,manifest,ACTORS,SP,reset,put,get,reg,REGS)
         passed.append(f'{BASE:x}: arte usage counters: {usage_checks}')
 
+    if '--core-only' in sys.argv:
+        continue
+
     if 'spell_mastery' in manifest:
         from test_spell_mastery_patch import check_spell_mastery
         n=check_spell_mastery(uc,BASE,manifest,ACTORS,ENEMIES,IMPACT,SP,reset,put,get,reg,REGS)
@@ -339,9 +432,21 @@ report={'passed':True,'patched_sha256':digest(binary),'checks':passed,
         'runtime_validated':False,'note':'Actual x64 hook execution in an emulator; rendering, engine concurrency, Quickie routing and gameplay still require user testing.'}
 report_name = 'mastery-verification.json' if '--mastery-only' in sys.argv else 'verification.json'
 if '--mastery-menu-only' in sys.argv:report_name='mastery-menu-verification.json'
+if '--craymel-exp-only' in sys.argv:report_name='craymel-exp-verification.json'
 if '--browser-stress-only' in sys.argv:report_name='browser-stress-verification.json'
 if '--skit-shortcut-only' in sys.argv:report_name='skit-shortcut-verification.json'
 if '--settings-only' in sys.argv:report_name='settings-verification.json'
 if '--energy-only' in sys.argv:report_name='energy-verification.json'
+if '--ui-only' in sys.argv:report_name='ui-verification.json'
+if '--startup-only' in sys.argv:report_name='startup-verification.json'
+if '--maelstrom-only' in sys.argv:report_name='maelstrom-verification.json'
+if '--fringe-only' in sys.argv:report_name='fringe-verification.json'
+if '--core-only' in sys.argv:report_name='core-verification.json'
+if '--air-hits-only' in sys.argv:report_name='air-hits-verification.json'
+if '--basic-mastery-only' in sys.argv:report_name='basic-mastery-verification.json'
+if '--reid-specials-only' in sys.argv:report_name='reid-specials-verification.json'
+if '--teamup-only' in sys.argv:report_name='teamup-verification.json'
+if '--faculties-only' in sys.argv:report_name='faculties-verification.json'
+if '--meredy-cast-only' in sys.argv:report_name='meredy-cast-verification.json'
 (OUT/report_name).write_text(json.dumps(report,indent=2),encoding='utf-8')
 print(json.dumps(report,indent=2))

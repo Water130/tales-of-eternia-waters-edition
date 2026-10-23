@@ -10,6 +10,7 @@ def check_arte_usage(u, base, m, actors, sp, reset, put, get, reg, regs):
     state = base + m['artesphere']['state_rva']
     live = base + info['live_rva']
     size = info['size']
+    extra = base + info['catchup']['live_rva']
     data = base + m['data_rva']
     api = 0x65000000
     u.mem_map(api, 0x1000)
@@ -51,7 +52,7 @@ def check_arte_usage(u, base, m, actors, sp, reset, put, get, reg, regs):
             ret(api+(0x20 if text(rdx)=='GetPrivateProfileStructW' else 0x30))
         elif address in (api+0x20, api+0x30):
             section = text(rcx, True)
-            assert (section, r9) in (('ArteUsage-v1',size+8),('Artesphere-v1',104),('Artesphere-v2',104),('MasteryChoices-v1',232))
+            assert (section, r9) in (('ArteUsage-v1',size+8),('Artesphere-v1',104),('Artesphere-v2',104),('MasteryChoices-v1',232),('SpellCatchUp-v1',1800))
             key = (section, text(rdx,True))
             if address == api+0x30:
                 if not failed:
@@ -198,20 +199,27 @@ def check_arte_usage(u, base, m, actors, sp, reset, put, get, reg, regs):
         raw=actors+0x4000
         u.mem_write(raw,bytes(i%251 for i in range(0x12d4)))
         put(addr(2,71),'H',19);put(addr(3,71),'H',5)
+        put(extra+(2*128+71)*2,'H',38);put(extra+(3*128+71)*2,'H',10)
         run('artesphere_save_snapshot',[0x24db28],True)
         put(addr(2,71),'H',20)
+        put(extra+(2*128+71)*2,'H',40)
         reg('rsi',0x12d4);reg('r12',2);reg('rbp',actors)
         run('artesphere_queue_profile',[0x3f3a8],True)
         put(addr(2,71),'H',21)
+        put(extra+(2*128+71)*2,'H',42)
         reg('r12',2);reg('r15',raw);put(sp+0x58,'Q',0x12d4)
         run('artesphere_save_commit')
         record=records[('ArteUsage-v1','Slot02')]
         assert len(record)==size+8
+        exp_record=records[('SpellCatchUp-v1','Slot02')]
+        assert struct.unpack_from('<H',exp_record,8+(2*128+71)*2)[0]==38
+        assert struct.unpack_from('<H',exp_record,8+(3*128+71)*2)[0]==10
         assert struct.unpack_from('<H',record,8+(2*128+71)*2)[0]==19
         assert struct.unpack_from('<H',record,8+(3*128+71)*2)[0]==5
         # Reading another slot cannot inherit this slot's counts.
         for slot,matching,expected in ((2,True,19),(3,True,0),(2,False,0)):
             put(addr(2,71),'H',77)
+            put(extra+(2*128+71)*2,'H',88)
             if not matching:
                 put(raw+1,'B',253)
             dest=actors+0x6000
@@ -219,11 +227,23 @@ def check_arte_usage(u, base, m, actors, sp, reset, put, get, reg, regs):
             reg('r14',0x12d4);reg('r15',dest);reg('rbx',raw);reg('r12',slot)
             run('artesphere_read_stage',[0x40172],True)
             assert get(addr(2,71),'H')==77
+            assert get(extra+(2*128+71)*2,'H')==88
             native=bytes(u.mem_read(dest,0x12d4))
             reg('rcx',dest)
             run('artesphere_import_profile',[0x24db46])
             assert get(addr(2,71),'H')==expected
+            assert get(extra+(2*128+71)*2,'H')==(38 if expected else 0)
             assert bytes(u.mem_read(dest,0x12d4))==native
+        # Missing new section migrates without changing the prior real counts.
+        put(raw+1,'B',1);records.pop(('SpellCatchUp-v1','Slot02'))
+        reg('rcx',dest);reg('rdx',raw);reg('r8',0x12d4)
+        reg('r14',0x12d4);reg('r15',dest);reg('rbx',raw);reg('r12',2)
+        run('artesphere_read_stage',[0x40172],True)
+        reg('rcx',dest);run('artesphere_import_profile',[0x24db46])
+        assert get(addr(2,71),'H')==19
+        assert bytes(u.mem_read(extra,size))==bytes(size)
+        u.mem_write(extra,b'\x01'*size);run('spell_catchup_new_game')
+        assert bytes(u.mem_read(extra,size))==bytes(size)
         # Failed native save never updates either sidecar; INI errors surfaced.
         before=dict(records);native_save=False
         reg('r12',2);reg('r15',raw);put(sp+0x58,'Q',0x12d4)

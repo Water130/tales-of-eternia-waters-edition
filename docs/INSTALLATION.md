@@ -7,7 +7,7 @@
 Requires **Windows / Steam build 25190541**. The installer checks the exact game file.
 
 1. Back up your saves and `%LOCALAPPDATA%\TalesOfEternia-WatersEdition.ini`.
-2. Close the game and [download the Easy-Install ZIP](https://github.com/Water130/tales-of-eternia-waters-edition/releases/tag/v0.13.8-test).
+2. Close the game and [download the Easy-Install ZIP](https://github.com/Water130/tales-of-eternia-waters-edition/releases/tag/v0.14.11-test).
 3. Extract the whole ZIP. Keep **Install.cmd**, **Uninstall.cmd** and **Support** together.
 4. Run **Install.cmd**, check the detected game folder, type **Y**, then press Enter.
 5. Wait for **Installed and verified**, then launch through Steam.

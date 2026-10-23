@@ -1,9 +1,12 @@
 Water's Edition is an experimental overhaul for Tales of Eternia Remastered on Windows / Steam.
-It adds combat and interface changes, three Artesphere pages, spell usage mastery,
-Farah Energy faculties and configurable mod settings. Mod text is French or English.
+Version 0.14.11 adds three Artesphere pages, five spell growth tracks, 72 Craymel
+faculties, earned spirit EXP, Farah Energy and standalone team-up artes.
+Most features can be toggled, with related progression systems grouped together.
+Mod text is French or English.
 
 Download, installation and features:
 https://github.com/Water130/tales-of-eternia-waters-edition
+https://www.nexusmods.com/talesofeterniaremastered/mods/13
 
 Created and directed by Water. All mod code was written by AI.
 Bugs, crashes and regressions are possible. Fixes, support and updates are not

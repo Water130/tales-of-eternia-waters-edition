@@ -5,7 +5,7 @@ No native bindings or save structures are enlarged. Garde is no longer involved.
 """
 
 
-def emit_cast_hold(emit, mem, jump, edit, data_rva, overlap):
+def emit_cast_hold(emit, mem, jump, edit, data_rva, overlap, farah_priority=None):
     choose = emit('held_summon_choice', f'''
         push r8
         push r9
@@ -140,6 +140,8 @@ def emit_cast_hold(emit, mem, jump, edit, data_rva, overlap):
     # happen BEFORE TP/vitality are spent, especially now that summons are chosen
     # after incantation. Includes exhausted effect pools and loading records.
     policy = f'''
+        cmp byte ptr {mem(data_rva+0x1a45)}, 0
+        je serial
         cmp byte ptr {mem(0x12d0efb)}, 0
         jne serial
         lea r10, {mem(data_rva+0x200)}
@@ -147,6 +149,13 @@ def emit_cast_hold(emit, mem, jump, edit, data_rva, overlap):
         jmp scan
     serial:
     ''' if overlap else ''
+    priority_check = f'''
+        sub rsp, 0x28
+        call {farah_priority:#x}
+        add rsp, 0x28
+        test eax, eax
+        jne blocked
+    ''' if farah_priority is not None else ''
     check_active = '''
         test r11d, r11d
         je blocked
@@ -169,6 +178,7 @@ def emit_cast_hold(emit, mem, jump, edit, data_rva, overlap):
         push r11
         cmp byte ptr {mem(0x12d0ef7)}, 6
         jne blocked
+        {priority_check}
         xor ecx, ecx
         xor r11d, r11d
         cmp edx, 100

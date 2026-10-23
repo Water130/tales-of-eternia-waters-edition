@@ -1,260 +1,120 @@
 TALES OF ETERNIA - WATER'S EDITION
-0.13.8 - Experimental test release
-Windows / Steam build 25190541 only
+Version 0.14.11 - Experimental test release
 
-This is the current combat and interface prototype. It is intended for testing;
-it is not a finished release or an official Bandai Namco product.
+COMBAT AND CONTROLS
+- Dynamic battle camera, custom HUD, casting bars and an item cooldown bar.
+- TP recovery from normal physical attacks and after victory.
+- Elemental damage/casting colors; healing numbers use a pale green.
+- Optional removal of spell pauses and supported simultaneous spell effects.
+- Three six-slot Artesphere pages: blue A, red B (L2/LT), yellow C (R2/RT).
+- Configurable keyboard page modifiers and per-save arte assignments.
+- Optional Guard spell cancellation, separate mage/fighter Guard + Up jumps,
+  action commands stopping automatic running, and separate Air Thrust impacts.
+- Optional multiple MAX vitality gauges and rebalanced difficulty statistics.
+- Reid's special-technique option: Attack + Arte Aurora commands, Aurora Wall
+  at 25% HP, no target-HP gate for his hi-ougi, at most three uses per technique
+  per battle. Other technique requirements still apply.
+- Four autonomous team-up artes for Reid/Farah, unlocked after 50 uses of the
+  physical arte and 50 uses of the associated spell by Keele or Meredy.
 
-AUTHORSHIP / BUGS / USE AT YOUR OWN RISK
+SPELL AND CRAYMEL PROGRESSION
+- Independent spell mastery for Keele and Meredy. The lagging mage receives
+  three credited uses per successful eligible cast until catching up to the
+  other mage; these credits count for progression and use-based requirements.
+- Offensive spells grow toward level 30 at 999 credited uses. Five tracks:
+  power +25%, casting/recovery times -15%, magic critical chance +15 points
+  at 500 uses; up to 3 or 6 extra projectiles OR area +50% at 999 uses.
+- Per-track levels and EXP gauges, with a full MAX gauge at the cap.
+- Victory messages in French/English for overall spell levels AND passive
+  ranks. Passive-only gains now show "Bonus Lv. UP" even at overall level 1.
+- Craymels earn 50/200/500 EXP per completed basic/intermediate/advanced
+  elemental spell, awarded on victory instead of free automatic growth.
+- Craymel EXP gauges in the cage and mastery menus; invocation damage and
+  area scale with the spirit's level.
+- 72 implemented Craymel faculties, with unlocks at levels 5/10/15/20/25/30.
+  Element-themed names, numeric benefits and detailed effects in FR/EN.
+  Faculties unlock enabled and can be switched individually.
+- These battle faculties cover spell costs, recovery, power, protection,
+  healing, critical hits, drains, mana sharing and casting time.
+- Optional Fringe relaxation ignores only the partner spirit's cage location.
+  Discovery, levels and primary spirit ownership remain required. Default: off.
+- The enhanced Maelstrom route requires Undine level 10, 50 Spread uses and
+  at least 5/10 vitality. This is not a complete custom-spell expansion.
+
+FIGHTER PROGRESSION AND INTERFACE
+- Farah's Energy group includes its gauge and six healing faculties:
+  stronger Healer, healing Detoxify, shared Healer targets, broader cleansing,
+  and stronger Life revival. Normal-attack extensions use both Punch/Kick.
+- Reid's normal-attack extensions use both Slash/Thrust. At levels 15 and 30,
+  the mixed branches grant one and two extra normal attacks respectively.
+- Mastery access from Stats and Techniques; rooted trees, elemental links,
+  active-node highlights, locked-node shading and six milestone columns.
+- Two five-column spell pages show learned, unavailable and unknown spells,
+  elemental grouping, prerequisites, usage and progression.
+- Scanned enemies remain identified; HP bars sit above their target frames.
+  Target selection can show a compact native scan bubble after the original
+  Lens window closes, including weakness/resistance icons.
+- Arte category labels, skit notification and quick skit playback.
+- Four Mod settings categories, grouped progression switches, saved options,
+  and scrollable setting descriptions. Mod text follows the game's text
+  language: French for French, English otherwise. Installer files are English.
+
+COMPATIBILITY AND LIMITS
+Windows / Steam build 25190541 only. The installer verifies the exact original
+DLL (SHA-256 6488be2ce5ecc1dc9fc0216aa2462ec9aeba7a464468d5fd61ad3c2a8356849b).
+The archive contains binary patch data, not a complete game DLL or game assets.
+Mods replacing GameNative.dll cannot be combined automatically.
+This is an experimental test release. Native-code emulation and installer
+fixture tests do not prove whole-game stability or final GPU rendering.
+Concurrent effects, camera edges and special spell sequences need more play
+testing. Same-effect and unsupported special casts can still queue.
+Some advanced fighter arte-chain nodes and other character trees remain
+explicit previews with no combat effect. Craymel battle faculties are active;
+not all of their effects are implemented for healing outside battle.
+Future custom spells and generalized extension/sublimed-spell rules are not
+claimed as complete in this release. The published feature list describes the
+implemented systems, not the whole development wishlist.
+
+INSTALLATION
+1. Back up your saves separately and close the game completely.
+2. Extract the entire Easy-Install ZIP to a normal folder.
+3. Double-click Install.cmd, check the detected game folder, type Y and press Enter.
+4. Wait for "Installed and verified", then start the game through Steam.
+
+No Python, mod loader or additional download is required. Keep the launchers
+and Support folder together. Windows PowerShell 5.1 is sufficient.
+If asked for a folder, use Steam > Manage > Browse local files for the game.
+Uninstall an older Water's Edition release with its own uninstaller before
+updating. Unknown game versions and modified DLLs are refused without changes.
+To uninstall: close the game, run Uninstall.cmd, and confirm the detected folder.
+The original GameNative.dll backup is kept beside the game DLL for removal.
+Uninstalling keeps mod preferences and the verified original backup.
+
+Back up %LOCALAPPDATA%\TalesOfEternia-WatersEdition.ini alongside your saves.
+It contains mod settings, extra assignments and progression data and is not
+automatically included in Steam Cloud.
+
+Support/Status.cmd checks the installation. Support/Compatibility-Mode.cmd
+restores the native spell queue while retaining the other changes.
+If removal fails, close the game and use Steam's game-file verification.
+This restores game files, not damaged saves or lost progress.
+
+AUTHORSHIP AND PERMISSIONS
 Water's Edition was created, designed and directed by Water, a human.
 All of the mod's code was written by AI.
+This mod was made for personal use and is shared as-is. Requests are not accepted.
+This mod has bugs. Unknown bugs and new regressions may appear. Crashes, visual
+glitches and unintended gameplay behavior are possible. Not every bug will
+necessarily be fixed; fixes, support and future updates are not guaranteed.
+Use at your own risk, without warranty. Back up your saves separately. The
+installer and uninstaller do not directly edit saves; gameplay bugs may still
+affect progress. Steam verification or reinstalling does not guarantee recovery
+of damaged saves or lost progress.
 
-This mod has bugs. Unknown bugs and new regressions may appear in current and
-future versions. Crashes, visual glitches and unintended gameplay behavior are
-possible. Not all bugs will necessarily be fixed. Fixes, support and future
-updates are not guaranteed.
-
-Use this mod at your own risk. It is provided as-is, without warranty. To the
-extent permitted by applicable law, the creator accepts no liability for
-problems or losses resulting from its use, including damage to game files,
-save corruption or lost progress. Back up your saves separately before installing.
-The installer/uninstaller do not directly edit saves, but gameplay bugs may
-still affect your progress.
-
-INSTALL
-1. Close the game completely. Extract this entire ZIP to a normal folder.
-2. Double-click Install.cmd in the main folder. Keep all extracted files together.
-3. The installer searches your Steam libraries. If it cannot choose one folder,
-   paste the game folder path from Steam > Manage > Browse local files.
-4. Check the displayed folder, type Y and press Enter to confirm.
-5. Wait for "Installed and verified", then launch the game normally through Steam.
-
-Windows PowerShell 5.1 is sufficient. No Python, mod loader or downloads are
-required. The CMD launchers use a process-only execution policy; they do not
-change your system's PowerShell policy. Review Patch-Mod.ps1 if you wish.
-Normally no administrator access is needed. If the Steam folder denies writes,
-the installer reports the error rather than requesting elevation automatically.
-
-For a manual path from PowerShell:
-  .\Support\Patch-Mod.ps1 -Action Install -Prompt -GameDir 'D:\SteamLibrary\steamapps\common\Tales of Eternia Remastered'
-
-MODES / REMOVAL
-- Install.cmd: all current features, including limited concurrent spell effects.
-- Support/Compatibility-Mode.cmd: the same mod with the native spell queue restored.
-  Use this to test whether an issue depends on overlapping spells. It does not
-  remove the camera, HUD, TP changes or cinematic-freeze changes.
-- Uninstall.cmd: type Y and press Enter to restore the verified original DLL.
-- Support/Status.cmd: display the selected installation and current mode.
-
-You can switch between these two modes with the game closed. The installer
-keeps one original backup beside GameNative.dll, named
-GameNative.dll.toe-combat-original. Keep it for uninstalling. The ZIP does not
-contain an original game DLL. Uninstalling leaves this verified backup in place.
-The installer never reads or edits your save files.
-
-IF UNINSTALLING FAILS
-Close the game and try Steam's game-file verification:
-Steam Library > game Properties > Installed Files > Verify integrity of game files.
-Official guide: https://help.steampowered.com/en/faqs/view/0C48-FCBD-DA71-93EB
-Reinstalling the game may be necessary if problems persist. Verification and
-reinstallation do not guarantee recovery of damaged saves or lost progress.
-
-IN-GAME MOD SETTINGS
-Open the new Mod settings entry at the bottom of the title menu. The title also
-displays a blue, textured Water's Edition wordmark with a soft cyan glow below
-Remastered, inspired by the original title lettering. It appears after the
-original title reveal, including on the Press Start screen.
-The settings page draws after the title's drawing pass so the logo no
-longer draws over it. It uses the native Options layout: capsule heading,
-window frames and color, gold labels, side-by-side choices, gradient highlight
-and hand cursor. Bottom-right button hints use the game's live keyboard and
-controller glyph selection. The title-screen crash fix from 0.10.2 is retained.
-Use the controller or keyboard:
-Up/Down selects a setting, Confirm or Left/Right toggles it, and Back closes
-the panel. Up from the first row selects Reset/Default at the top right.
-Choose one with Left/Right and press Confirm: Reset restores the settings from
-when you opened the page; Default enables all eighteen features. Mouse selection
-of the custom entry/panel is not implemented.
-
-Eighteen switches are available and enabled by default. The original switches:
-- Dynamic camera (including the related framing/ground/effect adjustments)
-- Post-battle TP recovery (Off restores the native recovery amount)
-- TP from basic physical hits (Off removes the additional TP)
-- Elemental damage colors (Off restores native damage colors)
-- Custom HUD (including the Craymel vitality display)
-- Casting progress bars
-- Item cooldown bar
-- Skit notification
-- Rebalanced difficulties
-- Multiple Craymels at full vitality
-- Guard to cancel an incantation
-- Guard + Up for mage jumps
-
-The switches are independent. For example, you can keep the casting/item bars
-while using the original HUD. The menu saves each change automatically to:
-  %LOCALAPPDATA%\TalesOfEternia-WatersEdition.ini
-Configure combat settings at the title screen before loading your save.
-Preferences survive relaunches.
-If saving fails, the panel displays an error and keeps the change for the current
-session. Uninstalling leaves this small preferences file in place.
-
-Mod interface text is French when the game's TEXT language is French, and
-English for every other text language. Voice language does not affect it. This
-only translates the mod's added text; the base game keeps its selected language.
-
-VERSION CHECKS
-The original DLL must have this SHA-256:
-6488be2ce5ecc1dc9fc0216aa2462ec9aeba7a464468d5fd61ad3c2a8356849b
-
-The installer checks the complete file, reconstructs the patch locally and checks
-the final hash before replacing anything. Unknown game updates and other DLL
-mods are refused. There is no force-install option. Keep at least 5 GiB free on
-the game drive after installation. If Steam updates the game, do not replace its
-new DLL with an old backup: wait for a compatible patch.
-If you used an earlier private version of this mod, restore its original DLL
-with that version's installer first. For an earlier public release, run its
-Uninstall.cmd before installing this version. Other GameNative.dll mods cannot be combined
-automatically. Other platforms and builds have not been verified.
-
-ARTESPHERE AND SKIT NOTICE
-- Three arte pages, six assignments each (18 total). A is blue, B red, C yellow.
-  In battle, hold L2/LT for B or R2/RT for C; release both to select A.
-  C takes priority when both are held. A page button alone does not cast.
-- In the arte menu, tap L2/LT to toggle B/A or R2/RT to toggle C/A. Close the
-  arte/caster chooser before switching. The original six rows are restored.
-- Keyboard defaults: F7 for B, F8 for C. Change these under Mod settings >
-  Keyboard controls (PC). Choose keys that do not conflict with game controls.
-- A/B assignments are preserved. C initially copies B for migrated profiles,
-  or A for new profiles. Retired seventh-slot records remain untouched.
-- Extra assignments and spell usage counts are stored per game save slot in
-  %LOCALAPPDATA%\TalesOfEternia-WatersEdition.ini. The game's save format is
-  unchanged. Copy and back up this INI alongside your saves when moving
-  computers; it is not automatically included in Steam Cloud.
-- The optional skit notice prefers the lower left on the overworld and lower
-  right elsewhere, moves around occupied HUD space, and hides in story scenes.
-
-CHANGES SINCE THE PREVIOUS PUBLIC RELEASE
-- Three Artesphere pages of six assignments (18 total), with the original
-  six-row layout, cursor spacing and descriptions restored.
-- Page A is blue, B is red and C is yellow. Hold L2/LT for B or R2/RT for C
-  in battle; release both for A. C takes priority if both are held.
-- In the arte menu, tap L2/LT to toggle B/A or R2/RT to toggle C/A.
-  The seventh assignment is removed; page buttons alone no longer cast.
-- Keyboard defaults are F7 for B and F8 for C, configurable in Mod settings.
-  Existing custom keys are retained, including the former shortcut key for C.
-- Existing A/B assignments are preserved per save. When loading an older
-  profile, C initially copies B. New profiles copy A into B and C.
-- Usage counters are displayed for spells as well as physical artes; element
-  icons appear to their left. Counts are tracked separately by character.
-  New spell counters start at zero; earlier uses cannot be recovered.
-- Victory TP numbers keep their original position and animation, but draw
-  in front of the TP gauge instead of behind it.
-- Optional rebalanced difficulties: Hard/Extreme/Unknown enemy HP multipliers
-  are 1.5/3/5, defense multipliers 1.1/1.2/1.3, and fixed-damage attack
-  multipliers 1.1/1.2/1.5. Normal and other native stat rules are unchanged.
-- Optional simultaneous full vitality lets several Craymels stay at MAX.
-  Summoning still consumes the selected Craymel's vitality.
-- Optional spell cancelling: press the mapped Guard command during an
-  eligible pending incantation to cancel it and defend.
-- Optional deliberate mage jumps: Keele and Meredy require Guard + Up to jump
-  while manually or semi-automatically controlled. Other characters retain
-  their native jump controls.
-
-CURRENT FEATURES
-- Basic physical hits restore 1 TP to party members; Keele and Meredy restore
-  2 TP instead. Spells, artes, enemy hits and hits dealing no damage do not count.
-- Post-battle TP recovery starts at 8% of max TP on Normal, with the four native
-  difficulty indices using 8/9/10/13%. The native 10-TP minimum, bonus and status
-  exclusions remain. Small TP pools may recover more than the base percentage.
-- Adaptive battle camera follows the controlled character and selected target,
-  with smoother movement and framing toward the arena interior.
-- Forest stages 6-8 additionally account for the offset rear background layer
-  when constraining the camera, to address the exposed strip at the left edge.
-- Spell cinematic freezes are reduced by removing the patched freeze paths;
-  battle-menu pauses and actual time-stop effects remain.
-- Full mode permits overlapping supported, DIFFERENT ordinary spell effects.
-  Same-effect casts, loading and special sequences can still wait their turn.
-- Hold the Arte command through the end of an offensive elemental cast to
-  request the matching learned, owned Craymel at full vitality. Release Arte
-  before completion for the ordinary spell. Unsupported choices use native
-  behavior. Autonomous AI casting is not remapped.
-- Hold L1 to keep a finished spell ready; release L1 to let it go. L1 takes
-  priority over the summon choice. Controller handling targets Steam's primary
-  controller slot; other controller slots retain the native controls.
-- With Multiple MAX vitality enabled, ordinary spells preserve full vitality
-  across Craymels. Actual summons retain their native vitality consumption.
-  Disable this switch to restore the original charging and reduction rules.
-- Element-colored casting effects for Keele and Meredy, including hand glyphs
-  and ground effects. Colors follow the native spell family.
-- Element-colored damage numbers; neutral damage stays white. Damage received
-  by your party uses a light red-to-white tint. Healing and TP numbers retain
-  their native display types.
-- Animated green HP and blue TP gauges in a compact, lowered HUD, with room for
-  four HP digits. Pink casting bars sit below the caster's feet.
-- A shared item recharge bar appears at the top center above the battle menu
-  only after an item is used and while its cooldown is active.
-- Owned Craymel miniatures below Keele/Meredy's HUD portraits show elemental
-  0/10 through 9/10 text, then MAX. The first icon aligns with its portrait and
-  the text is centered below each icon. Several spirits extend the row to the
-  right. Smaller miniatures use an eight-direction turn, mirroring the original
-  intermediate poses for the other half of the rotation.
-- Startup presentation screens are skipped to reach the opening movie.
-- Spread's water column keeps its original proportions and texture mapping;
-  a small textured cap closes its upper edge. Experimental water-backdrop edge
-  adjustments for Undine and shadow scaling are also included.
-
-KNOWN LIMITS / TEST STATUS
-- The spell queue is only partially removed. This is not unrestricted parallel
-  casting. Compatibility mode restores the queue if you need to compare behavior.
-- Camera bounds use 82 audited stage grids. The new forest backdrop constraint
-  passed native projection tests; other background families may still show
-  side seams. Unsupported stages retain the original camera framing.
-- Summons and special sequences retain native cameras. Undine's backdrop and
-  other summon scenes can still show framing issues. This is not a fix for every
-  spell, stage or summon backdrop.
-- The blue title wordmark and pre-Start glow have been confirmed in-game.
-  The native-style settings menu was confirmed in earlier builds.
-  Machine-code tests cover native frame construction and French/English glyph
-  emission; this does not validate every device or setting combination.
-  Spell overlap, camera coverage and summon effects still need broader testing.
-- Parts of the earlier HUD/camera have been tested interactively. Emulated native
-  code tests passed at two load addresses, including projection, atlas UVs,
-  ownership, TP rules and guard cases. These do not prove whole-game stability.
-- This release does not claim to fix slow game shutdown.
-
-PACKAGE CONTENTS
-Patch scripts, binary differences, English documentation and SHA-256 checksums.
-No complete game executable/DLL, original game textures, music, saves, personal
-logs or local developer paths are included. The new blue wordmark is embedded
-in the patch data. The patch requires your own compatible installation.
-Support/SHARE.txt contains a short English introduction you can copy into your server.
-
-NEW IN 0.13.8
-Mod settings are grouped into Quality of Life, Combat, Progression and Other,
-with a detailed description on the right. Guard + Up for Reid/Farah is a
-separate optional setting. Arte category labels align with the name/TP cost.
-L2/LT plays an available skit while exploring; use L2 + Select when L2 is
-rebound to another exploration action. The notice avoids the overworld compass.
-
-Open Stats and press Square (or the displayed mapped equivalent) for Mastery.
-The persistent list selects a mastery/Craymel; confirm focuses its skill tree.
-Titles are blue, numerical benefits green, and links brighten when requirements
-are met. Unknown Craymels show silhouettes. A level 1-30 meter appears above.
-Physical combo faculties and Craymel faculties are previews without gameplay
-effects. Farah's six Energy faculties and spell usage bonuses are implemented.
-Energy uses the lower Punch/Kick level and has no independent experience pool.
-Farah: Healer restores 40% max HP at 10; Detoxify adds 25% healing at 15;
-Healer adds a second target at 50% at 20; extended Detoxify purification at 25;
-a third target at 25% and Life at 35% max HP at 30. Individual toggles are saved.
-
-Keele/Meredy: Triangle switches between Faculties and Spell progression.
-Page 1: Undine, Sylph, Efreet, Rem, Maxwell.
-Page 2: Gnome, Celsius, Volt, Shadow, Sekundes.
-Move left/right between columns and pages; up/down scrolls the spell list.
-Starting spells remain visible before their spirit joins. White means currently
-available; gray means known but unavailable. Usage counts are separate for
-each mage and save slot. Offensive spells gain 1% damage per 25 casts, up to
-25%. Single-target buffs add 1/2/3 allies at 100/250/500 uses, retaining native
-duration. Healing spells gain no usage bonus. The next-gain meter shows MAX
-at the cap. Mod settings and per-spell choices can disable these bonuses.
-Back up saves and the mod INI independently before updating.
+Do not claim authorship. Reuploads, redistribution of modified releases, reuse
+of original mod material in publicly distributed projects, sales and paid mod
+packs require Water's prior written permission, to the extent enforceable and
+subject to applicable law and third-party rights. Link to the official release
+when sharing.
+Unofficial fan mod, not affiliated with or endorsed by Bandai Namco Entertainment.
+The game and its original assets belong to their respective rights holders.

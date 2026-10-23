@@ -16,10 +16,10 @@ def encode_runs(text, payload, state, string):
     return ptr
 
 
-def emit_rich_text(emit,mem):
+def emit_rich_text(emit,mem,name='mastery_rich_text',left=False,muted=False):
     # RCX runs, EDX center, R8D y, R9D width. All segments share one
     # compression factor, so the native font cannot overlap neighboring runs.
-    return emit('mastery_rich_text',f'''
+    return emit(name,f'''
         push rbx
         push rbp
         push rsi
@@ -78,7 +78,7 @@ def emit_rich_text(emit,mem):
         mulss xmm0, xmm1
         mulss xmm0, dword ptr {mem(0x524860)}
         cvtsi2ss xmm1, ebp
-        subss xmm1, xmm0
+        {'' if left else 'subss xmm1, xmm0'}
         movss dword ptr [rsp+0x58], xmm1
         xor r12d, r12d
     draw:
@@ -92,6 +92,7 @@ def emit_rich_text(emit,mem):
         xorps xmm3, xmm3
         mov dword ptr [rsp+0x20], 0x40e00000
         mov eax, dword ptr [rbx+r12*8+8]
+        {'mov eax, 0xff999999' if muted else ''}
         mov dword ptr [rsp+0x28], eax
         mov dword ptr [rsp+0x30], 0
         mov dword ptr [rsp+0x38], 0

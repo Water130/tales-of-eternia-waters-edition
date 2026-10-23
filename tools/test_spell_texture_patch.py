@@ -39,7 +39,7 @@ def check_spell_textures(u, base, m, actors, sp, reset, put, get, reg, regs):
                 head if i==2 else node+0x80)
             put(node+0x20,'QQ',0x70000000+i*0x100,p)
             put(p,'Q',base+0x51a700)
-            put(p+8,'III',4,effect+122 if i<2 else 199,i)
+            put(p+8,'III',4,effect+122 if i<2 else 999,i)
             put(p+0x1c,'IIIII',i*64,0,width,height,4)
             put(p+0x30,'Q',0x70000000+i*0x100)
         put(objects+0x40,'Q',objects+0x100)
@@ -56,8 +56,9 @@ def check_spell_textures(u, base, m, actors, sp, reset, put, get, reg, regs):
         return first
     try:
         reset()
+        put(base+m['data_rva']+0x1a45,'B',1)
         # Spell A remains intact after B overwrites the very same native objects.
-        for a,b in ((66,4),(4,66),(61,62),(1,25)):
+        for a,b in ((66,4),(4,66),(61,62),(1,25),(38,4),(4,38),(43,66),(77,1),(30,38)):
             first=load(a,32,128)
             saved=bytes(u.mem_read(first,0x68))
             second=load(b,64,256)
@@ -105,7 +106,7 @@ def check_spell_textures(u, base, m, actors, sp, reset, put, get, reg, regs):
         assert get(state+66*info['bank_size'],'I')==0, 'cached path must refresh stale descriptors'
         # Replay the native type-5 branch which resets R13: the texture
         # resource still lives in R12. Capture must not depend on R13/pending ID.
-        for effect in (1,4,61,62,66):
+        for effect in (1,4,38,43,61,62,66,77):
             first=load(effect,48,160)
             put(state+effect*info['bank_size'],'I',0)
             reg('r12',effect+122);reg('r13',effect)
@@ -135,7 +136,7 @@ def check_spell_textures(u, base, m, actors, sp, reset, put, get, reg, regs):
         reg('rcx',66);run('spell_texture_capture')
         assert get(state+66*info['bank_size'],'I')==0
         before=bytes(u.mem_read(state+30*info['bank_size'],info['bank_size']))
-        reg('rcx',30);run('spell_texture_capture')
+        reg('rcx',78);run('spell_texture_capture')
         assert bytes(u.mem_read(state+30*info['bank_size'],info['bank_size']))==before
     finally:
         u.hook_del(h);u.mem_unmap(area,0x20000)

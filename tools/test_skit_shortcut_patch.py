@@ -62,7 +62,8 @@ def check_skit_shortcut(u, base, m, actors, sp, reset, put, get, reg, regs):
     def setup(mode=2,region=0,language=0):
         reset();calls.clear();loads.clear()
         u.mem_write(inp,b'\0'*0x144)
-        u.mem_write(base+m['data_rva']+0x1a60,b'\0'*12)
+        for field in ('previous_rva','claimed_rva','actions_rva'):
+            put(base+info[field],'I',0)
         put(base+info['flag_rva'],'B',1)
         put(base+m['data_rva']+0x1a07,'B',1)
         u.mem_write(base+0x11ca700,b'\0'*0x1e00)
@@ -126,8 +127,11 @@ def check_skit_shortcut(u, base, m, actors, sp, reset, put, get, reg, regs):
 
     def press(value,buffer=None):
         p=inp if buffer is None else buffer
+        settings=m['mod_settings']['flag_rvas']
+        before=bytes(get(base+r,'B') for r in settings)
         put(p,'4I',value,value,value,value);reg('rcx',p)
         run('skit_shortcut_input')
+        assert bytes(get(base+r,'B') for r in settings)==before, 'Skit polling overwrote settings'
 
     def close_native():
         # Model a completed async read. Run actual native resource initialization

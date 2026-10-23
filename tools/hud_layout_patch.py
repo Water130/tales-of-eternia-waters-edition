@@ -9,13 +9,9 @@ def emit_hud_layout(emit, mem, jump, edit, data_rva, rect, save_ui, restore_ui):
         fn = emit(f'ui_hud_number_{metric}', f'''
             lea edx, [rdi-1]
             mov r8d, {y}
-            # Keep native glyph size and existing spacing for 1-3 digits.
-            # Four digits need one extra unit of overlap in the 31-unit bar.
-            mov r9d, 5
-            cmp ecx, 1000
-            jl number_ready
-            mov r9d, 6
-        number_ready:
+            # Original atlas, glyph dimensions and native kerning (12-4=8).
+            # Native renderer anchors the final digit; four digits span 36.
+            mov r9d, 4
             call 0x1114a0
             jmp {site+5:#x}
         ''')

@@ -490,6 +490,7 @@ def emit_energy(emit, mem, jump, data, usage):
     ''')
     jump(0x2244e3,7,eligible,'Energy: allow injured or newly curable Detoxify menu targets')
     return dict(flag_rva=flag, levels=list(LEVELS), preference_ids=list(PREFERENCE_IDS),
+                absolute_heal_rva=absolute, select_targets_rva=select,
                 character=1, level_source='min(Punch, Kick)',
                 battle_and_menu=True, secondary_basis='theoretical primary heal',
                 secondary_selection='distinct living injured allies, lowest HP ratio first',

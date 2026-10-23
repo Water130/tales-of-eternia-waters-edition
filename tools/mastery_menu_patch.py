@@ -1,7 +1,7 @@
-"""Native status submenu: browsable skill trees, spoiler-safe Craymel previews.
+"""Native status submenu: browsable skill trees and spoiler-safe Craymel faculties.
 
 No synthetic unlocks. Implemented spell mastery and Energy can be switched here;
-future character/Craymel faculties are explicitly marked as in development.
+Future character faculties are explicitly marked as in development.
 Native status title/character selection is untouched while this panel is closed.
 """
 import struct
@@ -48,30 +48,36 @@ def emit_mastery_menu(emit, mem, jump, data, state, symbols, usage):
         nodes=state+len(payload)
         for n in ns: payload.extend(n)
         name=pair(r['name'])
-        links=connections(r)
+        from mastery_tree_links import store_links
+        links=store_links(connections(r),payload,state)
         while len(payload)%4:payload.append(0)
         link_address=state+len(payload)
         payload.extend(struct.pack('<2I',len(links),r['root'][0]))
         for link in links:payload.extend(struct.pack('<5I',*link))
         struct.pack_into('<8I',payload,i*32,r['kind'],r['key'],r['mask'],*name,nodes,len(ns),link_address)
     labels={k:pair(v) for k,v in {
-        'title':('Maîtrise','Mastery'), 'faculties':('Facultés','Faculties'), 'spells':('Sorts','Spells'),
+        'title':('Maîtrise : Facultés','Mastery: Faculties'),
+        'entry':('Maîtrise','Mastery'), 'faculties':('Facultés','Faculties'), 'spells':('Sorts','Spells'),
         'spellpage':('Progression des sorts','Spell progression'),
         'energyoff':('Faculté désactivée','Faculty disabled'),
         'energyon':('Faculté activée','Faculty enabled'),
-        'energyglobaloff':('Option globale « Facultés Énergie » désactivée','Global Energy faculties option is off'),
+        'energyglobaloff':('Progression de Farah désactivée','Farah progression disabled'),
+        'basicglobaloff':('Progression de ce personnage désactivée','This character’s progression is disabled'),
         'excluded':('Comportement natif — aucun bonus par utilisation','Native behavior — no usage bonus'),
         'unknown':('???','???'), 'undefined':('—','—'), 'locked':('Prérequis non atteints','Requirements not met'),
         'pending':('En préparation — aucun effet en combat','In development — no battle effect'),
         'off':('Maîtrise de ce sort désactivée','Mastery disabled for this spell'),
         'on':('Maîtrise de ce sort activée','Mastery enabled for this spell'),
-        'globaloff':('Option globale « Maîtrise des sorts » désactivée','Global Spell mastery option is off'),
+        'globaloff':('Progression magique désactivée','Magic progression disabled'),
         'empty':('Aucune branche disponible dans cette catégorie.','No branch available in this category.'),
         'preview':('Les facultés en préparation ne sont pas encore jouables.','Faculties in development do not have battle effects yet.'),
         'save':('Choix conservés avec la sauvegarde de la partie.','Choices are stored when you save the game.'),
         'back':('Retour','Back'), 'browse':('Arbre','Tree'),
         'toggle':('Activer / désactiver','Toggle'), 'tab':('Catégorie','Category'), 'branch':('Branche','Branch'),
-        'current':('Actuel :','Current:'), 'next':('Suite : haut / bas','More: up / down'),
+        'current':('Niveau :','Level:'), 'next':('Suite : haut / bas','More: up / down'),
+        'summonpower':('Invocation : dégâts','Summon: damage'),
+        'summonnative':('Invocation : effets natifs','Summon: native effects'),
+        'summonoff':('Progression de l’invocation désactivée','Summon progression disabled'),
         'casts':('Utilisations :','Casts:'),
         'recruit':('Prérequis : obtenir ce Craymel.','Requires recruiting this Craymel.'),
         'level':('Niveau requis :','Required level:'),
@@ -126,6 +132,8 @@ def emit_mastery_menu(emit, mem, jump, data, state, symbols, usage):
     ''')
     ready=emit('mastery_menu_ready',f'''
         xor eax, eax
+        cmp byte ptr {mem(ui+0xc)}, 1
+        je technique
         cmp word ptr {mem(0x111a658)}, 0
         jne done
         cmp word ptr {mem(0x111a65a)}, 0
@@ -134,6 +142,19 @@ def emit_mastery_menu(emit, mem, jump, data, state, symbols, usage):
         je done
         cmp byte ptr {mem(0x111a669)}, 255
         jne done
+        jmp scene
+    technique:
+        cmp word ptr {mem(0x1119f96)}, 0
+        jne done
+        cmp byte ptr {mem(0x1119fa4)}, 1
+        jne done
+        cmp byte ptr {mem(0x1119fa5)}, 255
+        jne done
+        cmp word ptr {mem(0x1119f98)}, 4
+        je scene
+        cmp word ptr {mem(0x1119f98)}, 2
+        ja done
+    scene:
         mov rdx, qword ptr {mem(0x11c9da0)}
         test rdx, rdx
         je ready
@@ -178,7 +199,25 @@ def emit_mastery_menu(emit, mem, jump, data, state, symbols, usage):
         pop rbx
         ret
     ''')
-    availability=emit_availability(emit,mem,ui,symbols['artesphere_learned'])
+    availability=emit_availability(emit,mem,ui,symbols['artesphere_learned'],usage)
+    # Native Techniques control mode is indexed by party slot (11cad38),
+    # not by character. Auto owns Square; manual/semi-auto own Triangle.
+    entry_key=emit('mastery_menu_entry_key',f'''
+        mov edx, 0x8000
+        cmp byte ptr {mem(ui+0xc)}, 1
+        jne done
+        cmp word ptr {mem(0x1119f98)}, 4
+        je auto_list_key
+        movzx r10d, byte ptr {mem(0x111a674)}
+        cmp r10d, 7
+        jae done
+        lea r11, {mem(0x11cad38)}
+        cmp byte ptr [r11+r10], 0
+        jne done
+    auto_list_key:
+        mov edx, 0x1000
+    done: ret
+    ''')
     # RCX row descriptor -> EAX current level/uses, EDX known.
     value=emit('mastery_menu_value',f'''
         mov edx, 1
@@ -239,7 +278,10 @@ def emit_mastery_menu(emit, mem, jump, data, state, symbols, usage):
         shl eax, 7
         add eax, ebx
         lea r8, {mem(usage['live_rva'])}
+        movzx r9d, word ptr [r8+rax*2]
+        lea r8, {mem(usage['catchup']['live_rva'])}
         movzx eax, word ptr [r8+rax*2]
+        add eax, r9d
         mov edx, r11d
         add rsp, 0x20
         pop rbx
@@ -249,8 +291,16 @@ def emit_mastery_menu(emit, mem, jump, data, state, symbols, usage):
     # six independent faculties occupy her previously unused IDs 128..133.
     preference=emit('mastery_menu_preference',f'''
         mov r10d, dword ptr [rcx+4]
+        cmp dword ptr [rcx], 0
+        je spirit
         cmp dword ptr [rcx], 1
         jne spell
+        cmp r10d, 4
+        jb basic
+        cmp r10d, 4
+        je mixed_basic
+        cmp r10d, 6
+        je mixed_basic
         cmp r10d, 5
         jne spell
         mov eax, dword ptr [rcx+20]
@@ -262,6 +312,31 @@ def emit_mastery_menu(emit, mem, jump, data, state, symbols, usage):
         mov r9d, {NODE_SIZE}
         div r9d
         lea r10d, [rax+128]
+        jmp spell
+    mixed_basic:
+        xor r10d, r10d
+    basic:
+        and r10d, 1
+        lea r10d, [r10*2+134]
+        cmp dword ptr [rdx+40], 30
+        jne spell
+        inc r10d
+        jmp spell
+    spirit:
+        mov eax, dword ptr [rcx+20]
+        lea r9, {mem(0)}
+        add rax, r9
+        sub rdx, rax
+        mov rax, rdx
+        xor edx, edx
+        mov r9d, {NODE_SIZE}
+        div r9d
+        cmp eax, 8
+        jae extended_spirit
+        lea r10d, [rax+r10*8+128]
+        jmp spell
+    extended_spirit:
+        lea r10d, [rax+r10*4+200]
     spell:
         movzx ecx, byte ptr {mem(ui+4)}
         shl ecx, 8
@@ -302,10 +377,22 @@ def emit_mastery_menu(emit, mem, jump, data, state, symbols, usage):
         je pending
         cmp dword ptr [rbx], 1
         jne spell_option
+        cmp byte ptr {mem(ui+4)}, 1
+        je energy_option
+        cmp byte ptr {mem(data+0x1a4f)}, 0
+        je disabled
+        jmp preference
+    energy_option:
         cmp byte ptr {mem(data+0x1a41)}, 0
         je disabled
         jmp preference
     spell_option:
+        cmp dword ptr [rbx], 0
+        jne ordinary_spell_option
+        cmp byte ptr {mem(data+0x1a60)}, 0
+        je disabled
+        jmp preference
+    ordinary_spell_option:
         cmp byte ptr {mem(data+0x1a0c)}, 0
         je disabled
     preference:
@@ -443,8 +530,8 @@ def emit_mastery_menu(emit, mem, jump, data, state, symbols, usage):
         ret
     ''')
     from spell_bonus_panel import emit_bonus_panel
-    bonus=emit_bonus_panel(emit,mem,ui,data,choices,value,text,number,loc,string,payload,state,tabletext)
-    browser=emit_browser(emit,mem,ui,rows,payload,state,string,lineblock,lookup,availability,text,frame,icon,tabletext,loc,bonus)
+    bonus=emit_bonus_panel(emit,mem,ui,data,choices,value,text,number,loc,string,payload,state,tabletext,usage)
+    browser=emit_browser(emit,mem,ui,rows,payload,state,string,lineblock,lookup,availability,text,frame,icon,tabletext,loc,bonus,data)
     native_input=emit('mastery_status_native_input','push rbx; push rbp; push rsi; push rdi; jmp 0x241965')
     inp=emit('mastery_status_input',f'''
         push rbx
@@ -457,7 +544,8 @@ def emit_mastery_menu(emit, mem, jump, data, state, symbols, usage):
         ja native
         cmp byte ptr {mem(ui)}, 0
         jne panel
-        test dword ptr {mem(0x8c9184)}, 0x8000
+        call {entry_key:#x}
+        test dword ptr {mem(0x8c9184)}, edx
         je native
         mov byte ptr {mem(ui)}, 1
         mov byte ptr {mem(ui+4)}, al
@@ -471,6 +559,7 @@ def emit_mastery_menu(emit, mem, jump, data, state, symbols, usage):
         call {rebuild:#x}
     same_character:
         mov ebx, dword ptr {mem(0x8c9184)}
+        # Triangle remains the page switch inside the mastery panel.
         test ebx, 0x8000
         jne close
         test ebx, 0x4000
@@ -581,9 +670,15 @@ def emit_mastery_menu(emit, mem, jump, data, state, symbols, usage):
         mov byte ptr {mem(ui)}, 0
         add rsp, 0x20
         pop rbx
+        cmp byte ptr {mem(ui+0xc)}, 1
+        jne native_status
+        mov eax, 1
+        ret
+    native_status:
         jmp {native_input:#x}
     ''')
-    jump(0x241960,5,inp,'Mastery menu: Square from ready status; isolate tree navigation')
+    status_entry=emit('mastery_status_entry',f'mov byte ptr {mem(ui+0xc)}, 0; jmp {inp:#x}')
+    jump(0x241960,5,status_entry,'Mastery menu: Square from ready status; isolate tree navigation')
 
     hints=emit('mastery_menu_hints',f'''
         sub rsp, 0x28
@@ -649,7 +744,11 @@ def emit_mastery_menu(emit, mem, jump, data, state, symbols, usage):
             call {text:#x}'''
     from mastery_tree_renderer import emit_tree_draw
     draw=emit_tree_draw(emit,mem,ui,data,lookup,value,status,icon,frame,text,number,hints,
-                       loc,tabletext,label,names,string,browser)
+                       loc,tabletext,label,names,string,browser,payload,state)
+    from basic_attack_mastery import emit_basic_attacks
+    payload.extend(b'\0'*((-len(payload))%16))
+    basic_attacks=emit_basic_attacks(emit,mem,jump,data,state+len(payload),choices)
+    payload.extend(b'\0'*basic_attacks['size'])
     # Capture the actual left edge returned by every native Stats hint. The
     # final call varies with title focus and party size, so capture all tails.
     for site in (0x24167f,0x2416e1,0x241786,0x2417f6,0x241860):
@@ -668,8 +767,10 @@ def emit_mastery_menu(emit, mem, jump, data, state, symbols, usage):
         test ecx, ecx
         js done
         xor edx, edx
-        mov r8d, 0x8000
-        {loc('title','r9')}
+        call {entry_key:#x}
+        mov r8d, edx
+        xor edx, edx
+        {loc('entry','r9')}
         mov dword ptr [rsp+0x20], 255
         call 0x21cbb0
     done:
@@ -678,6 +779,7 @@ def emit_mastery_menu(emit, mem, jump, data, state, symbols, usage):
     ''')
     render=emit('mastery_status_render',f'''
         sub rsp, 0x28
+        mov byte ptr {mem(ui+0xc)}, 0
         cmp byte ptr {mem(ui)}, 0
         je native
         call {ready:#x}
@@ -701,10 +803,46 @@ def emit_mastery_menu(emit, mem, jump, data, state, symbols, usage):
         ret
     ''')
     jump(0x23fa00,7,render,'Mastery menu: native status entry hint and tree renderer')
+    tech_input=emit('mastery_tech_input',f'mov byte ptr {mem(ui+0xc)}, 1; jmp {inp:#x}')
+    tech_draw=emit('mastery_tech_draw',f'''
+        sub rsp, 0x28
+        mov byte ptr {mem(ui+0xc)}, 1
+        mov dword ptr {mem(ui+8)}, -1
+        cmp byte ptr {mem(ui)}, 0
+        je native
+        call {ready:#x}
+        test eax, eax
+        je native
+        call {draw:#x}
+        mov eax, 1
+        jmp done
+    native:
+        mov byte ptr {mem(ui)}, 0
+        xor eax, eax
+    done:
+        add rsp, 0x28
+        ret
+    ''')
+    tech_hint=emit('mastery_tech_hint',f'''
+        sub rsp, 0x28
+        call {ready:#x}
+        test eax, eax
+        je done
+        call {entry_hint:#x}
+    done:
+        add rsp, 0x28
+        ret
+    ''')
+    for site in (0x227dc4,0x227e88,0x227f00,0x227fd9,0x228053,0x22810c,0x228216,
+                 0x228285,0x228371,0x228437,0x2284b1,0x22856a,0x2286a1,0x228710,
+                 0x2287e1,0x22888f,0x2288fe,0x228978,0x228a34):
+        edge=emit(f'mastery_tech_hint_edge_{site:x}',f'call 0x21c6c0; mov dword ptr {mem(ui+8)}, eax; jmp {site+5:#x}')
+        jump(site,5,edge,'Mastery: follow the native Techniques hint row')
     payload.extend(b'\0'*((-len(payload))%0x1000))
     return dict(state_rva=ui, choices=preferences_info(pref), data_rva=state, size=len(payload),
-        rows=rows, spell_browser=browser, table_rva=state, row_size=32,node_size=NODE_SIZE,
-        entry='Square / native remapped keyboard equivalent from status',
+        rows=rows, spell_browser=browser, basic_attacks=basic_attacks, table_rva=state, row_size=32,node_size=NODE_SIZE,
+        tech_input=tech_input,tech_draw=tech_draw,tech_hint=tech_hint,
+        entry='Square from status; Square in semi-auto/manual Techniques, Triangle in auto Techniques',
         preview_faculties=True, previews_have_gameplay_effects=False,
         unopened_craymels='black native silhouette; hidden names and faculties; acquisition and level requirements visible',
         spell_switch='per character and spell, applies to all usage tiers',

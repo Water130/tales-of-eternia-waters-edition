@@ -8,7 +8,12 @@ def check_settings(u,base,m,actors,enemies,stats,sp,reset,put,get,reg,regs):
     info=m['mod_settings'];sym=m['symbols'];data=base+m['data_rva']
     feature_count=len(info['features'])
     category=base+info['category_state_rva'];first=info['category_first']
-    from mod_settings_patch import FEATURES, CATEGORIES
+    from mod_settings_patch import FEATURES, CATEGORIES, DEFAULTS, GROUPS, HIDDEN
+    def grouped(values):
+        out=bytearray(values)
+        for master,members in GROUPS.items():
+            for member in members:out[member]=out[master]
+        return bytes(out)
     menus=[list(range(first,first+len(CATEGORIES)))+[feature_count]]+[ids for _,_,ids in CATEGORIES]
     def focus(logical):
         put(category,'B',0 if logical>=feature_count+2 or logical==feature_count else next(i for i,items in enumerate(menus[1:],1) if logical in items))
@@ -29,7 +34,7 @@ def check_settings(u,base,m,actors,enemies,stats,sp,reset,put,get,reg,regs):
     u.mem_map(api,0x1000)
     names={'GetEnvironmentVariableW':api+0x20,'GetPrivateProfileIntW':api+0x30,'WritePrivateProfileStringW':api+0x40}
     put(base+0x2a9058,'Q',api);put(base+0x2a9060,'Q',api+0x10)
-    values={};reads=[];writes=[];texts=[];rects=[];fail_write=False;missing=None;environment='C:\\Users\\Élodie\\AppData\\Local'
+    values={};reads=[];writes=[];texts=[];rects=[];fail_write=False;fail_key=None;missing=None;environment='C:\\Test Users\\Élodie\\AppData\\Local'
     count=0;real_rect=False;real_font=False;mouse_calls=[];allocation=0x40000000
     submitted=[];native_draws=[];brands=[];cursors=[];hint_buttons=[];input_device=0
     u.mem_map(allocation,0x2401000)
@@ -67,8 +72,9 @@ def check_settings(u,base,m,actors,enemies,stats,sp,reset,put,get,reg,regs):
             assert cstring(rcx,True)=='Features' and value in ('0','1')
             assert cstring(r9,True)==environment+'\\TalesOfEternia-WatersEdition.ini'
             writes.append((key,value))
-            if not fail_write:values[key]=int(value)
-            ret(0 if fail_write else 1)
+            failed=fail_write or key==fail_key
+            if not failed:values[key]=int(value)
+            ret(0 if failed else 1)
         elif a==api+0x50:ret(input_device) # Platform's current input family only.
         elif a==base+0x12cb0:
             hint_buttons.append((rcx,get(rsp+0x28,'f'),get(rsp+0x38,'f'),get(rsp+0x40,'f')))
@@ -99,7 +105,7 @@ def check_settings(u,base,m,actors,enemies,stats,sp,reset,put,get,reg,regs):
             rects.append(True);ret()
     h=u.hook_add(UC_HOOK_CODE,callback)
     def setup():
-        reset();write_flags(b'\1'*feature_count);u.mem_write(initialized,b'\0'*16)
+        reset();put(base+0x8c9180,'III',0,0,0);write_flags(bytes(DEFAULTS));u.mem_write(initialized,b'\0'*16)
         put(base+0x644a18,'Q',0);put(base+0x11c9ce8,'H',0x103)
         put(base+0x10e1d3c,'H',0);put(base+0x11cc540,'Q',0)
         put(base+0x644a10,'Q',0)
@@ -129,18 +135,31 @@ def check_settings(u,base,m,actors,enemies,stats,sp,reset,put,get,reg,regs):
         return reached[0]
     try:
         # Existing/missing settings, Unicode path, bounds, idempotent loading.
-        setup();run('settings_initialize');assert read_flags()==b'\1'*feature_count and len(reads)==feature_count
+        setup();run('settings_initialize');assert read_flags()==bytes(DEFAULTS) and len(reads)==feature_count
         assert get(initialized,'B')==1 and get(error,'B')==0
         run('settings_initialize');assert len(reads)==feature_count
-        values={k:0 for k in info['features'][:-1]};setup();run('settings_initialize')
-        assert read_flags()==b'\0'*(feature_count-1)+b'\1', 'new option defaults on without resetting existing preferences'
+        values={k:0 for i,k in enumerate(info['features']) if i!=33};setup();run('settings_initialize')
+        assert read_flags()==b'\0'*feature_count, 'missing Craymel EXP member must follow its saved master'
+        values={k:0 for k in info['features'][:34]};setup();run('settings_initialize')
+        assert read_flags()==b'\0'*34+bytes(DEFAULTS[34:]), 'new independent options retain their default during migration'
         values={k:i%2 for i,k in enumerate(info['features'][:10])};setup();run('settings_initialize')
-        assert read_flags()==bytes(i%2 for i in range(10))+b'\1'*(feature_count-10), 'both new control options migrate without resetting old preferences'
+        assert read_flags()==bytes(i%2 for i in range(10))+bytes(DEFAULTS[10:]), 'both new control options migrate without resetting old preferences'
         values={k:i%2 for i,k in enumerate(info['features'])};setup();run('settings_initialize')
-        assert list(read_flags())==[i%2 for i in range(feature_count)]
+        assert read_flags()==grouped(i%2 for i in range(feature_count))
+        # Conflicting old INI keys cannot leave a partially enabled group. Only
+        # the saved master controls the group; unrelated controls stay intact.
+        for master,members in GROUPS.items():
+            for enabled in (0,1):
+                values={k:DEFAULTS[i] for i,k in enumerate(info['features'])}
+                for member in members:values[info['features'][member]]=1-enabled
+                values[info['features'][master]]=enabled
+                setup();run('settings_initialize')
+                expected=bytearray(DEFAULTS)
+                for member in members:expected[member]=enabled
+                assert read_flags()==bytes(expected)
         for missing in names:
             setup();run('settings_initialize');assert get(initialized,'B')==2 and get(error,'B')==1
-            assert read_flags()==b'\1'*feature_count
+            assert read_flags()==bytes(DEFAULTS)
         missing=None;saved_env=environment
         for environment in ('','x'*960,'x'*1024):
             setup();run('settings_initialize');assert get(initialized,'B')==2 and not reads
@@ -167,16 +186,31 @@ def check_settings(u,base,m,actors,enemies,stats,sp,reset,put,get,reg,regs):
         for submenu in (10,20,30,40):
             setup();put(base+0x10e1d3c,'H',submenu)
             assert run('settings_title_navigation',(0x1b92bf,),True)==0x1b92bf
-        # One press changes only one option; saving failure stays visible.
+        # One press changes exactly its group. Hidden children cannot be
+        # selected, and every persisted member matches its master.
         setup();run('settings_initialize');put(page,'B',1)
         for i,key in enumerate(info['features']):
+            if i in HIDDEN:continue
             for button in (0x2000,0x20,0x80):
-                before=read_flags();focus(i)
+                before=read_flags();focus(i);start=len(writes)
                 reg('rsi',button);reg('r13',0)
                 run('settings_panel_input',(0x1b98d7,),True)
                 after=bytearray(before);after[i]^=1
-                assert read_flags()==bytes(after)
-                assert writes[-1]==(key,str(after[i]))
+                after=grouped(after)
+                assert read_flags()==after
+                assert writes[start:]==[(info['features'][j],str(after[j])) for j in GROUPS.get(i,(i,))]
+                assert get(selected,'B')==i,'saving members moved the visible selection'
+                assert all(values[info['features'][j]]==after[j] for j in GROUPS.get(i,(i,)))
+        # A failure in an intermediate member must not disappear when the
+        # remaining writes succeed. Reload restores the group from its master.
+        for master,members in GROUPS.items():
+            focus(master);fail_key=info['features'][members[1]]
+            reg('rsi',0x2000);reg('r13',0)
+            run('settings_panel_input',(0x1b98d7,),True)
+            assert get(error,'B')==1
+            before=read_flags();fail_key=None
+            put(initialized,'B',0);run('settings_initialize')
+            assert read_flags()==before and get(error,'B')==0
         fail_write=True;reg('rsi',0x2000);reg('r13',0)
         run('settings_panel_input',(0x1b98d7,),True);assert get(error,'B')==1
         fail_write=False
@@ -188,6 +222,26 @@ def check_settings(u,base,m,actors,enemies,stats,sp,reset,put,get,reg,regs):
                     run('settings_panel_input',(0x1b98d7,),True)
                     assert get(selected,'B')==order[(order.index(cursor)+delta)%len(order)]
                     assert read_flags()==before
+        # Stick scroll consumes mirrored navigation; physical D-pad still
+        # selects settings, and Back must work even while the stick is held.
+        for row in (12,17):
+            setup();put(initialized,'B',1);put(page,'B',1);focus(row)
+            before=read_flags();offset=base+m['progression_ui']['help_state_rva']+2
+            put(base+0x8c9180,'III',0x02000040,0,0x02000040)
+            reg('rsi',0);reg('r13',0x40)
+            run('settings_panel_input',(0x1b98d7,),True)
+            assert get(selected,'B')==row and get(offset,'H')==1,(row,get(selected,'B'),get(offset,'H'))
+            assert read_flags()==before and not writes
+            put(base+0x8c9188,'I',0);run('settings_panel_input',(0x1b98d7,),True)
+            assert get(selected,'B')==row and get(offset,'H')==1,(row,get(selected,'B'),get(offset,'H'))
+            put(base+0x8c9180,'III',0x40,0,0x40)
+            reg('rsi',0);reg('r13',0x40);run('settings_panel_input',(0x1b98d7,),True)
+            assert get(selected,'B')!=row and read_flags()==before
+            run('settings_description_input');assert get(offset,'H')==0
+            focus(row);put(base+0x8c9180,'III',0x02000040,0,0x02000040)
+            reg('rsi',0x4000);run('settings_panel_input',(0x1b98d7,),True)
+            assert get(category,'B')==0 and read_flags()==before
+        setup();run('settings_initialize');put(page,'B',1)
         # Opening and leaving a category preserves settings and the initial snapshot.
         for cat in range(1,len(menus)):
             focus(first+cat-1);before=read_flags();saved=read_snapshot();n=len(writes)
@@ -199,13 +253,16 @@ def check_settings(u,base,m,actors,enemies,stats,sp,reset,put,get,reg,regs):
         # Header reset restores the values captured on opening; defaults turn
         # all features on. Both persist each key without touching saves.
         snapshot=base+info['snapshot_rva'];choice=base+info['reset_choice_rva']
-        write_snapshot(bytes(i%2 for i in range(feature_count)))
+        write_snapshot(grouped(i%2 for i in range(feature_count)))
         for default in (0,1):
             focus(feature_count);put(choice,'B',default);reg('rsi',0x2000);reg('r13',0)
             run('settings_panel_input',(0x1b98d7,),True)
-            assert read_flags()==(b'\1'*feature_count if default else read_snapshot())
+            assert read_flags()==(bytes(DEFAULTS) if default else read_snapshot())
             assert get(selected,'B')==feature_count and get(error,'B')==0
             assert [key for key,_ in writes[-feature_count:]]==info['features']
+            assert bytes(values[key] for key in info['features'])==read_flags()
+            saved=read_flags();put(initialized,'B',0);run('settings_initialize')
+            assert read_flags()==saved,'reset changed after reloading the INI'
         for button in (0x4000,8):
             put(page,'B',1);reg('rsi',button);reg('r13',0)
             run('settings_panel_input',(0x1b98d7,),True);assert get(page,'B')==0
@@ -302,7 +359,8 @@ def check_settings(u,base,m,actors,enemies,stats,sp,reset,put,get,reg,regs):
                 texts.clear();submitted.clear();cursors.clear()
                 put(context+0x4e0,'I',0);put(vertex_pool+0x2000008,'I',0)
                 run('settings_draw')
-                assert [t['text'] for t in texts if t['x']==34]==[label_map[i] for i in ids if i!=feature_count]
+                top=get(scroll,'B')
+                assert [t['text'] for t in texts if t['x']==34]==[label_map[i] for i in ids[top:top+visible] if i!=feature_count]
                 assert cursors[-1][2]==43+row_step*visual
                 assert all(55<=t['y']<=208 for t in texts if t['x']==34)
                 if cat:
@@ -337,9 +395,24 @@ def check_settings(u,base,m,actors,enemies,stats,sp,reset,put,get,reg,regs):
                 put(context+0x4e0,'I',0);put(vertex_pool+0x2000008,'I',0)
                 run('settings_description_draw')
                 expected=m['progression_ui']['help_entries'][row][int(language!=3)]
-                assert [t['text'] for t in texts]==[cstring(base+r) for r in expected]
-                assert all(t['x']==258 and 63<=t['y']<=213 for t in texts)
-                assert get(context+0x4e0,'I')<3000
+                body=expected[2:];visible_help=m['progression_ui']['help_visible_lines']
+                rendered=[cstring(base+expected[0])]+[cstring(base+r) for r in body[:visible_help]]
+                assert [t['text'] for t in texts[:len(rendered)]]==rendered
+                assert all(t['x']==258 and 63<=t['y']<=216 for t in texts)
+                if len(body)>visible_help:
+                    assert 'défiler' in texts[-1]['text'] if language==3 else 'scroll' in texts[-1]['text']
+                    offset=base+m['progression_ui']['help_state_rva']+2
+                    before_flags=read_flags()
+                    for _ in range(len(body)+5):
+                        put(base+0x8c9188,'I',0x02000000);run('settings_description_input')
+                    assert get(offset,'H')==len(body)-visible_help and read_flags()==before_flags
+                    texts.clear();submitted.clear();put(context+0x4e0,'I',0);put(vertex_pool+0x2000008,'I',0);run('settings_description_draw')
+                    assert [t['text'] for t in texts[1:1+visible_help]]==[cstring(base+r) for r in body[-visible_help:]]
+                    put(base+0x8c9188,'I',0x01000000);run('settings_description_input')
+                    assert get(offset,'H')==len(body)-visible_help-1
+                    put(base+0x8c9188,'I',0)
+
+                assert get(context+0x4e0,'I')<5000,(row,language,get(context+0x4e0,'I'),len(texts),sum(len(t['text']) for t in texts))
         real_font=False
         # Run the REAL hint/layout/selection chain, switching the platform
         # input family between frames (gamepads 0/1/2, keyboard 4/5).

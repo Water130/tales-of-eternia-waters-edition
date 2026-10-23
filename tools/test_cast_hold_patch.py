@@ -194,6 +194,93 @@ def check_cast_hold(uc, base, manifest, actors, enemies, stats, impact, sp,
             reg('rdx',effect_id);execute(ready);assert uc.reg_read(regs['rax'])==0
         checks.append('Pre-debit admission matches supported overlap pairs; loading and exhausted pools wait without charging')
 
+        if 'farah_cast_priority' in manifest['symbols']:
+            priority=manifest['symbols']['farah_cast_priority']
+            flag=base+manifest['data_rva']+0x1a45
+
+            def pending_farah():
+                mage=setup(2,73,False)
+                put(flag,'B',1)
+                farah=actors+0x248
+                put(farah,'Q',enemies)
+                put(farah+0x52,'B',10);put(farah+0x6d,'B',42)
+                put(farah+0x8e,'H',75);put(farah+0x8c,'H',1)
+                put(farah+0x34,'H',500)
+                return mage,farah
+
+            # The same priority rule must precede both the native cost and the
+            # allocator; ordinary effects cannot keep refilling the pool.
+            for request in range(200):
+                mage,farah=pending_farah()
+                reg('rdx',request)
+                before=bytes(uc.mem_read(actors,0x10000))
+                preserved={r:uc.reg_read(v) for r,v in regs.items() if r!='rax'}
+                execute(priority)
+                assert uc.reg_read(regs['rax'])==int(request in allowed),request
+                assert preserved=={r:uc.reg_read(v) for r,v in regs.items() if r!='rax'}
+                assert bytes(uc.mem_read(actors,0x10000))==before
+                reg('rdx',request);execute(ready)
+                assert uc.reg_read(regs['rax'])==int(request not in allowed),request
+                if request<100:
+                    reg('rbp',request)
+                    route=execute(manifest['symbols']['guarded_spell_dispatch'],[0x1149a6,0x1149c6])
+                    assert route==(0x1149c6 if request in allowed else 0x1149a6),request
+
+            exclusions=[(0x3c,'H',0),(0x51,'B',1),(0x4f,'B',0),
+                        (0x2c,'i',0),(0x52,'B',0),(0x52,'B',7),
+                        (0x6d,'B',39),(0x8e,'H',133),(0x8c,'H',2),
+                        (0x8c,'H',4),(0x8c,'H',160),(0x8c,'H',0xffff),
+                        (0x44,'H',1),(0x74,'B',1),(0x30,'I',0x4000)]
+            for offset,fmt,value in exclusions:
+                mage,farah=pending_farah();put(farah+offset,fmt,value)
+                reg('rdx',1);execute(priority)
+                assert uc.reg_read(regs['rax'])==0,(offset,value)
+                reg('rdx',1);execute(ready)
+                assert uc.reg_read(regs['rax'])==1,(offset,value)
+            for address,fmt,value in [(flag,'B',0),(base+0x12d0ef7,'B',5),
+                                      (base+0x12d0efb,'B',70),
+                                      (base+0x12cecd8,'Q',0),
+                                      (base+0x12cece8,'B',0),(base+0x12cece8,'B',255)]:
+                pending_farah();put(address,fmt,value)
+                reg('rdx',1);execute(priority)
+                assert uc.reg_read(regs['rax'])==0,(address,value)
+
+            # A loaded ordinary spell keeps playing; ready casts wait with all
+            # their TP intact, then Deadly Force receives the freed slot.
+            mage,farah=pending_farah();pool=base+0x12cfca0
+            put(pool,'Q',enemies);put(pool+0x33,'B',1);put(pool+0x36,'B',1)
+            put(pool+0x3a,'H',1);put(base+0x12d0eaa,'H',0xffff)
+            put(mage+0x8c,'H',1)
+            for _ in range(12):
+                tick(mage);tick(farah)
+                assert get(mage+0x34,'H')==get(farah+0x34,'H')==500
+                assert get(mage+0x8c,'H')==get(farah+0x8c,'H')==1
+                assert get(pool,'Q')==enemies and get(pool+0x36,'B')==1
+            put(pool,'Q',0);put(base+0x12d0eaa,'H',0)
+            tick(mage)
+            assert get(mage+0x34,'H')==500
+            # Stop just before allocation; execute the real native TP debit.
+            tick(farah,[0x114980])
+            assert get(farah+0x34,'H')==420
+            assert uc.reg_read(regs['rdx'])==75
+            execute(0x114980,[0x1149d3])
+            # Once she leaves the casting state, ordinary admission resumes.
+            put(farah+0x52,'B',8);reg('rdx',2);execute(ready)
+            assert uc.reg_read(regs['rax'])==1
+
+            # Existing native Deadly Force follow-up explicitly requires Farah
+            # on the ground with a four-action chain counter. This is diagnostic
+            # coverage, not permission to remove these gameplay conditions.
+            for height in (0,-640):
+                for hits in (3,4):
+                    _,farah=pending_farah();effect=impact
+                    put(effect,'Q',farah);put(effect+8,'Q',enemies)
+                    put(farah+0x12,'h',height);put(farah+0x6e,'B',hits)
+                    put(farah+0x52,'B',0);reg('rbx',effect);reg('r13',0)
+                    route=execute(0xc5a91,[0xc5ad6,0xc5de3])
+                    assert route==(0xc5ad6 if height==0 and hits>=4 else 0xc5de3)
+            checks.append('Deadly Force priority: 200 requested effects, both admission sites, cancellation/death/hold/switch guards, 12 repeated native cast retries without TP debit, release at 80 TP; native grounded follow-up confirmed')
+
         for char in [2,3]:
             for family in range(10):
                 actor=setup(char)

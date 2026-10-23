@@ -29,8 +29,8 @@ HELP = [
      "A fresh Guard press cancels a pending cast and enters guard. Already released spells are unaffected. Manual or semi-auto control."),
     ("Keele et Meredy sautent uniquement avec Garde + Haut. Haut seul ne déclenche plus de saut. Ne change pas Reid/Farah ni les personnages contrôlés par l'IA.",
      "Keele and Meredy jump only with Guard + Up. Up alone no longer jumps. Does not affect Reid/Farah or AI-controlled characters."),
-    ("Sorts offensifs : +1 % de dégâts par 25 utilisations, maximum +25 %. Buffs : +1 / 2 / 3 alliés à 100 / 250 / 500 utilisations. Durée native, soins exclus. Choix par sort dans Maîtrise.",
-     "Offensive spells: +1% damage per 25 casts, up to +25%. Buffs: +1 / 2 / 3 allies at 100 / 250 / 500 casts. Native duration; healing excluded. Per-spell choices in Mastery."),
+    ("Regroupe la progression des sorts, les facultés des Craymel, la puissance et la portée des invocations, l'EXP gagnée par les sorts et les extensions améliorées. Désactivé : règles natives ; niveaux, utilisations et choix conservés.",
+     "Groups spell growth, Craymel faculties, summon power and reach, cast-earned Craymel EXP and enhanced extensions. Off: native rules; levels, cast counts and choices are retained."),
     ("Reid et Farah sautent uniquement avec Garde + Haut. Haut seul ne déclenche plus de saut. Réglage indépendant de Keele/Meredy ; l'IA reste inchangée.",
      "Reid and Farah jump only with Guard + Up. Up alone no longer jumps. Independent of Keele/Meredy; AI is unchanged."),
     ("Ajoute la barre Énergie à la fiche Stats de Farah. Énergie = le plus bas des niveaux Poing et Pied, sur 30. Sans EXP séparée. Cette barre seule n'ajoute pas de bonus de soin.",
@@ -39,24 +39,62 @@ HELP = [
      "Labels Reid and Farah's arte branch beside TP cost: Slash, Thrust, Punch, Kick or Energy for healing. Mixed branches are explicit. This is not the combo rank."),
     ("L2 / LT lance une saynète disponible en exploration. Si L2 est réaffecté à une commande d'exploration, utilisez L2 + Select. Indépendant de la bulle ; aucun lancement pendant un menu ou une scène.",
      "L2 / LT plays an available skit while exploring. If L2 is rebound to an exploration action, use L2 + Select. Independent of the notice; disabled during menus and scenes."),
-    ("Améliore Guérisseur, Désintoxication et Renaissance aux niveaux Énergie 10 à 30, en combat et dans le menu. Niveau = minimum de Poing/Pied. Chaque faculté est désactivable dans Stats > Maîtrise > Énergie. La barre reste indépendante.",
-     "Improves Healer, Detoxify and Life at Energy levels 10 to 30, in battle and in menus. Level = the lower of Punch/Kick. Toggle each faculty in Stats > Mastery > Energy. The gauge is independent."),
-    ("Réinit. restaure les réglages présents à l'ouverture de ce menu. Défaut active toutes les options du mod. Les changements sont enregistrés automatiquement.",
-     "Reset restores the settings present when this menu was opened. Default enables all mod options. Changes are saved automatically."),
+    ("Regroupe la barre Énergie et toutes les facultés de Farah : Poing, Pied, Poing + Pied et Énergie. Désactivé : bonus retirés et barre masquée, sans effacer la progression ni les choix. Le saut Garde + Haut reste indépendant.",
+     "Groups Farah's Energy gauge and all Punch, Kick, Punch + Kick and Energy faculties. Off removes bonuses and hides the gauge, preserving progress and choices. Guard + Up jumping is separate."),
+    ("Ignore la cage du Craymel partenaire pour le Fringe. Les niveaux requis et la cage du Craymel principal restent nécessaires. Désactivé par défaut ; désactiver restaure l'accès natif sans effacer les utilisations.",
+     "Ignores the partner Craymel's cage for Fringe. Level requirements and the primary Craymel's assignment still apply. Off by default; disabling restores native access without erasing cast counts."),
+    ("Les invocations gagnent en puissance et en portée selon le niveau de leur Craymel. Désactivé : dégâts et portée natifs.",
+     "Summons gain power and reach with their Craymel's level. Off: native damage and reach."),
+    ("Supprime les pauses cinématiques des sorts. Désactivé : durée et pauses natives.",
+     "Removes spell cinematic pauses. Off: native pauses and durations."),
+    ("Permet à des sorts différents de se dérouler simultanément. Les invocations et les effets incompatibles restent protégés. Désactivé : file d'attente native.",
+     "Allows different spells to run simultaneously. Summons and incompatible effects remain protected. Off: native spell queue."),
+    ("Colore les particules d'incantation selon l'élément du sort. Désactivé : couleurs natives. Indépendant des couleurs de dégâts.",
+     "Tints casting particles by spell element. Off: native colors. Independent of damage colors."),
+    ("Ajoute les pages B et C aux six raccourcis d'artes. Désactivé : seule la page A native est utilisée. Les affectations B et C restent enregistrées.",
+     "Adds pages B and C to the six arte shortcuts. Off: only native page A is used. Saved B and C assignments are retained."),
+    ("Maintenir la commande d'arte jusqu'à la fin de l'incantation choisit l'invocation disponible. L1 retient le sort prêt. Désactivé : commandes natives.",
+     "Holding the arte command until casting finishes selects an available summon. L1 holds a ready spell. Off: native controls."),
+    ("Maelstrom devient disponible avec Ondine niveau 10 et au moins 5/10 de vitalité, sans résistance à l'eau imposée. Le coût en TP reste requis. Désactivé : critères natifs.",
+     "Maelstrom becomes available with level 10 Undine and at least 5/10 vitality, without requiring water resistance. TP cost still applies. Off: native criteria."),
+    ("Affiche les utilisations des sorts et place leurs éléments à gauche du compteur. Désactiver masque ces ajouts sans effacer la progression.",
+     "Displays spell casts and places elements to the left of the counter. Disabling hides these additions without erasing progression."),
+    ("Affiche une barre de PV au-dessus de chaque ennemi déjà analysé avec une Lentille, y compris lors des combats suivants. R1 affiche aussi le nom, les PV, résistances et faiblesses de la cible scannée. Désactiver masque les barres sans effacer les scans.",
+     "Shows an HP gauge above each enemy previously scanned with Spectacles, including later encounters. R1 also shows the scanned target’s name, HP, resistances and weaknesses. Disabling hides gauges without erasing scans."),
+    ("Passe les logos et l'écran d'information du démarrage. L'ouverture animée est conservée. Désactivé : lancement natif. Ce réglage s'applique au prochain lancement du jeu.",
+     "Skips startup logos and the information screen, retaining the animated opening. Off: native startup. This setting applies the next time the game launches."),
+    ("Chaque projectile d'Estocade aérienne (Air Thrust) peut toucher la même cible indépendamment des autres. Les collisions et délais entre deux impacts du même projectile sont conservés. Désactivé : délai partagé natif.",
+     "Each Air Thrust projectile can hit the same target independently. Collision checks and the delay between repeat hits by one projectile are retained. Off: native shared hit cooldown."),
+    ("Garde, Attaque ou Arte arrête la course en contrôle manuel ou semi-auto. L'action demandée est ensuite traitée normalement. Désactivé : comportement natif.",
+     "Guard, Attack or Arte stops running in manual or semi-auto control. The requested action is then processed normally. Off: native behavior."),
+    ("Regroupe les facultés de Reid : Tranchant, Estoc et Tranchant + Estoc. Les attaques normales gagnent +1 coup au niveau 15 et +2 au niveau 30 de la famille utilisée. Le saut Garde + Haut reste indépendant.",
+     "Groups Reid's Slash, Thrust and Slash + Thrust faculties. Normal chains gain one attack at family level 15 and two at 30. Guard + Up jumping remains independent."),
+    ("Active les facultés débloquées par les niveaux des Craymel recrutés pour Keele et Meredy. Chaque faculté peut être désactivée dans Maîtrise. Désactiver cette option retire leurs effets sans effacer les choix.",
+     "Enables Keele and Meredy's faculties unlocked by recruited Craymel levels. Toggle individual faculties in Mastery. Off removes their effects without erasing choices."),
+    ("Les sorts élémentaires réussis donnent de l'EXP au Craymel correspondant, reçue à la victoire. Remplace l'EXP automatique de combat. Aucun gain pour un Craymel encore inconnu. Désactivé : progression native.",
+     "Successfully cast elemental spells award EXP to their Craymel at victory, replacing automatic battle EXP. Unknown Craymels earn none. Off: native progression."),
+    ("Aurora : Attaque + Arte sans Garde, Mur du levant à 25 % des PV max. Hi-ougi de Reid : seuil de PV ennemi retiré, 3 utilisations par technique et par combat. Autres critères conservés. Désactivé : règles natives.",
+     "Aurora: Attack + Arte without Guard, Aurora Wall at 25% max HP. Reid mystic artes: enemy HP ceiling removed, 3 uses per technique per battle. Other criteria retained. Off: native rules."),
+    ("Débloque quatre artes autonomes de Reid/Farah après 50 utilisations de l'arte physique et 50 du sort associé par Keele ou Meredy. Aucun mage requis au lancement. Coût : somme des deux techniques. Désactivé : accès retiré, compteurs conservés.",
+     "Unlocks four standalone Reid/Farah team-up artes after 50 physical-arte uses and 50 associated casts by Keele or Meredy individually. No mage needed to launch. TP cost: sum of both ingredients. Off removes access, retaining counters."),
+    ("Réinit. restaure les réglages présents à l'ouverture de ce menu. Défaut restaure les valeurs recommandées, dont cages Fringe libres désactivé. Les changements sont enregistrés automatiquement.",
+     "Reset restores the settings present when this menu was opened. Default restores recommended values, including free Fringe cages off. Changes are saved automatically."),
     ("Configure les touches clavier des pages B et C de l'Artesphere. Les touches sont communes aux parties ; les affectations des artes restent propres à chaque sauvegarde.",
      "Configure keyboard keys for Artesphere pages B and C. Keys are shared across games; arte assignments are kept per save."),
     ("Réglages de confort et d'affichage : caméra, interface de combat, couleurs, barres, saynètes et catégories des artes. Confirmez pour ouvrir ce sous-menu.",
      "Convenience and display settings: camera, battle interface, colors, bars, skits and arte categories. Confirm to open this submenu."),
     ("Règles de combat : récupération de PT, difficultés, vitalités au MAX, annulation d'incantation et commandes de saut. Chaque changement se règle séparément.",
      "Battle rules: TP recovery, difficulty, MAX vitality, cast cancelling and jump controls. Each change can be switched independently."),
-    ("Maîtrise des sorts, barre Énergie et facultés Énergie de Farah. Les choix individuels de facultés restent accessibles dans Stats > Maîtrise.",
-     "Spell mastery, Farah's Energy gauge and Energy faculties. Individual faculty choices remain available in Stats > Mastery."),
+    ("Un interrupteur par système : progression magique, progression de Farah et progression de Reid. La règle des cages Fringe reste séparée et désactivée par défaut. Les choix individuels de facultés sont conservés.",
+     "One switch per system: magic progression, Farah progression and Reid progression. The Fringe cage rule stays separate and off by default. Individual faculty choices are preserved."),
     ("Configuration des commandes clavier supplémentaires sur PC. Les touches sont communes aux parties ; les affectations d'artes restent propres à chaque sauvegarde.",
      "Configure additional PC keyboard controls. Keys are shared across games; arte assignments are kept per save."),
 ]
 
 
 def emit_progression_ui(emit, mem, jump, data, state, symbols):
+    from settings_help import DETAILS, emit_help
+    for i, detail in DETAILS.items(): HELP[i] = detail
     payload = bytearray()
     def string(s):
         p = state + len(payload)
@@ -68,8 +106,10 @@ def emit_progression_ui(emit, mem, jump, data, state, symbols):
     for title, detail in zip(titles, HELP):
         langs=[]
         for lang in range(2):
-            lines=textwrap.wrap(title[lang],35)+['']+textwrap.wrap(detail[lang],43)
-            assert len(lines)<=15
+            lines=[title[lang], '']
+            for paragraph in detail[lang].split('\n'):
+                lines.extend(textwrap.wrap(paragraph,43) or [''])
+            assert len(lines)<65535
             langs.append([string(l) for l in lines])
         entries.append(langs)
     while len(payload)%4:payload.append(0)
@@ -118,50 +158,9 @@ def emit_progression_ui(emit, mem, jump, data, state, symbols):
         add rsp, 0x38
         ret
     ''')
-    help_draw=emit('settings_description_draw',f'''
-        push rbx
-        push rsi
-        push rdi
-        sub rsp, 0x20
-        movzx eax, byte ptr {mem(data+0x1a12)}
-        cmp eax, {len(entries)}
-        jae done
-        shl eax, 4
-        lea rsi, {mem(help_table)}
-        add rsi, rax
-        cmp byte ptr {mem(0x11c9ce8)}, 3
-        je language
-        add rsi, 8
-    language:
-        mov edi, dword ptr [rsi+4]
-        mov esi, dword ptr [rsi]
-        lea rax, {mem(0)}
-        add rsi, rax
-        mov ebx, 63
-    line:
-        mov ecx, dword ptr [rsi]
-        lea rax, {mem(0)}
-        add rcx, rax
-        mov edx, 258
-        mov r8d, ebx
-        mov r9d, -7
-        mov eax, 0xfffffdfa
-        cmp ebx, 63
-        jne color
-        mov eax, 0xffffc080
-    color:
-        call {symbols['settings_text']:#x}
-        add rsi, 4
-        add ebx, 10
-        dec edi
-        jne line
-    done:
-        add rsp, 0x20
-        pop rdi
-        pop rsi
-        pop rbx
-        ret
-    ''')
+    help_hint=[string(t) for t in ('Joystick gauche : défiler haut / bas', 'Left stick: scroll up / down')]
+    help_draw, help_input, help_state, help_visible = emit_help(
+        emit, mem, data, symbols, help_table, len(entries), help_hint)
     save='pushfq; '+ '; '.join('push '+r for r in ('rax','rcx','rdx','r8','r9','r10','r11'))
     restore='; '.join('pop '+r for r in ('r11','r10','r9','r8','rdx','rcx','rax'))+'; popfq'
     def preserve(body):
@@ -246,6 +245,22 @@ def emit_progression_ui(emit, mem, jump, data, state, symbols):
 
     # ECX arte ID -> EAX label index; native metadata bits 0x400/0x800.
     category=emit('arte_category_index',f'''
+        cmp ecx, 126
+        jne map127
+        mov ecx, 4
+    map127:
+        cmp ecx, 127
+        jne map128
+        mov ecx, 31
+    map128:
+        cmp ecx, 128
+        jne map129
+        mov ecx, 5
+    map129:
+        cmp ecx, 129
+        jne mapped
+        mov ecx, 30
+    mapped:
         mov eax, -1
         cmp ecx, 1
         jb done
@@ -330,6 +345,7 @@ def emit_progression_ui(emit, mem, jump, data, state, symbols):
     payload.extend(b'\0'*((-len(payload))%0x1000))
     return dict(data_rva=state,size=len(payload),help_draw_rva=help_draw,
         help_table=help_table,help_entries=entries,category_rva=category,
+        help_input_rva=help_input,help_state_rva=help_state,help_visible_lines=help_visible,
         energy='min(Punch, Kick), capped at 30; display only; no separate EXP',
         energy_flag_index=14,arte_category_flag_index=15,
         runtime_validated=False),bytes(payload)

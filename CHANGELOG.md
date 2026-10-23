@@ -2,6 +2,34 @@
 
 [Overview](README.md) · [Installation](docs/INSTALLATION.md) · [All releases](https://github.com/Water130/tales-of-eternia-waters-edition/releases)
 
+## 0.14.11 - Experimental release
+
+This GitHub release includes the changes developed since 0.13.8 and matches the
+0.14.11 Easy Install archive on Nexus Mods.
+
+- Implement 72 Craymel faculties, covering levels 5/10/15/20/25/30 for every spirit,
+  with elemental French/English names and detailed effect descriptions.
+- Replace automatic Craymel EXP with 50/200/500 EXP from completed elemental casts,
+  awarded at victory; add next-level EXP gauges and summon damage/area growth.
+- Add five offensive spell growth tracks, individual levels and EXP bars, plus
+  separate mage progression and x3 catch-up credited uses.
+- Fix missing victory notifications when only a spell bonus levels up, including
+  Lightning's first power gain. Both French and English notices are included.
+- Implement four standalone Reid/Farah team-up artes, mixed-branch extra normal
+  attacks, optional Reid special-technique changes and improved Maelstrom requirements.
+- Add persistent enemy scan information and the compact R1 panel; retain fixes
+  for Lens targeting and Meredy's casting callback.
+- Add coherent progression switches, detailed scrollable option help, Techniques
+  mastery access, elemental tree links, active/locked faculty states and spell prerequisites.
+- Retain three Artesphere pages, combat/QoL options and the earlier Farah Energy faculties.
+- Refresh the repository presentation with Water's personal introduction and the
+  emphasis on choosing only the features you want.
+
+Advanced arte-chain previews and the full custom-spell/extension expansion remain
+unfinished. See [current features and limits](docs/FEATURES.md).
+The verified archive and source build match; offline checks do not guarantee
+whole-game stability or final in-game rendering.
+
 ## 0.13.8 - Experimental release
 
 - Add a persistent Mastery list and rooted skill trees from Stats (Square),

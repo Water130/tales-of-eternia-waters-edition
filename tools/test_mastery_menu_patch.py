@@ -18,9 +18,10 @@ def check_mastery_menu(u,base,m,actors,sp,reset,put,get,reg,regs):
     u.mem_map(arena,0x2401000);u.mem_map(api,0x1000)
     vertices=arena+0x300000
     context=arena+0x1000;commands=arena+0x10000;stop=data-16
-    texts=[];submitted=[];native=[];buttons=[];cursors=[];silhouettes=[];gauges=[];frames=[];links=[];meters=[];alphas=[]
-    records={};save_ok=True;io_ok=True;device=0;calls=0;max_commands=0
+    texts=[];submitted=[];native=[];buttons=[];cursors=[];silhouettes=[];gauges=[];frames=[];links=[];meters=[];alphas=[];node_colors=[]
+    records={};save_ok=True;io_ok=True;device=0;calls=0;max_commands=0;hint_keys=[]
     nonvolatile=('rbx','rbp','rsi','rdi','r12','r13','r14','r15')
+    def get_from(raw,offset,fmt):return struct.unpack_from('<'+fmt,raw,offset)[0]
     def string(p,wide=False):
         raw=bytearray();step=2 if wide else 1
         for i in range(2048):
@@ -40,8 +41,8 @@ def check_mastery_menu(u,base,m,actors,sp,reset,put,get,reg,regs):
         u.reg_write(UC_X86_REG_RIP,get(rsp,'Q'));u.reg_write(UC_X86_REG_RSP,rsp+8)
     observed={api,api+0x10,api+0x20,api+0x30,api+0x40}|{base+a for a in (
         0x594d0,0x2a41e0,sym['mastery_status_native_input'],sym['mastery_status_native_draw'],
-        0x251390,0xb480,0x52f10,0x6a320,0x60bf0,0x62010,0x12cb0,sym['mastery_menu_spirit_icon'],
-        sym['mastery_menu_frame'],sym['mastery_menu_tinted_link'],sym['mastery_spell_meter_rect'],0x250b50)}
+        0x251390,0xb480,0x52f10,0x6a320,0x60bf0,0x62010,0x12cb0,0x140c0,sym['mastery_menu_spirit_icon'],
+        sym['mastery_menu_frame'],sym['mastery_node_frame'],sym['mastery_menu_tinted_link'],sym['mastery_spell_meter_rect'],0x250b50)}
     def boundary(_,address,length,user):
         if address not in observed:return
         a=address-base;rcx,rdx,r8,r9=[u.reg_read(regs[r]) for r in ('rcx','rdx','r8','r9')]
@@ -51,7 +52,7 @@ def check_mastery_menu(u,base,m,actors,sp,reset,put,get,reg,regs):
             ret(api+(0x20 if string(rdx)=='GetPrivateProfileStructW' else 0x30))
         elif address in (api+0x20,api+0x30):
             key=(string(rcx,True),string(rdx,True))
-            assert (key[0],r9) in (('MasteryChoices-v1',232),('ArteUsage-v1',1800),('Artesphere-v1',104),('Artesphere-v2',104))
+            assert (key[0],r9) in (('MasteryChoices-v1',232),('SpellCatchUp-v1',1800),('ArteUsage-v1',1800),('Artesphere-v1',104),('Artesphere-v2',104))
             if address==api+0x30:
                 if io_ok:records[key]=bytes(u.mem_read(r8,r9))
                 ret(int(io_ok))
@@ -66,7 +67,7 @@ def check_mastery_menu(u,base,m,actors,sp,reset,put,get,reg,regs):
             if a==sym['mastery_status_native_draw']:put(ui+8,'i',214)
             ret(77)
         elif a==0x251390:
-            gauges.append((rcx,rdx,r9,get(rsp+0x38,'H'),get(rsp+0x40,'B')))
+            gauges.append((rcx,rdx,r9,get(rsp+0x38,'H'),get(rsp+0x40,'B'),get(rsp+0x28,'H'),get(rsp+0x30,'H')))
         elif a==0xb480:
             texts.append((string(rcx),f(UC_X86_REG_XMM1),f(UC_X86_REG_XMM2),get(rsp+0x30,'I')))
             # Do not stub font layout: it caught black/empty menus previously.
@@ -75,14 +76,17 @@ def check_mastery_menu(u,base,m,actors,sp,reset,put,get,reg,regs):
         elif a==0x6a320:ret(123)
         elif a==0x60bf0:submitted.append(bytes(u.mem_read(rdx,80)));ret()
         elif a==0x62010:ret()
+        elif a==0x140c0:hint_keys.append(r9)
         elif a==0x12cb0:
             buttons.append((rcx,f(UC_X86_REG_XMM1),f(UC_X86_REG_XMM2)))
             ret() # Actual 21cbb0 -> 140c0 -> 13d70 chose the device glyph.
         elif a==sym['mastery_menu_spirit_icon']:
             silhouettes.append((rcx,r9)) # Continue actual atlas binding and quad emission.
-        elif a==sym['mastery_menu_frame']:frames.append((rcx,rdx,r8,r9))
+        elif a in (sym['mastery_menu_frame'],sym['mastery_node_frame']):
+            frames.append((rcx,rdx,r8,r9))
+            if a==sym['mastery_node_frame']:node_colors.append((rcx,rdx,u.reg_read(regs['r10'])))
         elif a==sym['mastery_menu_tinted_link']:
-            links.append((rcx,rdx,r8,r9));alphas.append(u.reg_read(regs['r10']))
+            links.append((rcx,rdx));alphas.append(u.reg_read(regs['r10']))
         elif a==sym['mastery_spell_meter_rect']:meters.append((rcx,rdx,r8,r9,u.reg_read(regs['r10'])))
         elif a==0x250b50:
             cursors.append((rcx,rdx,r8,r9)) # Continue native cursor placement.
@@ -93,6 +97,7 @@ def check_mastery_menu(u,base,m,actors,sp,reset,put,get,reg,regs):
         u.mem_write(context,b'\0'*0x8000)
         put(base+0x111a658,'HH',0,0);put(base+0x111a668,'BB',1,255)
         put(base+0x111a672,'BBB',4,0,0);put(base+0x11cad10,'4H',char+1,2,3,4)
+        u.mem_write(base+0x11cad38,b'\1'*7)
         put(base+0x11c9da0,'Q',0);put(base+0x8c9180,'III',0,0,0)
         put(base+0x11c9ce8,'B',3);put(data+0x1a0c,'B',1);put(data+0x1a10,'B',1)
         put(base+0x644a10,'Q',context);put(context+0x4d0,'Q',commands)
@@ -142,7 +147,7 @@ def check_mastery_menu(u,base,m,actors,sp,reset,put,get,reg,regs):
         return table+found*32
     def draw():
         nonlocal max_commands
-        texts.clear();submitted.clear();buttons.clear();silhouettes.clear();cursors.clear();frames.clear();links.clear();meters.clear();alphas.clear()
+        texts.clear();submitted.clear();buttons.clear();silhouettes.clear();cursors.clear();frames.clear();links.clear();meters.clear();alphas.clear();gauges.clear();node_colors.clear()
         put(context+0x4e0,'I',0);put(vertices+0x2000008,'I',0)
         run(0x23fa00)
         assert all(0<=x<480 and 0<=y<270 for _,x,y,_ in texts),texts
@@ -158,7 +163,7 @@ def check_mastery_menu(u,base,m,actors,sp,reset,put,get,reg,regs):
             if get(ui+3,'B'):assert y==61 and x in (38,120,202,284,366) and z==0,(x,y,z)
             else:
                 r=rows[current_rows()[get(ui+1,'B')]]
-                assert x==r['root'][0]+20 and y==97 and z==0,(x,y,z)
+                assert x==r['root'][0]+20 and y==113 and z==0,(x,y,z)
         if get(ui,'B') and get(ui+5,'B'):
             if get(ui+3,'B'):
                 assert len(silhouettes)==5
@@ -170,39 +175,63 @@ def check_mastery_menu(u,base,m,actors,sp,reset,put,get,reg,regs):
                 rx,ry,rw,rh=r['root'];origin=(rx+rw,ry+rh//2)
                 assert (29,58,62,114) in frames,'persistent sidebar missing'
                 assert len(cursors)==1
-                assert (min(n['y'] for n in r['nodes'])+max(n['y']+28 for n in r['nodes']))/2==116
-                assert len(frames)==4+len(r['nodes'])
-                assert (rx,91 if r['kind']==0 else ry,rw,50 if r['kind']==0 else rh) in frames
-                root_texts=[t for t in texts if t[2]==(122 if r['kind']==0 else 112) and rx<=t[1]<rx+rw]
+                assert (min(n['y'] for n in r['nodes'])+max(n['y']+28 for n in r['nodes']))/2==132
+                assert len(frames)==10+len(r['nodes'])
+                assert (rx,107 if r['kind']==0 else ry,rw,50 if r['kind']==0 else rh) in frames
+                root_texts=[t for t in texts if t[2]==(138 if r['kind']==0 else 128) and rx<=t[1]<rx+rw]
                 assert len(root_texts)==1
-                pixels=set()
-                for x,y,w,h in links:
-                    if y==54:continue
-                    pixels.update((xx,yy) for xx in range(x,x+w) for yy in range(y,y+h))
-                assert set(alphas)<={65,255}
+                from mastery_tree_layout import connections
+                expected=connections(r)
+                assert len(links)>=len(expected)
+                # Additional paths belong to the animated elemental root.
+                cores=alphas[:len(expected)]
+                unlocked=False
+                for color in cores:
+                    if color!=0xff28160c:unlocked=True
+                    else:assert not unlocked,'locked branches obscure an unlocked junction'
+                actual=[]
+                for ptr,count in links[:len(expected)]:
+                    xy=[struct.unpack('<ff',u.mem_read(ptr+i*8,8)) for i in range(count)]
+                    mid=[((xy[i][0]+xy[i+1][0])/2,(xy[i][1]+xy[i+1][1])/2) for i in range(0,count,2)]
+                    path=next((p for p in expected if abs(p['points'][-1][0]-mid[-1][0])<0.001 and
+                               abs(p['points'][-1][1]-mid[-1][1])<0.001),None)
+                    assert path and len(mid)==len(path['points'])
+                    assert all(abs(a-c)<0.001 and abs(b-d)<0.001 for (a,b),(c,d) in zip(mid,path['points']))
+                    n=r['nodes'][path['node']]
+                    start=origin if n['parent']<0 else (r['nodes'][n['parent']]['x']+42,n['y']+14)
+                    assert mid[0]==start and mid[-1]==(n['x'],n['y']+14),'disconnected ribbon'
+                    actual.append(path['node'])
+                assert sorted(actual)==list(range(len(r['nodes'])))
+                ribbons=[p for p in submitted if get_from(p,0,'I')==5 and get_from(p,12,'I')==0x80019c]
+                # Other native widgets also use type 5; identify our flat RGBs.
+                flat=[]
+                for p in ribbons:
+                    count=get_from(p,8,'I');ptr=get_from(p,32,'Q')
+                    color=get(ptr,'I')
+                    if color in ({0xff080604}|set(alphas)):
+                        assert count==4,'native UI accepts four-vertex segments'
+                        assert all(get(ptr+i*16,'I')==color for i in range(count)),'longitudinal fading'
+                        flat.append(color)
+                assert len(flat)==sum((count//2-1)*2 for _,count in links)
                 for n in r['nodes']:
-                    assert n['y']+28<174
-                    assert (n['x'],n['y'],50,28) in frames
-                    bubble=[t for t in texts if n['x']<=t[1]<n['x']+50 and n['y']<=t[2]<n['y']+28]
+                    assert n['y']+28<190
+                    assert (n['x'],n['y'],42,28) in frames
+                    bubble=[t for t in texts if n['x']<=t[1]<n['x']+42 and n['y']<=t[2]<n['y']+28]
                     lang=0 if get(base+0x11c9ce8,'B')==3 else 1
                     if bubble[0][0]=='???':
                         assert [t[0] for t in bubble]==['???','???']
+                        assert all(t[3]==0xff999999 for t in bubble)
+                        assert (n['x'],n['y'],0xff706050) in node_colors
                     else:
                         count=len(n['title_lines'][lang])
                         assert [t[0] for t in bubble[:count]]==n['title_lines'][lang],bubble
-                        assert all(t[3]==0xffffad61 for t in bubble[:count])
+                        locked=bubble[0][3]==0xff999999
+                        node_color=next(c for x,y,c in node_colors if (x,y)==(n['x'],n['y']))
+                        assert node_color==0xff706050 if locked else node_color in (0xffcca060,0xffefd080)
+                        assert all(t[3]==(0xff999999 if locked else 0xffffad61) for t in bubble[:count])
                         assert ''.join(t[0] for t in bubble[count:])==n['label'][lang],bubble
-                        for t in bubble[count:]:assert t[3]==(0xff70f0a0 if re.search(r'\d',t[0]) else 0xffffffff),t
+                        for t in bubble[count:]:assert t[3]==(0xff999999 if locked else 0xff70f0a0 if re.search(r'\d',t[0]) else 0xffffffff),t
                         assert bubble[-1][2]==n['y']+(15 if count==1 else 19)
-                    pixels.update((x,n['y']+14) for x in range(n['x'],n['x']+51))
-                assert origin in pixels
-                visited={origin};queue=[origin]
-                while queue:
-                    x,y=queue.pop()
-                    for dx,dy in ((-1,0),(1,0),(0,-1),(0,1),(-1,-1),(-1,1),(1,-1),(1,1)):
-                        p=(x+dx,y+dy)
-                        if p in pixels and p not in visited:visited.add(p);queue.append(p)
-                assert all((n['x'],n['y']+14) in visited for n in r['nodes']),'disconnected branch'
     try:
         if '--browser-stress-only' in sys.argv:
             u.ctl_remove_cache(base,base+0x300000)
@@ -260,6 +289,19 @@ def check_mastery_menu(u,base,m,actors,sp,reset,put,get,reg,regs):
                         edges[(language,device,title_state,party_size)]=x
                 assert edges[(language,device,1,4)]<edges[(language,device,0,4)]
         put(base+0x644a70,'Q',0)
+        # The same context-dependent key reaches both input and native hints.
+        for language in (3,1):
+            for device in (0,1,2,4,5):
+                for source,mode,key in ((0,0,0x8000),(0,2,0x8000),
+                                        (1,0,0x1000),(1,1,0x8000),(1,2,0x8000)):
+                    setup();put(base+0x11c9ce8,'B',language)
+                    put(base+0x11cad38,'B',mode)
+                    put(ui+0xc,'B',source);put(ui+8,'i',210);hint_keys.clear()
+                    run('mastery_status_entry_hint')
+                    assert hint_keys==[key],(source,device,hint_keys)
+                    assert len(buttons)==1,(source,device,buttons)
+                    assert [t[0] for t in texts]==['Maîtrise' if language==3 else 'Mastery']
+                    assert 0<=buttons[0][1]<texts[0][1]<480,(source,device,buttons,texts)
         for char in range(7):
             setup(char);press(0);assert native==[sym['mastery_status_native_input']]
             press(0x8000);assert get(ui,'B')==1 and get(ui+4,'B')==char
@@ -267,7 +309,7 @@ def check_mastery_menu(u,base,m,actors,sp,reset,put,get,reg,regs):
             assert current_rows()==expected
             assert get(ui+6,'B')==0
             if expected:
-                draw();assert any(t[2]==174 for t in texts),'live tree missing beside sidebar'
+                draw();assert any(t[2]==190 for t in texts),'live tree missing beside sidebar'
                 assert any(t[0] in ("Voir l'arbre",'View tree') for t in texts)
                 before=bytes(u.mem_read(choices,224));press(0x2000)
                 assert get(ui+6,'B')==1 and bytes(u.mem_read(choices,224))==before
@@ -285,6 +327,42 @@ def check_mastery_menu(u,base,m,actors,sp,reset,put,get,reg,regs):
                 press(0x4000);assert get(ui+1,'B')==len(expected)-1 and get(ui+6,'B')==0
             press(0x4000);assert get(ui,'B')==0
             assert len(native)==1,'cancel leaks into native Status'
+        # Auto uses Triangle; Semi-auto/Manual use Square. Select and the
+        # native Auto toggle / Clear key remain available to Techniques.
+        for char in range(7):
+            for mode,key in ((0,0x1000),(1,0x8000),(2,0x8000)):
+                other=key^0x9000
+                for held,pressed,opens in ((0,other,False),(key,0,False),(0,1,False),
+                                           (0,0x2000,False),(0,key,True),(key,key,True)):
+                    setup(char)
+                    # Put the character in a different party slot to catch
+                    # accidental indexing by character ID instead of slot.
+                    slot=(char+2)%4
+                    put(base+0x111a674,'B',slot);put(base+0x11cad10+slot*2,'H',char+1)
+                    put(base+0x11cad38+slot,'B',mode)
+                    put(base+0x1119f96,'HH',0,0)
+                    put(base+0x1119fa4,'BB',1,255)
+                    put(base+0x8c9180,'II',held,pressed)
+                    run('mastery_tech_input')
+                    assert get(ui,'B')==int(opens) and u.reg_read(regs['rax'])==int(not opens),(char,mode,held,pressed)
+                    assert not native,'Techniques dispatched the Status input handler'
+                    if opens:
+                        assert get(ui+4,'B')==char and get(ui+0xc,'B')==1
+                        assert bytes(u.mem_read(choices,224))==b'\0'*224
+                        put(base+0x8c9184,'I',0);run('mastery_tech_input')
+                        assert get(ui,'B')==1,'held entry key closed the panel'
+                        put(base+0x8c9184,'I',0x4000);run('mastery_tech_input')
+                        assert get(ui,'B')==0 and u.reg_read(regs['rax'])==0,'Back leaked to native Techniques'
+        for char in (0,1):
+            for pressed,opens in ((0x1000,True),(0x8000,False),(0x2000,False)):
+                setup(char);put(base+0x1119f96,'HH',0,4);put(base+0x1119fa4,'BB',1,255)
+                put(base+0x8c9184,'I',pressed);run('mastery_tech_input')
+                assert get(ui,'B')==int(opens) and u.reg_read(regs['rax'])==int(not opens)
+        for field,fmt,val in ((0x1119f96,'H',1),(0x1119fa4,'B',0),
+                              (0x1119fa5,'B',0),(0x1119f98,'H',3)):
+            setup(2);put(base+0x1119f96,'HH',0,0);put(base+0x1119fa4,'BB',1,255)
+            put(base+field,fmt,val);put(base+0x8c9180,'II',0x8000,0x8000)
+            run('mastery_tech_input');assert get(ui,'B')==0 and u.reg_read(regs['rax'])==1
         # List confirmation must never activate the first unlocked faculty.
         # Holding Confirm is not a second press; Back preserves the selected
         # row, while a category change deliberately returns to list selection.
@@ -348,16 +426,34 @@ def check_mastery_menu(u,base,m,actors,sp,reset,put,get,reg,regs):
                 setup();put(base+0x11c9ce8,'B',lang);press(0x8000);row=select(0,key)
                 put(ui+2,'B',get(row+24,'I')-1);draw()
                 assert silhouettes and all(tint==0xff000000 for _,tint in silhouettes)
-                assert [t[0] for t in texts if t[2]==174]==['???']
-                assert any('Craymel' in t[0] and t[2]==185 for t in texts)
-                assert not any(t[2] in (193,201,209,234) for t in texts)
+                assert [t[0] for t in texts if t[2]==190]==['???']
+                assert any('Craymel' in t[0] and t[2]==201 for t in texts)
+                assert not any(t[2] in (209,217,225,236) for t in texts)
                 assert not any(r['name'][int(lang!=3)] in [t[0] for t in texts] for r in rows if r['kind']==0)
                 put(base+0x11cafd8+key*8,'BB',3,30);draw()
                 assert (key,0xffffffff) in silhouettes
-                assert [t[0] for t in texts if t[2]==174]!=['???']
-                assert any('préparation' in t[0] or 'development' in t[0] or 'non atteints' in t[0] or 'not met' in t[0] for t in texts if t[2]==234)
-                before=bytes(u.mem_read(choices,224));press(0x2000)
-                assert bytes(u.mem_read(choices,224))==before,'preview toggles gameplay'
+                assert [t[0] for t in texts if t[2]==190]!=['???']
+                assert any(t[0] in ('Faculté activée','Faculty enabled','Prérequis non atteints','Requirements not met') for t in texts if t[2]==236)
+                before=bytes(u.mem_read(choices,224))
+                ni=get(ui+2,'B');reg('rcx',row);reg('rdx',base+get(row+20,'I')+ni*info['node_size'])
+                run('mastery_menu_node_status');unlocked=u.reg_read(regs['rax'])==4
+                press(0x2000)
+                from craymel_milestones import faculty_id
+                expected=bytearray(before);bit=2*256+faculty_id(key,ni)
+                if unlocked:expected[bit//8]^=1<<(bit%8)
+                assert bytes(u.mem_read(choices,224))==bytes(expected),'wrong per-faculty preference'
+        # Illumination tracks requirements, including preview faculties. Bright
+        # paths draw last at shared roots; the damage caption is one centered group.
+        setup(3);put(data+0x1a43,'B',1);press(0x8000);select(0,0)
+        for level,lit in ((4,0),(5,1),(9,1),(10,2),(15,3),(20,5),(25,6),(30,8)):
+            put(base+0x11cafd8,'BB',3,level);draw()
+            assert sum(c!=0xff28160c for c in alphas[:8])==lit,(level,alphas)
+            caption=[t for t in texts if t[2]==163]
+            joined=''.join(t[0] for t in caption)
+            from summon_growth import MAX_BONUS
+            assert joined==f'Invocation : dégâts +{(level-1)*MAX_BONUS[0]//29} %',joined
+            assert all(94<=t[1]<=160 for t in caption)
+            assert not any('conditionnel' in n['description'][0] for r in rows if r['name'][1]=='Efreet' for n in r['nodes'])
         # Six real Energy faculties have independent persisted bits. Reading
         # a locked node cannot toggle it; a global off switch retains choices.
         for level in (9,10,15,20,25,30):
@@ -377,8 +473,59 @@ def check_mastery_menu(u,base,m,actors,sp,reset,put,get,reg,regs):
             assert bytes(u.mem_read(choices,224))==b'\0'*224
         put(data+0x1a41,'B',0);press(0x2000);draw()
         assert get(choices+48,'B')==32
-        assert any('Facultés Énergie' in t[0] and 'désactivée' in t[0] for t in texts)
+        assert any('Progression de Farah désactivée'==t[0] for t in texts)
         put(data+0x1a41,'B',1)
+        # Extra normal attacks live in the combined branches; both levels count.
+        for char in (0,1):
+            for level in (14,15,29,30):
+                setup(char)
+                group=data+(0x1a4f if char==0 else 0x1a41)
+                other=data+(0x1a41 if char==0 else 0x1a4f)
+                put(group,'B',1);put(other,'B',0)
+                put(base+0x11cb028+char*16,'B',level)
+                put(base+0x11cb030+char*16,'B',30)
+                press(0x8000);row=select(1,4 if char==0 else 6)
+                nodes=rows[current_rows()[get(ui+1,'B')]]['nodes']
+                real=[(i,n) for i,n in enumerate(nodes) if n['implemented']]
+                assert len(real)==2
+                for rank,(ni,n) in enumerate(real):
+                    put(ui+2,'B',ni)
+                    reg('rcx',row);reg('rdx',base+get(row+20,'I')+ni*info['node_size'])
+                    run('mastery_menu_node_status')
+                    assert u.reg_read(regs['rax'])==(4 if level>=n['required'] else 1)
+                    before=bytes(u.mem_read(choices,224));press(0x2000)
+                    bit=char*256+134+rank
+                    after=bytearray(before)
+                    if level>=n['required']:after[bit//8]^=1<<(bit%8)
+                    assert bytes(u.mem_read(choices,224))==bytes(after)
+                    if level>=n['required']:
+                        draw();assert any(t[0]=='Faculté désactivée' for t in texts)
+                        press(0x2000)
+                assert bytes(u.mem_read(choices,224))==b'\0'*224
+                put(group,'B',0);draw()
+                if level==30:assert any('progression' in t[0].lower() and 'désactivée' in t[0] for t in texts)
+        put(data+0x1a4f,'B',1);put(data+0x1a41,'B',1)
+        # Exact integer EXP ranks and progress toward the next rank, including
+        # non-divisible 999-use projectile/area thresholds.
+        from spell_growth import Track, PROJECTILE_CAPS
+        for cap,limit in ((25,500),(15,500),(3,999),(6,999),(50,999)):
+            track=Track(cap,limit)
+            for uses in range(1001):
+                reg('rcx',uses);reg('rdx',cap);reg('r8',limit)
+                run('mastery_track_progress')
+                assert tuple(u.reg_read(regs[r]) for r in ('rax','rdx','r8','r9'))==track.progress(uses)
+        for aid in (71,73,75):
+            cap=PROJECTILE_CAPS.get(aid,50)
+            previous=0
+            for uses in range(1001):
+                reg('rcx',uses);reg('rdx',aid);run('mastery_spell_total_level')
+                normalized=min(25,uses//20)*400 + min(15,uses*15//500)*2000
+                normalized+=min(cap,uses*cap//999)*10000//cap
+                assert u.reg_read(regs['r8'])==normalized
+                level=u.reg_read(regs['rax'])
+                assert level==1+normalized*29//50000 and level>=previous
+                assert (level==30)==(uses>=999)
+                previous=level
         # Dedicated spell progress covers each caster, supported bonuses,
         # informational heals and exact next thresholds (not just major nodes).
         for char in (2,3):
@@ -393,8 +540,8 @@ def check_mastery_menu(u,base,m,actors,sp,reset,put,get,reg,regs):
                         put(usage+(char*128+aid)*2,'H',casts)
                         reg('rcx',row);run('mastery_spell_progress')
                         if aid==71:
-                            bonus=min(25,casts//25);nxt=(bonus+1)*25 if bonus<25 else 0
-                            remaining=max(0,nxt-casts);progress=100 if not nxt else casts%25*4
+                            bonus=min(25,casts//20);nxt=(bonus+1)*20 if bonus<25 else 0
+                            remaining=max(0,nxt-casts);progress=100 if not nxt else casts%20*5
                         elif aid==63:
                             bonus=sum(casts>=n for n in (100,250,500))
                             nxt=(100,250,500,0)[bonus];last=(0,100,250,500)[bonus]
@@ -409,10 +556,42 @@ def check_mastery_menu(u,base,m,actors,sp,reset,put,get,reg,regs):
                         assert before==bytes(u.mem_read(choices,224))
                     else:
                         assert any(t[0]=='MAX' for t in texts)
-                        assert (40,202,190,10,255) in meters
+                        if aid==63:
+                            assert any(g[0]==((76-80)&0xffffffff) and g[1]==187 and g[2]==160 for g in gauges),'missing native filled buff EXP gauge'
+                        else:
+                            labels=('Puissance','Incantation','Récupération','Critique','Zone') if language==3 else ('Power','Casting','Recovery','Critical','Area')
+                            assert all(any(t[0]==label+' : ' if language==3 else t[0]==label+': ' for t in texts) for label in labels)
+                            assert sum(t[0]=='MAX' for t in texts)==6
+                            assert any(t[0]==('Niv. 30' if language==3 else 'Lv. 30') for t in texts)
+                            # One gray native backing and one yellow native
+                            # fill per gauge, never two stacked gradients.
+                            assert len(gauges)==12,gauges
+                            assert [(g[2],g[5],g[6]) for g in gauges]==[(128,128,128),(160,160,104)]*6
+                            assert [g[3] for g in gauges]==[84,84]+[65,65]*5
+                            assert sum(t[0]=='-15%' for t in texts)==2
+                            assert not any('\u2212' in t[0] for t in texts)
                         put(usage+(char*128+aid)*2,'H',26);draw()
-                        assert any(t[0]==('Prochain gain dans' if language==3 else 'Next gain in') for t in texts)
-                        assert any(t[0]==str(24 if aid==71 else 74) and t[2]==203 for t in texts)
+                        if aid==63:
+                            assert any(t[0]==('EXP avant le prochain gain' if language==3 else 'EXP to next gain') for t in texts)
+                            assert any(t[0]=='74' and t[2]==213 for t in texts)
+                        else:
+                            assert any(t[0]=='+1%' for t in texts)
+                            assert not any(t[0]=='MAX' for t in texts)
+                            assert len(gauges)==12
+                            assert [g[1] for g in gauges[::2]]==[161,177,192,207,177,192]
+        for char in (2,3):
+            setup(char)
+            u.mem_write(master+char*0xd0+0x7a,bytes([71])+bytes(31))
+            press(0x8000);press(0x1000);row=select(2,71)
+            put(usage+(char*128+71)*2,'H',20)
+            put(base+m['artesphere']['usage']['catchup']['live_rva']+(char*128+71)*2,'H',40)
+            reg('rcx',row);run('mastery_menu_value')
+            assert u.reg_read(regs['rax'])==60
+            draw()
+            assert any(t[0]=='60' and t[2]==174 for t in texts), 'credited uses must follow catch-up EXP'
+            assert any(t[0]=='+3%' for t in texts)
+            put(usage+((char^1)*128+71)*2,'H',500);draw()
+            assert any(t[0]=='Rattrapage EXP x3' for t in texts)
         # Learned spells only; locked milestones still expose their details.
         for char in (2,3):
             setup(char);u.mem_write(master+char*0xd0+0x7a,bytes([63,64,65,66,71,73])+b'\0'*26)
@@ -431,7 +610,7 @@ def check_mastery_menu(u,base,m,actors,sp,reset,put,get,reg,regs):
             draw();assert any('désactivée' in t[0] for t in texts)
             put(data+0x1a0c,'B',0);press(0x2000);draw()
             assert not any(bytes(u.mem_read(choices,224)))
-            assert any('globale' in t[0] for t in texts)
+            assert any(t[0]=='Progression magique désactivée' for t in texts)
         # Fixed five-column pages and all starter spells, including before
         # acquisition. Availability and cast counts belong to each mage.
         browser=info['spell_browser'];order=[0,1,2,6,8,3,4,5,7,9]
@@ -470,25 +649,34 @@ def check_mastery_menu(u,base,m,actors,sp,reset,put,get,reg,regs):
         setup(2);press(0x8000);press(0x1000);row=select(2,71)
         reg('rcx',71);run('mastery_spell_availability');assert u.reg_read(regs['rax'])==0
         draw();assert any('découvrir' in t[0] for t in texts)
+        assert not any('Principal' in t[0] or 'Partenaire' in t[0] for t in texts)
+        assert any('???' in t[0] and 'niveau' in t[0] for t in texts)
         put(base+0x11cb0b8+71//8,'B',1<<(71%8))
         put(usage+(2*128+71)*2,'H',99)
         for assigned,want in ((False,1),(True,2),(False,1)):
             put(master+2*0xd0+0x7a,'B',71 if assigned else 0)
             reg('rcx',71);run('mastery_spell_availability');assert u.reg_read(regs['rax'])==want
             draw();assert any(t[0]=='99' and t[2]==174 for t in texts)
-        # Level meters use the actual cumulative Craymel EXP curve, including
-        # fractional progress, a full cap and the mixed Poing/Pied minimum.
+        # Craymel headers show current-level EXP, resetting after a level-up.
+        # Draw the actual bar, not only a progress helper, to catch stale UI.
         setup(2);press(0x8000);row=select(0,0)
-        for level,experience,want in ((1,0,0),(1,243,500),(10,22396,9000),(10,25978,9499),(30,712938,29000)):
+        for level,experience,want in ((1,0,0),(1,243,5000),(10,22396,0),(10,25978,4999),(30,712938,10000)):
             put(base+0x11cafd8,'BB',3,level);put(base+0x11cafd8+4,'I',experience)
             before=bytes(u.mem_read(master,0x1070))
-            reg('rcx',row);run('mastery_level_progress');assert u.reg_read(regs['rax'])==want
+            reg('rcx',0);run('craymel_exp_progress_tree');assert u.reg_read(regs['rax'])==want
+            texts.clear();gauges.clear();reg('rcx',row);run('mastery_level_bar')
+            assert all(t[2]==55 and t[1]==316 for t in texts), 'EXP belongs beside the bar'
+            assert len(texts)==1 and (texts[0][0]=='MAX' if level==30 else '/' in texts[0][0])
+            width=198*want//10000
+            assert [g[3] for g in gauges]==[198]+([width] if width else [])
+            assert [(g[2],g[5],g[6]) for g in gauges]==[(128,128,128)]+([(192,192,48)] if width else [])
+            if level==30:assert any(t[0]=='MAX' for t in texts)
             assert bytes(u.mem_read(master,0x1070))==before
         row=select(0,3);put(base+0x11cafd8+3*8,'BB',3,30)
         node=base+get(row+20,'I')+6*info['node_size']
         reg('rcx',row);reg('rdx',node);run('mastery_menu_node_status');assert u.reg_read(regs['rax'])==1
         put(base+0x11cafd8+4*8,'BB',4,30)
-        reg('rcx',row);reg('rdx',node);run('mastery_menu_node_status');assert u.reg_read(regs['rax'])==2
+        reg('rcx',row);reg('rdx',node);run('mastery_menu_node_status');assert u.reg_read(regs['rax'])==4
         # Live input family is resolved by the original hint/glyph dispatch.
         setup();press(0x8000);families=[]
         for device in (0,1,2,4,5):
@@ -503,7 +691,7 @@ def check_mastery_menu(u,base,m,actors,sp,reset,put,get,reg,regs):
                 for ni in range(len(rows[current_rows()[get(ui+1,'B')]]['nodes'])):
                     put(ui+2,'B',ni);draw()
                     assert all(28<=y<241 for _,x,y,_ in texts if y<250)
-                    assert len([t for t in texts if t[2] in (185,193,201,209)])<=4
+                    assert len([t for t in texts if t[2] in (201,209,217,225)])<=4
                     node=rows[current_rows()[get(ui+1,'B')]]['nodes'][ni]
                     for direction,button in enumerate((0x80,0x20,0x10,0x40)):
                         put(ui+2,'B',ni);press(button)

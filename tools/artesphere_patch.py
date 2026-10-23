@@ -11,7 +11,8 @@ PROFILE_SIZE = 96
 
 
 def emit_artesphere(emit, mem, jump, edit, data, symbols, state):
-    payload = bytearray(0xf000)
+    from spell_catchup import STATE_SIZE
+    payload = bytearray(STATE_SIZE)
     strings = {}
     cursor = 0x1000
     def string(key, value, wide=False):
@@ -107,6 +108,10 @@ def emit_artesphere(emit, mem, jump, edit, data, symbols, state):
         inc byte ptr {mem(depth)}
         cmp byte ptr {mem(depth)}, 1
         jne done
+        cmp byte ptr {mem(data+0x1a47)}, 0
+        jne enabled
+        mov byte ptr {mem(page)}, 0
+    enabled:
         cmp byte ptr {mem(page)}, 0
         je done
         call {swap:#x}
@@ -127,6 +132,14 @@ def emit_artesphere(emit, mem, jump, edit, data, symbols, state):
     ''')
     # RCX character index, EDX arte. Do not accept enemy/unlearned IDs.
     learned = emit('artesphere_learned',f'''
+        cmp byte ptr {mem(data+0x1a42)}, 0
+        jne extended
+        cmp byte ptr {mem(data+0x1a63)}, 0
+        je native
+    extended:
+        lea r8, {mem(0x11ca420)}
+        jmp {symbols['fringe_available']:#x}
+    native:
         xor eax, eax
         cmp ecx, 6
         ja done
@@ -152,6 +165,8 @@ def emit_artesphere(emit, mem, jump, edit, data, symbols, state):
     ''')
     direct = emit('artesphere_direct',f'''
         movzx ebx, byte ptr [rax+rbp]
+        cmp byte ptr {mem(data+0x1a47)}, 0
+        je done
         cmp byte ptr [rbp+0x56], 0
         jne done
         test dword ptr {mem(0x8c9180)}, {L2|R2}
@@ -203,6 +218,8 @@ def emit_artesphere(emit, mem, jump, edit, data, symbols, state):
     # R2 selects C, with priority over L2; pressing a page key never casts.
     dispatch = emit('artesphere_dispatch',f'''
         movzx ebp, byte ptr [r10+rax*2+0x91d]
+        cmp byte ptr {mem(data+0x1a47)}, 0
+        je original
         cmp byte ptr [r14+0x56], 0
         jne original
         test dword ptr {mem(0x8c9180)}, {L2|R2}
@@ -251,7 +268,7 @@ def emit_artesphere(emit, mem, jump, edit, data, symbols, state):
     ''')
     jump(0x11343f,6,guard,'Skip shortcuts whose caster is absent')
     from arte_usage_patch import emit_usage
-    usage = emit_usage(emit,mem,jump,state)
+    usage = emit_usage(emit,mem,jump,state,data)
     from artesphere_storage import emit_storage
     storage = emit_storage(emit,mem,jump,data,state,profile,string,symbols,usage)
 
@@ -262,7 +279,7 @@ def emit_artesphere(emit, mem, jump, edit, data, symbols, state):
     keyboard['ui']=emit_keys_ui(emit,mem,data,state,string,loc,symbols,keyboard)
 
     from artesphere_ui import emit_ui
-    ui = emit_ui(emit,mem,jump,state,loc,symbols,init,enter,leave,L2,R2)
+    ui = emit_ui(emit,mem,jump,state,loc,symbols,init,enter,leave,L2,R2,data)
     return dict(state_rva=state,profile_rva=profile,page_stride=44,
                 pages=3,slots_per_page=6,controller_slot=0,page_priority='C then B then A',
                 physical_l2=L2,physical_r2=R2,storage=storage,ui=ui,

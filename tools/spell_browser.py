@@ -21,7 +21,7 @@ def arrange(rows):
     return [r for r in rows if r['kind']!=2]+spells
 
 
-def emit_availability(emit,mem,ui,learned):
+def emit_availability(emit,mem,ui,learned,usage):
     return emit('mastery_spell_availability',f'''
         push rbx
         sub rsp, 0x20
@@ -33,6 +33,13 @@ def emit_availability(emit,mem,ui,learned):
         jne accessible
         # Starter names are visible to both mages before their spirit joins.
         {'; '.join(f'cmp ebx, {aid}; je known' for aid in STARTERS)}
+        # A previously used relaxed-Fringe spell remains known (grey) when
+        # the option is disabled. Do not manufacture native unlock flags.
+        lea rdx, {mem(usage['live_rva'])}
+        cmp word ptr [rdx+rbx*2+512], 0
+        jne known
+        cmp word ptr [rdx+rbx*2+768], 0
+        jne known
         lea rdx, {mem(0x11cb0b8)}
         bt dword ptr [rdx], ebx
         setc al
@@ -49,14 +56,16 @@ def emit_availability(emit,mem,ui,learned):
         ret
     ''')
 
-def emit_browser(emit,mem,ui,rows,payload,state,string,lineblock,lookup,availability,text,frame,icon,tabletext,loc,bonus):
+def emit_browser(emit,mem,ui,rows,payload,state,string,lineblock,lookup,availability,text,frame,icon,tabletext,loc,bonus,data):
     spells=[r for r in rows if r['kind']==2]
     spirits=sorted((r for r in rows if r['kind']==0),key=lambda r:r['key'])
     descriptors=[]
     for r in spells:
         rec=r['recipe'];a,b=rec['primary'],rec['secondary'];l1,l2=rec['level'],rec['secondary_level']
         blocks=[]
-        for visibility in range(4):
+        for mode in range(8):
+            visibility=mode%4
+            relaxed=mode>=4
             for lang in range(2):
                 name=lambda key,bit:spirits[key]['name'][lang] if visibility&bit else '???'
                 if 'innate' in rec:
@@ -65,13 +74,11 @@ def emit_browser(emit,mem,ui,rows,payload,state,string,lineblock,lookup,availabi
                 else:
                     lines=[f"{name(a,1)} — {'niveau' if lang==0 else 'level'} {l1}"]
                     if a!=b:lines.append(f"{name(b,2)} — {'niveau' if lang==0 else 'level'} {l2}")
-                    lines.append('Principal : chez ce mage.' if lang==0 else 'Primary: assigned to this mage.')
-                    lines.append(('Partenaire : chez l’autre mage.' if lang==0 else 'Partner: assigned to the other mage.') if a!=b else ('Apprentissage par Fringe.' if lang==0 else 'Learn through Fringe.'))
                 blocks.append(lineblock(lines))
         descriptors.append((a,b,l1,l2,*blocks))
     payload.extend(b'\0'*((-len(payload))%4))
     recipes=state+len(payload)
-    for d in descriptors:payload.extend(struct.pack('<12I',*d))
+    for d in descriptors:payload.extend(struct.pack('<20I',*d))
     groups=[]
     for i in PAGE_ORDER:
         ids=[j for j,r in enumerate(spells) if r['recipe']['primary']==i]
@@ -287,10 +294,11 @@ def emit_browser(emit,mem,ui,rows,payload,state,string,lineblock,lookup,availabi
         movzx eax, byte ptr {mem(ui+1)}
         xor edx, edx
         call {lookup:#x}
+        mov r15, rcx
         call {bonus:#x}
         # Requirements remain readable in the right bonus pane, even for ???.
         movzx eax, byte ptr {mem(ui+1)}
-        imul eax, eax, 48
+        imul eax, eax, 80
         lea rbx, {mem(recipes)}
         add rbx, rax
         lea rdx, {mem(0x11cafd8)}
@@ -303,12 +311,28 @@ def emit_browser(emit,mem,ui,rows,payload,state,string,lineblock,lookup,availabi
         cmp byte ptr [rdx+rcx*8], 0
         setne al
         lea esi, [rsi+rax*2]
+        cmp byte ptr {mem(data+0x1a42)}, 0
+        je native_requirements
+        add esi, 4
+    native_requirements:
         lea rbx, [rbx+rsi*8+16]
         {tabletext('rbx',0)}
         mov rbx, rcx
         mov edi, dword ptr [rbx]
         add rbx, 4
         mov esi, 190
+        # Discovered offensive spells use all five tracks. Their two compact
+        # spirit/level requirements occupy the last free row in the right pane.
+        mov ecx, dword ptr [r15+4]
+        cmp ecx, 70
+        jb requirement
+        call {availability:#x}
+        test eax, eax
+        je requirement
+        mov esi, 220
+        mov eax, 2
+        cmp edi, eax
+        cmova edi, eax
     requirement:
         test edi, edi
         je done

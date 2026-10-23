@@ -15,16 +15,16 @@ def emit_spell_progress(emit, mem, value):
         jbe buff
         cmp ebx, 70
         jb excluded
-        cmp eax, 625
+        cmp eax, 500
         jae offensive_max
         xor edx, edx
-        mov ecx, 25
+        mov ecx, 20
         div ecx
-        lea r8d, [rdx*4]
-        mov r9d, 25
+        imul r8d, edx, 5
+        mov r9d, 20
         sub r9d, edx
         lea edx, [rax+1]
-        imul edx, edx, 25
+        imul edx, edx, 20
         jmp done
     offensive_max:
         mov eax, 25

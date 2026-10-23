@@ -448,6 +448,13 @@ def emit_combat_ui(emit, mem, jump, edit, data_rva):
         movsx ecx, word ptr [rbx+0x7c]
         call 0x11e430
         mov dword ptr [r11+12], eax
+        movsx ecx, word ptr [rbx+0x82]
+        call 0x11e430
+        mov dword ptr [r11+0x10c], eax
+        movsx ecx, word ptr [rbx+0x7a]
+        add ecx, 20
+        call 0x11e3d0
+        mov dword ptr [r11+0x108], eax
     done:
         add rsp, 0x20
         pop r11
@@ -462,6 +469,9 @@ def emit_combat_ui(emit, mem, jump, edit, data_rva):
     ''')
     jump(0x8152f,5,anchor,'Capture actual battlefield sprite feet in final screen coordinates')
 
+    from scan_hp_patch import emit_scan_hp
+    from combat_ui_layout import SCAN_DRAWN
+    scan_hp = emit_scan_hp(emit, mem, jump, data_rva, ratio, cast_gauge)
     castdraw = emit('ui_cast_bars', f'''
         push rbx
         push rbp
@@ -504,6 +514,11 @@ def emit_combat_ui(emit, mem, jump, edit, data_rva):
         jne inactive
         cmp dword ptr [rbx+0x2c], 0
         jle inactive
+        mov rcx, rbx
+        lea rdx, [r12+{anchors-casts}]
+        call {scan_hp:#x}
+        cmp byte ptr {mem(data_rva+0x1a05)}, 0
+        je inactive
         movsx ebp, word ptr [rbx+0x8c]
         test ebp, ebp
         jle inactive
@@ -566,6 +581,7 @@ def emit_combat_ui(emit, mem, jump, edit, data_rva):
         add r8, 16
         dec ecx
         jne clear_anchors
+        mov byte ptr {mem(data_rva+SCAN_DRAWN)}, 0
         {restore_ui()}
         mov al, byte ptr [rsp+0xf0]
         mov byte ptr {mem(0x573c3e)}, al
@@ -688,4 +704,5 @@ def emit_combat_ui(emit, mem, jump, edit, data_rva):
     return dict(hud='compact 48-unit slots; right-aligned native 12x12 digits fitting 9999 in shortened 31x3 gauges with unchanged right edge; lowered HUD, native formation; all owned spirits below portraits with 10x10 atlas miniatures and vitality text',
                 cast='20x2 pink-violet bar centered 4 screen units below actual rendered feet; full at <=4 ticks',
                 item='top center above battle menu; visible only after execution, while native 12cea5a recharges',
+                scanned_enemy_hp='optional 28-unit HP gauge above native sprite frame; compact Spectacles information during R1 selection; native saved compendium flag 2; no save changes',
                 visual_validation=False)

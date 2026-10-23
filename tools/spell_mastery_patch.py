@@ -2,9 +2,9 @@
 
 Counters already belong to ArteUsage-v1, keyed by character and native save.
 Native buff lifetime/exclusivity is preserved; only recipient count changes.
-No healing, summon scaling or offensive projectile count is changed here.
+Healing and summons use separate policies.
 """
-SIZE = 0x1000
+SIZE = 0x8100
 FLAG = 12
 POOL = 0x12cfca0
 PROJECTILES = 0x12cee48
@@ -32,9 +32,52 @@ def preserve(body):
     '''
 
 
-def emit_mastery(emit, mem, jump, data, state, usage):
+def emit_mastery(emit, mem, jump, data, state, usage, faculties=None):
+    faculty_power=faculty_impact=faculty_defense=''
+    if faculties:
+        faculty_power=f'''
+            sub rsp, 0x30; mov qword ptr [rsp+0x20], r10
+            mov dword ptr [rsp+0x28], ecx
+            mov rcx, r10; mov edx, esi; mov r8d, r15d
+            call {faculties['power']:#x}; mov esi, eax
+            test edx, edx; je no_faculty_critical
+            or r15d, 2; or dword ptr [rsp+0xe8], 2
+        no_faculty_critical:
+            mov ecx, dword ptr [rsp+0x28]
+            mov r10, qword ptr [rsp+0x20]; add rsp, 0x30
+            movzx edx, word ptr [r10+8]
+        '''
+        faculty_impact=f'''
+            sub rsp, 0x20; mov rcx, rbp; mov rdx, rdi; mov r8d, esi
+            call {faculties['impact']:#x}; add rsp, 0x20
+        '''
+        faculty_defense=f'''
+            sub rsp, 0x20; mov rcx, rdi; mov edx, esi
+            movzx r8d, byte ptr [r12]; and r8d, 0x80
+            call {faculties['defense']:#x}; mov esi, eax; add rsp, 0x20
+        '''
+    from spell_growth import emit_actor_uses, emit_cast_growth
+    actor_uses = emit_actor_uses(emit, mem, data, usage)
+    cast_growth = emit_cast_growth(emit, mem, jump, actor_uses, faculties)
     context = state
     effects, projectiles = state+0x100, state+0x300
+    from spell_projectile_growth import emit_air_thrust_growth, emit_small_projectile_growth, emit_freeze_lancer_growth, emit_wind_blade_growth, emit_meteor_growth, emit_holy_lance_growth, emit_aqua_edge_growth, emit_ray_growth, emit_dark_force_growth, emit_shooting_star_growth
+    air_growth = emit_air_thrust_growth(emit, mem, jump, state, effects, data, usage)
+    extra_projectiles=emit_small_projectile_growth(emit,mem,jump,state,data,usage,preserve)
+    emit_freeze_lancer_growth(emit,jump,extra_projectiles)
+    wind_growth=emit_wind_blade_growth(emit,jump,extra_projectiles)
+    meteor_growth=emit_meteor_growth(emit,mem,jump,state,extra_projectiles,preserve)
+    holy_growth=emit_holy_lance_growth(emit,mem,jump,state,extra_projectiles,preserve)
+    aqua_growth=emit_aqua_edge_growth(emit,mem,jump,state,extra_projectiles)
+    ray_growth=emit_ray_growth(emit,mem,jump,state,extra_projectiles,preserve)
+    dark_prepare,dark_growth=emit_dark_force_growth(emit,mem,state,extra_projectiles,preserve)
+    star_growth=emit_shooting_star_growth(emit,mem,jump,state,extra_projectiles,preserve)
+    from spell_recovery_growth import emit_recovery
+    recovery, roots = emit_recovery(emit, mem, jump, state, data, usage, preserve, faculties)
+    from spell_area_growth import emit_area
+    area_growth = emit_area(emit, mem, jump, state, data, usage, preserve)
+    from summon_growth import emit_summon_damage, emit_summon_capture, MAX_BONUS
+    summon_damage = emit_summon_damage(emit, mem, data)
     # Record: owner Q, arte H, completed uses H, percentage D (16 bytes).
     # Allocation happens before the completed-cast counter increments.
     capture = emit('mastery_effect_capture', preserve(f'''
@@ -63,9 +106,24 @@ def emit_mastery(emit, mem, jump, data, state, usage):
         cmp ecx, 3
         jne done
     mage:
-        lea eax, [rbp-26]
-        cmp eax, 11
-        jbe done
+        # Track the latest root even for healing/summons, so an older spell
+        # cannot clear the casting lock of a newer action with the same ID.
+        mov rax, qword ptr [rsp+0x98]
+        lea r10, {mem(0xd554e)}
+        cmp rax, r10
+        jne not_root_owner
+        lea r10, {mem(roots)}
+        mov qword ptr [r10+rcx*8], r14
+    not_root_owner:
+        lea r10, {mem(0x115cef)}
+        cmp rax, r10
+        jne owner_done
+        lea rax, [r15-0x3a]
+        lea r10, {mem(roots)}
+        cmp qword ptr [r10+rcx*8], rax
+        jne owner_done
+        mov qword ptr [r10+rcx*8], r14
+    owner_done:
         mov r10, qword ptr {mem(context)}
         test r10, r10
         jne inherit
@@ -91,6 +149,15 @@ def emit_mastery(emit, mem, jump, data, state, usage):
     inherit:
         cmp qword ptr [r10], r12
         jne root
+        # A summon allocation is a new action, not an ordinary spell child.
+        # Do not carry a preceding offensive spell's EXP into that root.
+        lea eax, [rbp-26]
+        cmp eax, 11
+        ja inherit_record
+        lea eax, [rbp+17]
+        cmp ax, word ptr [r10+8]
+        jne root
+    inherit_record:
         # A child effect retains its parent's arte and mastery, not the
         # caster's next action. No extra usage increment for this effect.
         mov rax, qword ptr [r10+8]
@@ -106,7 +173,11 @@ def emit_mastery(emit, mem, jump, data, state, usage):
         cmp rax, r10
         jne done
         movzx edx, byte ptr [r12+0x6d]
-        cmp edx, 63
+        cmp edx, 43
+        jb done
+        cmp edx, 52
+        jbe eligible
+        cmp edx, 54
         jb done
         cmp edx, 66
         jbe eligible
@@ -125,12 +196,14 @@ def emit_mastery(emit, mem, jump, data, state, usage):
         jne done
         cmp byte ptr [r10+rdx*8+1], 0
         je done
+        cmp edx, 52
+        jbe summon
         mov word ptr [r11+8], dx
-        shl ecx, 7
-        add ecx, edx
-        lea r10, {mem(usage['live_rva'])}
-        movzx eax, word ptr [r10+rcx*2]
-        inc eax
+        sub rsp, 0x30
+        mov qword ptr [rsp+0x20], r11
+        call {usage['catchup']['next_rva']:#x}
+        mov r11, qword ptr [rsp+0x20]
+        add rsp, 0x30
         mov edx, 9999
         cmp eax, edx
         cmova eax, edx
@@ -138,14 +211,17 @@ def emit_mastery(emit, mem, jump, data, state, usage):
         cmp word ptr [r11+8], 66
         jbe store_owner
         xor edx, edx
-        mov ecx, 25
+        mov ecx, 20
         div ecx
         mov edx, 25
         cmp eax, edx
         cmova eax, edx
         mov dword ptr [r11+12], eax
+        jmp store_owner
+        {emit_summon_capture(mem)}
     store_owner:
         mov qword ptr [r11], r12
+        {f'sub rsp, 0x30; mov rcx, r11; call {faculties["tag"]:#x}; add rsp, 0x30' if faculties else ''}
     done:
     ''') + '''
         mov byte ptr [r14+0x36], bpl
@@ -320,6 +396,8 @@ def emit_mastery(emit, mem, jump, data, state, usage):
     buff:
         call {share:#x}
     callback:
+        call {dark_prepare:#x}
+        call {recovery:#x}
         mov rax, rbx
         call rbx
         # MOV preserves the original callback's flags and return registers.
@@ -386,19 +464,22 @@ def emit_mastery(emit, mem, jump, data, state, usage):
         push rax
         push rcx
         push rdx
+        push r8
+        push r9
         push r10
         push r11
-        cmp byte ptr {mem(data+0x1a00+FLAG)}, 0
-        je done
         cmp byte ptr [rbp+0x51], 0
         jne done
         cmp byte ptr [rdi+0x51], 1
         jne done
-        mov rax, qword ptr [rsp+0x98]
+        mov rax, qword ptr [rsp+0xa8]
         lea r10, {mem(0x1164e3)}
         cmp rax, r10
         jne done
-        mov rax, qword ptr [rsp+0x88]
+        mov rax, qword ptr [rsp+0x98]
+        lea r10, {mem(0x12cf988)}
+        cmp rax, r10
+        je immediate
         lea r10, {mem(PROJECTILES)}
         sub rax, r10
         cmp rax, 0xb40
@@ -411,6 +492,17 @@ def emit_mastery(emit, mem, jump, data, state, usage):
         shl eax, 4
         lea r10, {mem(projectiles)}
         add r10, rax
+        jmp tagged
+    immediate:
+        # Air Thrust and several area effects use the native scratch impact
+        # inside the current effect callback. It has no persistent pool slot.
+        # Only that exact object may inherit the scoped, immutable parent tag.
+        cmp qword ptr [rax+8], rbp
+        jne done
+        mov r10, qword ptr {mem(context)}
+        test r10, r10
+        je done
+    tagged:
         cmp qword ptr [r10], rbp
         jne done
         movzx ecx, byte ptr [rbp+0x4f]
@@ -418,17 +510,37 @@ def emit_mastery(emit, mem, jump, data, state, usage):
         ja done
         shl ecx, 8
         movzx edx, word ptr [r10+8]
+        cmp edx, 43
+        jb done
+        cmp edx, 52
+        ja ordinary_spell
+        sub rsp, 0x28
+        call {summon_damage:#x}
+        add rsp, 0x28
+        jmp done
+    ordinary_spell:
+        cmp byte ptr {mem(data+0x1a00+FLAG)}, 0
+        je done
+        cmp edx, 70
+        jb done
+        cmp edx, 101
+        jbe offensive_tag
+        cmp edx, 112
+        jb done
         cmp edx, 113
         ja done
+    offensive_tag:
+        {faculty_power}
         add ecx, edx
         lea r11, {mem(usage['preferences']['live_rva'])}
         bt dword ptr [r11], ecx
-        jc done
+        jc offense_done
         mov ecx, dword ptr [r10+12]
+        and ecx, 0xffff
         cmp ecx, 25
-        ja done
+        ja offense_done
         test esi, esi
-        jle done
+        jle offense_done
         add ecx, 100
         mov eax, esi
         imul rax, rcx
@@ -439,9 +551,52 @@ def emit_mastery(emit, mem, jump, data, state, usage):
         cmp rax, rcx
         cmova rax, rcx
         mov esi, eax
+        test r15d, 2
+        jne offense_done
+        # Native physical criticals double damage and use display flag 2.
+        # Magic has no native critical roll. Add it only to tagged offensive
+        # spell impacts, never buffs, healing, allies, summons or melee.
+        movzx eax, word ptr [r10+10]
+        mov ecx, 500
+        cmp eax, ecx
+        cmova eax, ecx
+        imul eax, eax, 15
+        xor edx, edx
+        div ecx
+        test eax, eax
+        je offense_done
+        sub rsp, 0x90
+        mov dword ptr [rsp+0x20], eax
+        movdqu [rsp+0x30], xmm0
+        movdqu [rsp+0x40], xmm1
+        movdqu [rsp+0x50], xmm2
+        movdqu [rsp+0x60], xmm3
+        movdqu [rsp+0x70], xmm4
+        movdqu [rsp+0x80], xmm5
+        call 0x283090
+        xor edx, edx
+        mov ecx, 100
+        div ecx
+        cmp edx, dword ptr [rsp+0x20]
+        movdqu xmm0, [rsp+0x30]
+        movdqu xmm1, [rsp+0x40]
+        movdqu xmm2, [rsp+0x50]
+        movdqu xmm3, [rsp+0x60]
+        movdqu xmm4, [rsp+0x70]
+        movdqu xmm5, [rsp+0x80]
+        lea rsp, [rsp+0x90]
+        jae offense_done
+        add esi, esi
+        or r15d, 2
+        or dword ptr [rsp+0xb8], 2
+    offense_done:
+        {faculty_impact}
     done:
+        {faculty_defense}
         pop r11
         pop r10
+        pop r9
+        pop r8
         pop rdx
         pop rcx
         pop rax
@@ -453,11 +608,24 @@ def emit_mastery(emit, mem, jump, data, state, usage):
     return dict(state_rva=state, size=SIZE, context_rva=context,
                 effects_rva=effects, projectiles_rva=projectiles,
                 record_size=16, option_flag=FLAG, usage=usage,
-                uses_per_percent=25, maximum_percent=25,
+                uses_per_percent=20, maximum_percent=25,
+                actor_uses_rva=actor_uses, cast_growth_rva=cast_growth,
+                recovery_rva=recovery, current_roots_rva=roots,
+                recovery_reduction_percent=15,
+                area_growth_rva=area_growth, area_extent_percent=50,
+                cast_reduction_percent=15, critical_chance_points=15,
+                critical_damage_multiplier=2, common_track_max_casts=500,
+                projectile_growth=[air_growth,wind_growth,meteor_growth,holy_growth,aqua_growth,ray_growth,dark_growth,star_growth,dict(arte=75,additional_cap=3),dict(arte=82,additional_cap=3),
+                                   dict(arte=83,native_count=16,additional_cap=6)],
+                extra_projectiles_rva=extra_projectiles,
                 offensive_arte_ids=list(range(70, 102))+[112, 113],
                 buff_arte_ids=[63,64,65,66],
                 buff_extra_targets={'100':1,'250':2,'500':3},
                 buff_target_order='living party order, excluding primary and same buff',
                 buff_duration='native, no timer added',
                 buff_exclusivity='native replacement of other buffs preserved',
-                healing_unchanged=True, summons_unchanged=True)
+                healing_unchanged=True, summons_unchanged=False,
+                summons=dict(option_flag=19, damage_rva=summon_damage,
+                             maximum_bonus=list(MAX_BONUS), level_cap=30,
+                             area_width_at_cap=720, area_height_bonus=50,
+                             balance_status='initial coefficients; live balance pending'))

@@ -17,6 +17,7 @@ def check_artesphere(u,base,m,actors,sp,reset,put,get,reg,regs):
     held=set();foreground=True;settings={};polls=[];native_edits=False;draws=[];admit=True
     native_inputs=[];executions=[];checks=[];real_input=False;real_mouse=False;row_render=False;key_writes=[];key_save_ok=True;row_text_y=[];trigger_glyphs=[]
     row_commands=[];text_colors=[]
+    catchup_records = {}
     def string(ptr,wide=False):
         out=bytearray();step=2 if wide else 1
         for i in range(2048):
@@ -38,10 +39,10 @@ def check_artesphere(u,base,m,actors,sp,reset,put,get,reg,regs):
         elif address==api+0x10:ret(names[string(rdx)])
         elif address in (names['GetPrivateProfileStructW'],names['WritePrivateProfileStructW']):
             section=string(rcx,True)
-            assert (section,r9) in (('Artesphere-v1',104),('Artesphere-v2',104),('ArteUsage-v1',1800),('MasteryChoices-v1',232))
+            assert (section,r9) in (('Artesphere-v1',104),('Artesphere-v2',104),('ArteUsage-v1',1800),('MasteryChoices-v1',232),('SpellCatchUp-v1',1800))
             assert string(get(rsp+0x28,'Q'),True).endswith('TalesOfEternia-WatersEdition.ini')
             key=string(rdx,True)
-            target=records if section=='Artesphere-v2' else legacy_records if section=='Artesphere-v1' else choice_records if section=='MasteryChoices-v1' else usage_records
+            target=records if section=='Artesphere-v2' else legacy_records if section=='Artesphere-v1' else choice_records if section=='MasteryChoices-v1' else catchup_records if section=='SpellCatchUp-v1' else usage_records
             if address==names['WritePrivateProfileStructW']:
                 if not write_fail:target[key]=bytes(u.mem_read(r8,r9))
                 ret(int(not write_fail))

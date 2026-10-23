@@ -213,5 +213,9 @@ def emit_casting_colors(emit, mem, jump, edit, data_rva):
             jmp {site+5:#x}
         ''')
         jump(site, 5, start, f'Tint private casting particle at {site:x}')
-    edit(0xcc8b6,b'\x90'*3,'Keep Meredy motes in their elemental hue instead of adding red alone')
+    # The shared continuation at cc8b9 is reached directly from cc853 and
+    # cc86b (ordinary non-emission ticks and a full particle pool). Never put
+    # it inside an option gate: those jumps would enter its JMP displacement.
+    # Include the preceding AND instead, ending the five-byte gate at cc8b9.
+    edit(0xcc8b4,b'\x24\x1f'+b'\x90'*3,'Keep Meredy motes in their elemental hue instead of adding red alone')
     return b''.join(bytes(rgb)+b'\0' for rgb in [*COLORS.values(), NEUTRAL_CAST])

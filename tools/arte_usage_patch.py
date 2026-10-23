@@ -7,20 +7,33 @@ the cast-completion dispatcher accepts them, not when incantation starts.
 SIZE = 7 * 128 * 2
 
 
-def emit_usage(emit, mem, jump, state):
+def emit_usage(emit, mem, jump, state, data):
     live = state + 0x2000
     left = state + 0x3504
+    from spell_catchup import emit_catchup
+    catchup = emit_catchup(emit, mem, state, data, live)
     # IDs 39..41 are Farah's healing spells: vanilla explicitly hides their
     # counters (metadata flag 1). The other IDs below 43 use native counters.
     increment = emit('arte_usage_increment', f'''
         cmp ecx, 6
         ja done
+        cmp edx, 126
+        jb ordinary
+        cmp edx, 129
+        ja done
+        sub edx, 126
+        jmp accumulate
+    ordinary:
         cmp edx, 113
         ja done
         cmp edx, 39
         jb done
         cmp edx, 42
         je done
+    accumulate:
+        sub rsp, 0x28
+        call {catchup['award_rva']:#x}
+        add rsp, 0x28
         shl ecx, 7
         add ecx, edx
         lea rax, {mem(live)}
@@ -64,6 +77,14 @@ def emit_usage(emit, mem, jump, state):
         movzx ecx, byte ptr [rbx+0x4f]
         movzx edx, byte ptr [rbx+0x6d]
         call {increment:#x}
+        mov eax, dword ptr {mem(data+0x1ac0)}
+        test eax, eax
+        je done
+        lea rcx, {mem(0)}
+        add rax, rcx
+        mov rcx, rbx
+        movzx edx, byte ptr [rbx+0x6d]
+        call rax
     done:
     ''') + f'''
         cmp byte ptr {mem(0x12ceb7a)}, r12b
@@ -86,6 +107,12 @@ def emit_usage(emit, mem, jump, state):
         cmp byte ptr [rdi+0x51], 0
         jne done
         movzx edx, byte ptr [rdi+0x6d]
+        cmp edx, 126
+        jb ordinary
+        cmp edx, 129
+        ja done
+        jmp count
+    ordinary:
         cmp edx, 43
         jb done
         cmp edx, 113
@@ -93,6 +120,7 @@ def emit_usage(emit, mem, jump, state):
         lea rax, {mem(0x551780)}
         cmp byte ptr [rax+rdx*8+1], 0
         jne done
+    count:
         movzx ecx, byte ptr [rdi+0x4f]
         call {increment:#x}
     done:
@@ -105,14 +133,25 @@ def emit_usage(emit, mem, jump, state):
 
     start = emit('arte_usage_show_counter', f'''
         mov dword ptr {mem(left)}, 320
+        cmp byte ptr {mem(data+0x1a4a)}, 0
+        je native
         cmp ebp, 1
         jb skipped
         cmp ebp, 113
+        jbe shown
+        cmp ebp, 126
+        jb skipped
+        cmp ebp, 129
         ja skipped
+    shown:
         mov r15d, ebp
         jmp 0x226fec
     skipped:
         jmp 0x227173
+    native:
+        cmp ebp, 43
+        jae skipped
+        jmp 0x226fc8
     ''')
     jump(0x226fbf, 9, start, 'Show native usage panel for spells and physical artes, including zero')
     value = emit('arte_usage_read_counter', f'''
@@ -123,10 +162,27 @@ def emit_usage(emit, mem, jump, state):
         mov ecx, dword ptr [rsp+0x68]
         cmp ecx, 6
         ja zero
+        mov edx, ebp
+        cmp edx, 126
+        jae physical_count
+        sub rsp, 0x28
+        call {catchup['read_rva']:#x}
+        add rsp, 0x28
+        mov ecx, eax
+        jmp cap_count
+    physical_count:
         shl ecx, 7
-        add ecx, ebp
+        mov eax, ebp
+        cmp eax, 126
+        jb ordinary
+        cmp eax, 129
+        ja zero
+        sub eax, 126
+    ordinary:
+        add ecx, eax
         lea rax, {mem(live)}
         movzx ecx, word ptr [rax+rcx*2]
+    cap_count:
         cmp ecx, 9999
         jbe done
         mov ecx, 9999
@@ -154,12 +210,17 @@ def emit_usage(emit, mem, jump, state):
         ('summon_vitality_fill', 0x22722d, 21),
     ):
         target = emit('arte_usage_'+key, f'''
+            cmp byte ptr {mem(data+0x1a4a)}, 0
+            je native
             mov ecx, dword ptr {mem(left)}
             sub ecx, {offset}
             jmp {site+5:#x}
+        native:
+            mov ecx, {332 if offset==41 else 352 if offset==21 else 351}
+            jmp {site+5:#x}
         ''')
         jump(site, 5, target, 'Place '+key.replace('_', ' ')+' left of the usage counter')
-    return dict(live_rva=live, size=SIZE, left_rva=left, limit=9999,
+    return dict(live_rva=live, size=SIZE, left_rva=left, limit=9999, catchup=catchup,
                 per_character=True, native_physical_counters_preserved=True)
 
 

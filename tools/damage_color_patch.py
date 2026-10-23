@@ -31,6 +31,12 @@ def emit_damage_colors(emit, mem, jump, data_rva):
         movzx eax, byte ptr [rbx+5]
         cmp eax, 0x40
         je received
+        # Native low bit 1 denotes healing/TP recovery, not elemental damage.
+        # Leave the native lifetime fade, but raise red and blue towards white.
+        cmp eax, 1
+        je healing
+        cmp eax, 3
+        je healing
         sub eax, 0x10
         cmp eax, 40
         ja original
@@ -51,6 +57,18 @@ def emit_damage_colors(emit, mem, jump, data_rva):
         shl ecx, 8
         or eax, ecx
         or eax, 128
+        jmp color
+    healing:
+        mov eax, 56
+        sub eax, ebp
+        cmp eax, 56
+        ja original
+        shr eax, 2
+        add eax, 112
+        mov ecx, eax
+        shl eax, 16
+        or eax, ecx
+        or eax, 0x8000
     color:
         mov word ptr {mem(0x11ce670)}, ax
         shr eax, 16
@@ -63,5 +81,5 @@ def emit_damage_colors(emit, mem, jump, data_rva):
         call 0x1114a0
         jmp 0x11cf45
     ''')
-    jump(0x11cf40, 5, tint, 'Tint damage numbers without changing healing or TP recovery')
+    jump(0x11cf40, 5, tint, 'Tint elemental damage and use pale mint for recovery numbers')
     return palette

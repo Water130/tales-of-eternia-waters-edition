@@ -42,7 +42,7 @@ def build(features):
     pe = pefile.PE(data=original)
     section_alignment = pe.OPTIONAL_HEADER.SectionAlignment
     code_rva = align(max(s.VirtualAddress + max(s.Misc_VirtualSize,s.SizeOfRawData) for s in pe.sections), section_alignment)
-    code_capacity = 0x10000
+    code_capacity = 0x20000
     data_rva = code_rva + code_capacity
     credit = data_rva
     projectile_tags = data_rva+0x100  # one byte for each native 0x30 projectile slot
@@ -101,9 +101,10 @@ def build(features):
                 # Preserve incoming flags (notably the conditional HP commit).
                 # Both paths execute relocated instructions, never self-modify text.
                 reset_camera = f'mov byte ptr {mem(data_rva+0x20)}, 0' if rva == 0x10d515 else ''
+                from mod_settings_patch import FLAG_OFFSETS
                 gate = emit(f'option_gate_{rva:x}', f'''
                     pushfq
-                    cmp byte ptr {mem(data_rva+0x1a00+flag)}, 0
+                    cmp byte ptr {mem(data_rva+FLAG_OFFSETS[flag])}, 0
                     je original
                     popfq
                     {relocate(new,rva)}
@@ -323,6 +324,7 @@ def build(features):
 
     active_gate = None
     if 'no_freeze' in features:
+        active_gate = 20
         start = emit('remove_spell_freeze',f'''
             movzx ecx, word ptr {mem(0x12d0eae)}
             push rax
@@ -361,11 +363,14 @@ def build(features):
         edit(0x114d30,b'\xb8\x00\x00\x00\x00','No initial 60-frame cinematic delay')
 
     if 'concurrent_spells' in features:
+        active_gate = 21
         # Deliberately partial: shared resource upload is serialized, same-effect
         # mutable static state is not reentered, summon/extension chains exclusive.
         # Different ordinary effects have their own native scripts and work data.
         allowed = list(range(1,26)) + [61,62,66]
         allowed_table = data_rva+0x200
+        from farah_cast_priority import emit_farah_priority
+        farah_priority = emit_farah_priority(emit, mem, data_rva)
         start = emit('guarded_spell_dispatch',f'''
             push rax
             push rcx
@@ -377,6 +382,14 @@ def build(features):
             ja blocked
             cmp byte ptr {mem(0x12d0efb)}, 0
             jne chain
+            push rdx
+            sub rsp, 0x28
+            mov edx, ebp
+            call {farah_priority:#x}
+            add rsp, 0x28
+            pop rdx
+            test eax, eax
+            jne blocked
             lea r8, {mem(allowed_table)}
             movzx r9d, byte ptr [r8+rbp]
             lea r10, {mem(0x12cfca0)}
@@ -457,6 +470,7 @@ def build(features):
         jump(0x115f33,7,start,'Retain context until the last large effect finishes')
     else:
         allowed = []
+    active_gate = None
 
     if 'victory_tp' in features:
         active_gate = 1
@@ -469,11 +483,16 @@ def build(features):
     if 'summon_hold' in features:
         if 'summon_modifier' in features:raise ValueError('Choose one summon input scheme')
         from cast_hold_patch import emit_cast_hold
-        emit_cast_hold(emit, mem, jump, edit, data_rva, 'concurrent_spells' in features)
+        active_gate = {0xd53bd:24}
+        emit_cast_hold(emit, mem, jump, edit, data_rva, 'concurrent_spells' in features,
+                       symbols.get('farah_cast_priority'))
+        active_gate = None
     color_data = b''
     if 'casting_colors' in features:
+        active_gate = 22
         from casting_color_patch import emit_casting_colors
         color_data = emit_casting_colors(emit, mem, jump, edit, data_rva)
+        active_gate = None
 
     damage_palette, ui_info = b'', None
     if 'damage_colors' in features:
@@ -483,7 +502,9 @@ def build(features):
         active_gate = None
     if 'combat_ui' in features:
         active_gate = {site:4 for site in (0xd1aa5,0xd1b38,0x80af8,0x80b1b,0xd1c23,0xd1cd4,0xd1d46,0xd53a5,0x11a449,0x11a48d)}
-        active_gate.update({site:5 for site in (0x112ff8,0x8152f,0xd458e)})
+        # Feet anchors serve two independent optional displays: casts and
+        # scanned enemy HP. Their renderer checks each setting separately.
+        active_gate[0x112ff8] = 5
         active_gate[0xd5ad4] = 6
         from combat_ui_patch import emit_combat_ui
         ui_info = emit_combat_ui(emit, mem, jump, edit, data_rva)
@@ -500,15 +521,15 @@ def build(features):
         floor_info, floor_data = emit_floor(emit, mem, edit, data_rva)
         active_gate = None
 
-    if 'startup_opening' in features:
-        from startup_patch import emit_startup
-        emit_startup(emit, mem, jump)
-
     settings_info, settings_data = None, b''
     logo_png = b''
     if 'mod_settings' in features:
         from mod_settings_patch import emit_settings
         settings_info, settings_data, logo_png = emit_settings(emit, mem, jump, data_rva, symbols)
+
+    if 'startup_opening' in features:
+        from startup_patch import emit_startup
+        emit_startup(emit, mem, jump, data_rva, symbols.get('settings_initialize'))
 
     skit_info, skit_data = None, b''
     if 'skit_notice' in features:
@@ -521,6 +542,19 @@ def build(features):
 
     artesphere_info, artesphere_data = None, b''
     artesphere_offset = align(0x4000+len(logo_png),0x1000)
+    fringe_info = None
+    teamup_info, teamup_data = None, b''
+    if settings_info:
+        from fringe_lists import emit_lists, SIZE as FRINGE_SIZE
+        from fringe_patch import emit_fringe
+        from teamup_autonomous import prepare as prepare_teamups, SIZE as TEAMUP_SIZE
+        teamup_offset = artesphere_offset+FRINGE_SIZE
+        if 'artesphere' in features:
+            teamup_info,teamup_data=prepare_teamups(emit,mem,pe,data_rva,data_rva+teamup_offset,
+                data_rva+teamup_offset+TEAMUP_SIZE+0x2000)
+        fringe_info = emit_lists(emit,mem,data_rva,data_rva+artesphere_offset,teamup_info)
+        fringe_info = emit_fringe(emit,mem,jump,pe,CS,relocate,data_rva,fringe_info)
+        artesphere_offset += FRINGE_SIZE+TEAMUP_SIZE
     if 'artesphere' in features:
         if not {'mod_settings','combat_ui','summon_hold'}.issubset(features):
             raise ValueError('artesphere requires mod_settings, combat_ui and summon_hold')
@@ -531,11 +565,20 @@ def build(features):
     texture_info = None
     particle_offset = align(max(0x4000+len(logo_png), artesphere_offset+len(artesphere_data)),0x1000)
     if 'concurrent_spells' in features:
+        active_gate = 21
         from particle_capacity_patch import emit_particle_capacity
         particle_info = emit_particle_capacity(emit, mem, jump, data_rva+particle_offset)
         from spell_texture_patch import emit_spell_textures
         texture_offset = align(particle_offset+particle_info['size'],0x1000)
         texture_info = emit_spell_textures(emit, mem, jump, data_rva+texture_offset)
+        active_gate = None
+
+    maelstrom_info = None
+    if 'maelstrom_level' in features:
+        active_gate = 25
+        from maelstrom_level_patch import emit_maelstrom_level
+        maelstrom_info = emit_maelstrom_level(emit, jump, artesphere_info['usage'])
+        active_gate = None
 
     difficulty_info = None
     if 'difficulty_rebalance' in features:
@@ -558,19 +601,54 @@ def build(features):
 
     mastery_info = None
     energy_info = None
+    craymel_exp_info = None
+    faculty_info = None
+    spell_notice_info = None
     mastery_menu_info, mastery_menu_data = None, b''
     if 'spell_mastery' in features:
         from spell_mastery_patch import emit_mastery
         mastery_offset = align(texture_offset+texture_info['size'] if texture_info
                                else particle_offset, 0x1000)
-        mastery_info = emit_mastery(emit, mem, jump, data_rva,
-                                   data_rva+mastery_offset, artesphere_info['usage'])
         from energy_mastery_patch import emit_energy
         energy_info = emit_energy(emit, mem, jump, data_rva, artesphere_info['usage'])
+        from spell_mastery_patch import SIZE as MASTERY_SIZE
+        from craymel_faculties import emit_faculties
+        from craymel_combat import emit_combat
+        faculty_state=data_rva+mastery_offset+MASTERY_SIZE+0x2000
+        faculty_info=emit_faculties(emit,mem,jump,data_rva,faculty_state,artesphere_info['usage'],energy_info)
+        faculty_info=emit_combat(emit,mem,jump,data_rva,faculty_info)
+        from craymel_event_hooks import emit_events
+        faculty_info=emit_events(emit,mem,jump,data_rva,faculty_info)
+        mastery_info = emit_mastery(emit, mem, jump, data_rva,
+                                   data_rva+mastery_offset, artesphere_info['usage'],faculty_info)
+        from craymel_healing import emit_healing
+        faculty_info=emit_healing(emit,mem,jump,data_rva,faculty_info,mastery_info)
+        from craymel_experience import emit_experience, emit_exp_progress, emit_cage_gauge
+        craymel_state = data_rva+mastery_offset+mastery_info['size']
+        craymel_exp_info = emit_experience(emit,mem,jump,data_rva,craymel_state,artesphere_info['usage'],faculty_info)
+        craymel_exp_info['cage'] = emit_cage_gauge(emit,mem,jump,data_rva,emit_exp_progress(emit,mem))
+        faculty_info['cast_completed_callback']=emit('craymel_completed_events',f'''
+            push rbx; push rsi; sub rsp, 0x28
+            mov rbx, rcx; mov esi, edx
+            call {faculty_info['completed']:#x}
+            mov rcx, rbx; mov edx, esi; call {craymel_exp_info['cast']:#x}
+            add rsp, 0x28; pop rsi; pop rbx; ret
+        ''')
         from mastery_menu_patch import emit_mastery_menu
-        mastery_menu_offset = mastery_offset+mastery_info['size']
+        mastery_menu_offset = mastery_offset+mastery_info['size']+0x2000+faculty_info['size']
         mastery_menu_info, mastery_menu_data = emit_mastery_menu(emit, mem, jump,
             data_rva, data_rva+mastery_menu_offset, symbols, artesphere_info['usage'])
+        from spell_level_notice import emit_notices
+        notice_offset=align(mastery_menu_offset+len(mastery_menu_data),16)
+        spell_notice_info,notice_data=emit_notices(emit,mem,jump,data_rva,
+            craymel_state,data_rva+notice_offset,symbols,artesphere_info['usage'])
+        mastery_menu_data += bytes(notice_offset-mastery_menu_offset-len(mastery_menu_data))+notice_data
+
+
+    reid_specials_info = None
+    if settings_info:
+        from reid_specials_patch import emit_reid_specials
+        reid_specials_info = emit_reid_specials(emit,mem,jump,data_rva)
 
     progression_ui_info, progression_ui_data = None, b''
     if settings_info:
@@ -583,6 +661,12 @@ def build(features):
         progression_ui_info, progression_ui_data = emit_progression_ui(
             emit, mem, jump, data_rva, data_rva+progression_ui_offset, symbols)
 
+    if teamup_info:
+        from teamup_autonomous import wire as wire_teamups
+        wire_teamups(emit,mem,jump,edit,pe,CS,relocate,data_rva,teamup_info)
+        for offset,hex_text in teamup_info.pop('strings',[]):
+            blob=bytes.fromhex(hex_text)
+            teamup_data[offset:offset+len(blob)]=blob
     if len(code)>code_capacity:
         raise RuntimeError('Hook code exceeds reserved section')
     # Two sections: executable code and nonexecutable writable state. Original
@@ -604,15 +688,22 @@ def build(features):
     if mastery_menu_info:state_size=mastery_menu_offset+len(mastery_menu_data)
     if progression_ui_info:state_size=progression_ui_offset+len(progression_ui_data)
     state = bytearray(state_size)
+    if teamup_data:state[teamup_offset:teamup_offset+len(teamup_data)]=teamup_data
+    if craymel_exp_info:struct.pack_into('<I',state,0x1ac0,craymel_exp_info['cast'])
+    if faculty_info:
+        struct.pack_into('<II',state,0x1ac0,faculty_info['cast_completed_callback'],faculty_info['cancel'])
     if progression_ui_info:
         state[progression_ui_offset:progression_ui_offset+len(progression_ui_data)]=progression_ui_data
         struct.pack_into('<I',state,0x1a38,progression_ui_info['help_draw_rva'])
-    if mastery_menu_info:state[mastery_menu_offset:mastery_menu_offset+len(mastery_menu_data)]=mastery_menu_data
+        struct.pack_into('<I',state,0x1a3c,progression_ui_info['help_input_rva'])
+    if mastery_menu_info:
+        state[mastery_menu_offset:mastery_menu_offset+len(mastery_menu_data)]=mastery_menu_data
+        struct.pack_into('<3I',state,0x1a80,mastery_menu_info['tech_input'],mastery_menu_info['tech_draw'],mastery_menu_info['tech_hint'])
     if artesphere_data:state[artesphere_offset:artesphere_offset+len(artesphere_data)]=artesphere_data
     if logo_png:state[0x4000:0x4000+len(logo_png)] = logo_png
     if state_size >= 0x2000:
-        from mod_settings_patch import FLAG_OFFSETS
-        for offset in FLAG_OFFSETS:state[offset] = 1
+        from mod_settings_patch import FLAG_OFFSETS, DEFAULTS
+        for offset, default in zip(FLAG_OFFSETS, DEFAULTS):state[offset] = default
     if settings_data:state[0x2000:0x2000+len(settings_data)] = settings_data
     if artesphere_info:
         kbui=artesphere_info['keyboard']['ui']
@@ -629,6 +720,8 @@ def build(features):
     if damage_palette:state[0x1300:0x1300+len(damage_palette)] = damage_palette
     if ui_info:
         state[0x1340:0x134b] = b'OBJET\0ITEM\0'
+        from scan_hp_patch import scan_labels, SCAN_LABELS
+        scan_blob=scan_labels();state[SCAN_LABELS:SCAN_LABELS+len(scan_blob)]=scan_blob
         for vitality in range(11):
             text = ('MAX' if vitality == 10 else f'{vitality}/10').encode('ascii')+b'\0'
             state[0x1980+vitality*8:0x1980+vitality*8+len(text)] = text
@@ -648,13 +741,14 @@ def build(features):
     struct.pack_into('<I',result,pe.OPTIONAL_HEADER.get_field_absolute_offset('CheckSum'),check_pe.generate_checksum())
     OUT.mkdir(parents=True,exist_ok=True)
     (OUT/'GameNative.dll').write_bytes(result)
-    manifest = {'version':'combat-test-0.13.8','steam_build':25190541,'original_sha256':ORIGINAL_SHA256,
+    manifest = {'version':'combat-test-0.14.11','steam_build':25190541,'original_sha256':ORIGINAL_SHA256,
                 'patched_sha256':digest(result),'features':features,'edits':edits,'hooks':hooks,
                 'symbols':symbols,'code_rva':code_rva,'data_rva':data_rva,
                 'concurrent_effect_allowlist':allowed,'runtime_validated':False,
                 'limits':['Distinct ordinary large effects only; same effect and special sequences remain serialized.',
                           'Dynamic camera bounds cover 82 audited rectangular stage grids. Unsupported grids retain their original camera rotation and position. Forest stages 6-8 additionally account for their offset backdrop at depth 576. New background behavior still requires in-game visual validation.',
-                          'Seventeen per-user title-screen switches, French for text language 3 and English otherwise. Use controller or keyboard; custom mouse selection is not implemented. Title branding, panel layout and real settings persistence still need in-game validation.',
+                          'Persistent per-user settings with one switch each for magic, Farah and Reid progression. Jump controls and general combat boosts remain separate; relaxed partner cages default OFF. French for text language 3 and English otherwise. Controller/keyboard navigation; custom mouse selection is not implemented.',
+                          'Spell and Craymel area growth currently expands collision coverage, not every visual mesh. Craymel damage coefficients are an initial balance pass, not proof of equal damage across summons.',
                           'Ordinary large effects 1-25, 61, 62 and 66 preserve battle pitch; special sequences retain native cameras. Spread retains its vanilla column with an added small textured top cap; the new cap needs in-game visual validation. Ondine perimeter and zoom-scaled shadows remain experimental. Other summon backdrops were not extended.',
                           'Craymel miniatures use an 8x8 quad and eight directional poses: the second half-turn mirrors the native half-turn atlas. New size and continuous rotation require visual confirmation.',
                           'Held Arte at cast completion selects learned owned summons; L1 holds ready casts. Steam controller slot zero only; other slots retain native controls.',
@@ -662,11 +756,16 @@ def build(features):
     if color_data:
         from casting_color_patch import COLORS
         manifest['casting_colors'] = COLORS
+    if teamup_info:manifest['standalone_teamups']=teamup_info
+    if maelstrom_info:manifest['maelstrom_level']=maelstrom_info
     if difficulty_info:manifest['difficulty_rebalance']=difficulty_info
     if vitality_info:manifest['multiple_vitality']=vitality_info
     if defense_info:manifest['cast_defense']=defense_info
     if mastery_info:manifest['spell_mastery']=mastery_info
     if energy_info:manifest['energy_mastery']=energy_info
+    if faculty_info:manifest['craymel_faculties']=faculty_info
+    if craymel_exp_info:manifest['craymel_experience']=craymel_exp_info
+    if spell_notice_info:manifest['spell_level_notices']=spell_notice_info
     if mastery_menu_info:manifest['mastery_menu']=mastery_menu_info
     if progression_ui_info:manifest['progression_ui']=progression_ui_info
     if floor_info:manifest['floor_extension']=floor_info
@@ -674,9 +773,12 @@ def build(features):
     if texture_info:manifest['spell_textures']=texture_info
     if ui_info:manifest['combat_ui']=ui_info
     if settings_info:manifest['mod_settings']=settings_info;manifest['option_gates']=gates
+    if reid_specials_info:manifest['reid_specials']=reid_specials_info
+    if fringe_info:manifest['fringe']=fringe_info
     if skit_info:manifest['skit_notice']=skit_info
     if artesphere_info:
         manifest['artesphere']=artesphere_info
+        manifest['limits'].append('SpellCatchUp-v1 stores earned bonus EXP separately from real cast counts. Successful non-starter Craymel spells gain up to 3 EXP while behind the other mage, capped at that mage and the track maximum. Missing records retain previous levels with zero bonus. The Magic progression switch controls catch-up awards.')
         manifest['limits'].append('Artesphere: three pages of six commands, per-save sidecar stored locally beside mod preferences. L2 toggles B/A and R2 toggles C/A in the native six-row editor; hold L2 for B or R2 for C in battle, with C priority. F7/F8 are configurable foreground keyboard aliases. Legacy B assignments migrate; C initially copies B for legacy saves and A for new profiles. Only controller zero uses the extra pages. Runtime validation pending; copy the sidecar with saves when changing PCs.')
         manifest['limits'].append('Spell usage: new counters start at zero and are stored per character and save slot in ArteUsage-v1 beside mod preferences. Native physical counts remain authoritative. Casts count on successful release, menu healing after application; no reconstruction of past casts. Keep the INI sidecar with your saves. Offline verification does not replace in-game visual testing.')
     if damage_palette:manifest['damage_colors']='actual impact element; party received damage takes precedence; heal/TP recovery preserved'
@@ -708,6 +810,6 @@ def build(features):
 
 if __name__=='__main__':
     ap=argparse.ArgumentParser()
-    ap.add_argument('--features',nargs='+',choices=['tp','camera','no_freeze','concurrent_spells','victory_tp','summon_modifier','summon_hold','casting_colors','camera_floor','damage_colors','combat_ui','startup_opening','mod_settings','skit_notice','artesphere','difficulty_rebalance','multiple_vitality','cast_defense','spell_mastery'],
-                    default=['tp','camera','no_freeze','concurrent_spells','victory_tp','summon_hold','casting_colors','camera_floor','damage_colors','combat_ui','startup_opening','mod_settings','skit_notice','artesphere','difficulty_rebalance','multiple_vitality','cast_defense','spell_mastery'])
+    ap.add_argument('--features',nargs='+',choices=['tp','camera','no_freeze','concurrent_spells','victory_tp','summon_modifier','summon_hold','casting_colors','camera_floor','damage_colors','combat_ui','startup_opening','mod_settings','skit_notice','artesphere','maelstrom_level','difficulty_rebalance','multiple_vitality','cast_defense','spell_mastery'],
+                    default=['tp','camera','no_freeze','concurrent_spells','victory_tp','summon_hold','casting_colors','camera_floor','damage_colors','combat_ui','startup_opening','mod_settings','skit_notice','artesphere','maelstrom_level','difficulty_rebalance','multiple_vitality','cast_defense','spell_mastery'])
     build(ap.parse_args().features)

@@ -2,13 +2,31 @@
 
 [Back to the overview](../README.md)
 
-
 Water's Edition was created, designed and directed by **Water, a human**.
 **All of the mod's code was written by AI.**
 
-This mod was done strictly for my personal use, I am just sharing it with whoever wants it, I wont take requests.
+## A word from Water
 
-**If you're on a crusade agaisnt AI, do not be hypocrite and do not download this mod, I have neither the time nor the desire to learn codding, I'm just a random lambda guy that likes to tweaks games and give them my personal touch with the help of AI like Codex or Claude.**
+I'm not a programmer or an experienced modder — just a player who has always
+wanted to tweak the games I love the way I want. AI made this personal project possible.
+I am sharing it with whoever wants it; **I won't take requests**.
+
+**If you're on a crusade against AI, please don't be hypocritical: don't download
+this mod.** I have neither the time nor the desire to learn coding; I enjoy giving
+games my personal touch with the help of tools such as Codex or Claude.
+
+## Use the parts you like
+
+You can toggle almost everything within reason. If you only want a particular
+feature, such as the dynamic battle camera, you do not have to use the rest of
+the overhaul. Related progression features are grouped under shared switches;
+individual Craymel faculties also have their own saved choices.
+See the [features guide](FEATURES.md) for the current groups and limitations.
+
+The same release is available on [GitHub](https://github.com/Water130/tales-of-eternia-waters-edition/releases/tag/v0.14.11-test)
+and [Water's official Nexus Mods page](https://www.nexusmods.com/talesofeterniaremastered/mods/13).
+
+## Sharing permissions
 
 You may download, install and play the official release. To share the mod,
 please link to this repository or its official release page.

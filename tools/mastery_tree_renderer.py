@@ -1,7 +1,8 @@
 """Two-stage native mastery menu: centered selection, then a rooted tree."""
 def emit_tree_draw(emit,mem,ui,data,lookup,value,status,icon,frame,text,number,hints,
-                   loc,tabletext,label,names,string,browser):
-    block=emit('mastery_menu_lines',f'''
+                   loc,tabletext,label,names,string,browser,payload,state):
+    def lines(name,x,width):
+        return emit(name,f'''
         push rbx
         push rbp
         push rsi
@@ -17,9 +18,9 @@ def emit_tree_draw(emit,mem,ui,data,lookup,value,status,icon,frame,text,number,h
         mov ecx, dword ptr [rsi]
         lea rax, {mem(0)}
         add rcx, rax
-        mov edx, 40
+        mov edx, {x}
         mov r8d, edi
-        mov r9d, 395
+        mov r9d, {width}
         mov eax, ebp
         call {text:#x}
         add rsi, 4
@@ -34,26 +35,31 @@ def emit_tree_draw(emit,mem,ui,data,lookup,value,status,icon,frame,text,number,h
         pop rbx
         ret
     ''')
-    tinted_line=emit('mastery_menu_tinted_link',f'''
-        sub rsp, 0x58
-        cvtsi2ss xmm0, ecx
-        cvtsi2ss xmm1, edx
-        cvtsi2ss xmm3, r8d
-        cvtsi2ss xmm2, r9d
-        movss dword ptr [rsp+0x20], xmm2
-        xorps xmm2, xmm2
-        mov dword ptr [rsp+0x30], 0xbf800000
-        mov dword ptr [rsp+0x40], 0x40000000
-        mov dword ptr [rsp+0x48], r10d
-        call 0x24490
-        add rsp, 0x58
-        ret
-    ''')
-    line=emit('mastery_menu_link',f'mov r10d, 255; jmp {tinted_line:#x}')
+    block=lines('mastery_menu_lines',40,395)
+    spirit_block=lines('mastery_spirit_details',176,260)
+    from mastery_tree_links import emit_links
+    link_setup,tinted_line=emit_links(emit,mem)
+    line=emit('mastery_menu_link',f'mov r10d, 0xffffe165; jmp {tinted_line:#x}')
     from mastery_rich_text import emit_rich_text
     rich=emit_rich_text(emit,mem)
+    gray_rich=emit_rich_text(emit,mem,'mastery_rich_text_locked',muted=True)
     from mastery_level_bar import emit_level_bar
-    level_bar=emit_level_bar(emit,mem,value,text,line,tinted_line,string)
+    # Level bar is emitted after the shared centering helper.
+    from summon_growth import MAX_BONUS
+    from mastery_rich_text import encode_runs
+    import struct
+    summon_lines=[]
+    for coefficient in MAX_BONUS:
+        for level in range(1,31):
+            bonus=(level-1)*coefficient//29
+            summon_lines.append([encode_runs(f'{prefix} +{bonus} %',payload,state,string)
+                                 for prefix in ('Invocation : dégâts','Summon: damage')])
+    payload.extend(b'\0'*((-len(payload))%4))
+    summon_line_table=state+len(payload)
+    for entry in summon_lines:payload.extend(struct.pack('<2I',*entry))
+    summon_coefficients='\n'.join(
+        f'cmp dword ptr [rbx+4], {i}; jne summon_next_{i}; mov ecx, {v}; jmp summon_value; summon_next_{i}:'
+        for i,v in enumerate(MAX_BONUS))
     # Same seven-point font and locale adjustment as b480. Measure before
     # centering, and account for the native maximum-width compression.
     center=emit('mastery_menu_centered_text',f'''
@@ -103,6 +109,41 @@ def emit_tree_draw(emit,mem,ui,data,lookup,value,status,icon,frame,text,number,h
         pop rbx
         ret
     ''')
+    level_bar=emit_level_bar(emit,mem,value,text,line,tinted_line,string,number,center,ui+0x1a0)
+    from casting_color_patch import COLORS
+    colors=[0xff000000 | r | (g<<8) | (b<<16) for r,g,b in COLORS.values()]
+    payload.extend(b'\0'*((-len(payload))%4))
+    element_colors=state+len(payload)
+    payload.extend(struct.pack('<10I',*colors))
+    from mastery_element_effects import emit_element_effects
+    motif=emit_element_effects(emit,mem,ui,payload,state,tinted_line,element_colors)
+
+    node_frame=emit('mastery_node_frame',f"""
+        sub rsp, 0x48
+        mov dword ptr [rsp+0x38], r10d
+        lea rax, [rsp+0x38]
+        mov qword ptr [rsp+0x28], rax
+        mov dword ptr [rsp+0x20], r9d
+        mov r9d, r8d
+        xor r8d, r8d
+        sub ecx, 80
+        sub edx, 15
+        mov dword ptr [rsp+0x30], 255
+        call 0x25aaa0
+        add rsp, 0x48
+        ret
+    """)
+    milestones=[]
+    for i,lv in enumerate((5,10,15,20,25,30)):
+        milestones.append(f"""
+            mov ecx, {174+i*45+8}; mov edx, 64; mov r8d, 26; mov r9d, 11
+            call {frame:#x}
+            lea rcx, {mem(string('Lv '+str(lv)))}
+            mov edx, {174+i*45+21}; mov r8d, 66; mov r9d, 22
+            mov eax, 0xffbbbbbb; cmp r15d, {lv}; jb milestone_{i}
+            mov eax, 0xff70f0a0
+        milestone_{i}: call {center:#x}
+        """)
     title_lines=emit('mastery_menu_node_title',f'''
         push rbx
         push rbp
@@ -291,18 +332,40 @@ def emit_tree_draw(emit,mem,ui,data,lookup,value,status,icon,frame,text,number,h
         mov r9d, 170
         mov eax, 0xffffad61
         call {text:#x}
+        movzx eax, byte ptr {mem(ui+1)}
+        xor edx, edx
+        call {lookup:#x}
+        mov rbx, rcx
+        cmp byte ptr {mem(ui+3)}, 0
+        jne character_title
+        cmp dword ptr [rbx], 1
+        ja character_title
+        call {value:#x}
+        mov r12d, edx
+        {loc('unknown')}
+        test r12d, r12d
+        je generic_color
+        {tabletext('rbx',12)}
+        cmp dword ptr [rbx], 0
+        jne generic_color
+        mov eax, dword ptr [rbx+4]
+        lea rdx, {mem(element_colors)}
+        mov eax, dword ptr [rdx+rax*4]
+        jmp header_text
+    character_title:
         movzx eax, byte ptr {mem(ui+4)}
         lea rbx, {mem(names)}
         lea rbx, [rbx+rax*8]
         {tabletext('rbx',0)}
+    generic_color:
+        mov eax, 0xffffad61
+    header_text:
         mov edx, 240
         mov r8d, 36
         mov r9d, 95
-        mov eax, 0xffffffff
         call {center:#x}
-        {loc('faculties')}
         cmp byte ptr {mem(ui+3)}, 0
-        je category
+        je category_done
         {loc('spells')}
     category:
         mov edx, 350
@@ -310,6 +373,7 @@ def emit_tree_draw(emit,mem,ui,data,lookup,value,status,icon,frame,text,number,h
         mov r9d, 85
         mov eax, 0xffffad61
         call {text:#x}
+    category_done:
         cmp byte ptr {mem(ui+5)}, 0
         jne populated
         {label('empty',40,100)}
@@ -336,15 +400,15 @@ def emit_tree_draw(emit,mem,ui,data,lookup,value,status,icon,frame,text,number,h
         jne counter_label
         {loc('casts')}
     counter_label:
-        mov edx, 326
-        mov r8d, 51
-        mov r9d, 68
+        mov edx, 112
+        mov r8d, 46
+        mov r9d, 28
         mov eax, 0xffbbbbbb
         call {text:#x}
         mov eax, r15d
         call {number:#x}
-        mov edx, 398
-        mov r8d, 51
+        mov edx, 138
+        mov r8d, 46
         mov r9d, 35
         mov eax, 0xffffffff
         call {text:#x}
@@ -352,7 +416,49 @@ def emit_tree_draw(emit,mem,ui,data,lookup,value,status,icon,frame,text,number,h
         je links
         mov rcx, rbx
         call {level_bar:#x}
+        cmp dword ptr [rbx], 0
+        jne links
+        cmp byte ptr {mem(data+0x1a43)}, 0
+        jne summon_enabled
+        {label('summonoff',97,163,61)}
+        jmp links
+    summon_enabled:
+        cmp dword ptr [rbx+4], 6
+        jne summon_coefficient
+        {label('summonnative',97,163,61)}
+        jmp links
+    summon_coefficient:
+        {summon_coefficients}
+        jmp links
+    summon_value:
+        mov eax, r15d
+        mov edx, 1
+        cmp eax, edx
+        cmovb eax, edx
+        mov edx, 30
+        cmp eax, edx
+        cmova eax, edx
+        dec eax
+        imul ecx, dword ptr [rbx+4], 30
+        add eax, ecx
+        lea rdx, {mem(summon_line_table)}
+        lea rdx, [rdx+rax*8]
+        mov ecx, dword ptr [rdx+4]
+        cmp byte ptr {mem(0x11c9ce8)}, 3
+        jne summon_line_locale
+        mov ecx, dword ptr [rdx]
+    summon_line_locale:
+        lea rax, {mem(0)}
+        add rcx, rax
+        mov edx, 127
+        mov r8d, 163
+        mov r9d, 65
+        call {rich:#x}
     links:
+        {''.join(milestones)}
+        call {link_setup:#x}
+        xor ebp, ebp
+    link_pass:
         mov esi, dword ptr [rbx+28]
         lea rax, {mem(0)}
         add rsi, rax
@@ -360,51 +466,72 @@ def emit_tree_draw(emit,mem,ui,data,lookup,value,status,icon,frame,text,number,h
         add rsi, 8
     link:
         test edi, edi
-        je root
+        je next_link_pass
         movzx eax, byte ptr {mem(ui+1)}
         mov edx, dword ptr [rsi+16]
         call {lookup:#x}
         mov r12, rdx
         call {status:#x}
-        mov r10d, 65
+        xor r10d, r10d
         cmp eax, 2
         jb line_color
         cmp dword ptr [r12+40], 0
         je line_color
-        mov r10d, 255
+        mov r10d, 1
     line_color:
+        cmp r10d, ebp
+        jne skip_link
+        mov r10d, 0xff28160c
+        test ebp, ebp
+        je link_color_ready
+        mov r10d, 0xffffad61
+        cmp dword ptr [rbx], 0
+        jne link_color_ready
+        mov eax, dword ptr [rbx+4]
+        lea rdx, {mem(element_colors)}
+        mov r10d, dword ptr [rdx+rax*4]
+    link_color_ready:
         mov ecx, dword ptr [rsi]
+        lea rax, {mem(0)}
+        add rcx, rax
         mov edx, dword ptr [rsi+4]
-        mov r8d, dword ptr [rsi+8]
-        mov r9d, dword ptr [rsi+12]
         call {tinted_line:#x}
+    skip_link:
         add rsi, 20
         dec edi
         jmp link
+    next_link_pass:
+        inc ebp
+        cmp ebp, 2
+        jb link_pass
     root:
         mov eax, dword ptr [rbx+28]
         lea rcx, {mem(0)}
         mov r12d, dword ptr [rcx+rax+4]
         mov ecx, r12d
-        mov edx, 102
+        mov edx, 118
         mov r8d, 58
         mov r9d, 28
         cmp dword ptr [rbx], 0
         jne root_frame
-        mov edx, 91
+        mov edx, 107
         mov r9d, 50
     root_frame:
         call {frame:#x}
         mov rcx, rbx
         call {value:#x}
         mov r14d, edx
-        mov ebp, 112
+        test edx, edx; je root_no_motif
+        cmp dword ptr [rbx], 0; jne root_no_motif
+        mov ecx, dword ptr [rbx+4]; call {motif:#x}
+    root_no_motif:
+        mov ebp, 128
         cmp dword ptr [rbx], 0
         jne root_name
-        mov ebp, 122
+        mov ebp, 138
         mov ecx, dword ptr [rbx+4]
         lea edx, [r12+20]
-        mov r8d, 97
+        mov r8d, 113
         mov r9d, 0xffffffff
         test r14d, r14d
         jne root_icon
@@ -437,26 +564,38 @@ def emit_tree_draw(emit,mem,ui,data,lookup,value,status,icon,frame,text,number,h
         mov ebp, dword ptr [rsi+52]
         mov ecx, r15d
         mov edx, ebp
-        mov r8d, 50
+        mov r8d, 42
         mov r9d, 28
-        call {frame:#x}
+        mov r10d, 0xffcca060
+        cmp r14d, 4
+        jne node_not_active
+        mov r10d, 0xffefd080
+    node_not_active:
+        cmp r14d, 2
+        jae node_frame_ready
+        mov r10d, 0xff706050
+    node_frame_ready:
+        call {node_frame:#x}
         test r14d, r14d
         je unknown_title
         {tabletext('rsi',80)}
         mov r12d, dword ptr [rcx]
-        lea edx, [r15+25]
+        lea edx, [r15+21]
         lea r8d, [rbp+1]
-        mov r9d, 44
+        mov r9d, 38
         mov eax, 0xffffad61
+        cmp r14d, 2
+        jae node_text
+        mov eax, 0xff999999
     node_text:
         call {title_lines:#x}
         jmp boost
     unknown_title:
         mov r12d, 1
         {loc('unknown')}
-        lea edx, [r15+25]
+        lea edx, [r15+21]
         lea r8d, [rbp+5]
-        mov r9d, 44
+        mov r9d, 38
         mov eax, 0xff999999
         call {center:#x}
     boost:
@@ -464,20 +603,25 @@ def emit_tree_draw(emit,mem,ui,data,lookup,value,status,icon,frame,text,number,h
         test r14d, r14d
         je unknown_boost
         {tabletext('rsi',88)}
-        lea edx, [r15+25]
+        lea edx, [r15+21]
         lea r8d, [rbp+15]
         cmp r12d, 1
         je boost_position
         add r8d, 4
     boost_position:
-        mov r9d, 44
+        mov r9d, 38
+        cmp r14d, 2
+        jae unlocked_boost
+        call {gray_rich:#x}
+        jmp node_cursor
+    unlocked_boost:
         call {rich:#x}
         jmp node_cursor
     unknown_boost:
-        lea edx, [r15+25]
+        lea edx, [r15+21]
         lea r8d, [rbp+15]
-        mov r9d, 44
-        mov eax, 0xffffffff
+        mov r9d, 38
+        mov eax, 0xff999999
         call {center:#x}
     node_cursor:
         cmp byte ptr {mem(ui+6)}, 0
@@ -507,31 +651,44 @@ def emit_tree_draw(emit,mem,ui,data,lookup,value,status,icon,frame,text,number,h
         {tabletext('rsi',8)}
     detail_title:
         mov edx, 40
-        mov r8d, 174
+        mov r8d, 190
         mov r9d, 395
+        cmp dword ptr [rbx], 0; jne detail_title_width
+        mov r9d, 130
+    detail_title_width:
         mov eax, 0xffffad61
         call {text:#x}
         test edi, edi
         jne known_details
-        {label('recruit',40,185)}
+        {label('recruit',40,201)}
         cmp dword ptr [rsi+40], 0
         je footer
-        {label('level',40,218,78)}
+        {label('level',40,226,78)}
         mov eax, dword ptr [rsi+40]
         call {number:#x}
         mov edx, 123
-        mov r8d, 218
+        mov r8d, 226
         mov r9d, 25
         mov eax, 0xffbbbbbb
         call {text:#x}
         jmp footer
     known_details:
+        cmp dword ptr [rbx], 0; jne full_width_details
+        {tabletext('rsi',88)}
+        mov edx, 105; mov r8d, 202; mov r9d, 130
+        call {rich:#x}
         {tabletext('rsi',72)}
-        mov r8d, 185
+        mov r8d, 190; mov eax, 0xffffffff
+        call {spirit_block:#x}
+        jmp detail_requirements
+    full_width_details:
+        {tabletext('rsi',72)}
+        mov r8d, 201
         mov eax, 0xffffffff
         call {block:#x}
+    detail_requirements:
         {tabletext('rsi',32)}
-        mov r8d, 218
+        mov r8d, 226
         mov eax, 0xffbbbbbb
         call {block:#x}
         {loc('locked')}
@@ -548,6 +705,8 @@ def emit_tree_draw(emit,mem,ui,data,lookup,value,status,icon,frame,text,number,h
         cmp dword ptr [rbx], 1
         jne spell_status
         cmp dword ptr [rbx+4], 5
+        jne basic_status
+        cmp dword ptr [rbx+4], 5
         jne status_ready
         cmp edi, 3
         jb status_ready
@@ -560,7 +719,35 @@ def emit_tree_draw(emit,mem,ui,data,lookup,value,status,icon,frame,text,number,h
         jne status_ready
         {loc('energyglobaloff')}
         jmp status_ready
+    basic_status:
+        cmp edi, 3
+        jb status_ready
+        {loc('energyon')}
+        cmp edi, 4
+        je basic_option
+        {loc('energyoff')}
+    basic_option:
+        cmp byte ptr {mem(ui+4)}, 1
+        je energy_option
+        cmp byte ptr {mem(data+0x1a4f)}, 0
+        jne status_ready
+        {loc('basicglobaloff')}
+        jmp status_ready
     spell_status:
+        cmp dword ptr [rbx], 0
+        jne spell_row_status
+        cmp edi, 3
+        jb status_ready
+        {loc('energyon')}
+        cmp edi, 4
+        je spirit_option
+        {loc('energyoff')}
+    spirit_option:
+        cmp byte ptr {mem(data+0x1a60)}, 0
+        jne status_ready
+        {loc('globaloff')}
+        jmp status_ready
+    spell_row_status:
         cmp dword ptr [rbx], 2
         jne status_ready
         cmp dword ptr [rsi+40], 0
@@ -573,7 +760,7 @@ def emit_tree_draw(emit,mem,ui,data,lookup,value,status,icon,frame,text,number,h
         {loc('globaloff')}
     status_ready:
         mov edx, 40
-        mov r8d, 234
+        mov r8d, 236
         mov r9d, 395
         mov eax, 0xffbbbbbb
         call {text:#x}

@@ -8,6 +8,58 @@ Use native mapped per-actor inputs; never change the shared input buffer.
 def emit_cast_defense(emit, mem, jump, data):
     save = 'pushfq; push rax; push rcx; push rdx; push r8; push r9; push r10; push r11'
     restore = 'pop r11; pop r10; pop r9; pop r8; pop rdx; pop rcx; pop rax; popfq'
+    stop_run=emit('action_stops_run',f'''
+        {save}
+        cmp byte ptr {mem(data+0x1a4e)}, 0
+        je done
+        cmp byte ptr {mem(0x12d0ef7)}, 6
+        jne done
+        cmp byte ptr [rcx+0x51], 0
+        jne done
+        cmp word ptr [rcx+0x3c], 1
+        jne done
+        cmp byte ptr [rcx+0x57], 1
+        jb done
+        cmp byte ptr [rcx+0x57], 2
+        ja done
+        cmp byte ptr [rcx+0x52], 3
+        jne done
+        cmp dword ptr [rcx+0x2c], 0
+        jle done
+        cmp word ptr [rcx+0x44], 0
+        jne done
+        cmp byte ptr [rcx+0x74], 0
+        jne done
+        cmp word ptr [rcx+0x12], 0
+        jne done
+        mov rax, qword ptr [rcx+0xf0]
+        test rax, rax
+        je done
+        test word ptr [rax], 0x200
+        jne done
+        test byte ptr [rax], 0x80
+        jne stop
+        test byte ptr [rax+4], 0x60
+        je done
+    stop:
+        mov byte ptr [rcx+0x52], 0
+        mov byte ptr [rcx+0x64], 0
+        mov word ptr [rcx+0x18], 0
+        mov word ptr [rcx+0x90], 0
+    done:
+        {restore}
+        ret
+    ''')
+    for site,original,continuation in ((0x114300,'mov qword ptr [rsp+0x10], rbx',0x114305),
+                                     (0x72490,'push rbx; push rdi; push r14',0x72495)):
+        hook=emit(f'action_stop_reader_{site:x}',f'''
+            sub rsp, 0x28
+            call {stop_run:#x}
+            add rsp, 0x28
+            {original}
+            jmp {continuation:#x}
+        ''')
+        jump(site,5,hook,'Optional run stop before native manual/semi-auto Guard, Attack and Arte interpretation')
     entry = emit('cast_defense_controls', f'''
         {save}
         cmp byte ptr {mem(0x12d0ef7)}, 6
@@ -50,6 +102,17 @@ def emit_cast_defense(emit, mem, jump, data):
         cmp qword ptr {mem(0x12cea60)}, 0
         je done
         sub rsp, 0x20
+        mov eax, dword ptr {mem(data+0x1ac4)}
+        test eax, eax
+        je no_cast_memory
+        push rcx
+        sub rsp, 0x28
+        lea rdx, {mem(0)}
+        add rax, rdx
+        call rax
+        add rsp, 0x28
+        pop rcx
+    no_cast_memory:
         call 0x712e0
         add rsp, 0x20
         mov byte ptr [rcx+0x52], 0
@@ -129,4 +192,5 @@ def emit_cast_defense(emit, mem, jump, data):
                 jump='Keele/Meredy and Reid/Farah: independent switches, Guard held + Up for the native two-tick threshold',
                 cancel_takes_priority=True, input_buffer_unchanged=True,
                 diagonal_walk_and_dash_brake_preserved=True,
-                released_effects_unchanged=True, ai_unchanged=True)
+                released_effects_unchanged=True, ai_unchanged=True,
+                action_stop_flag_index=30,action_stop_readers=[0x114300,0x72490])

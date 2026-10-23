@@ -14,6 +14,7 @@ def check_cast_defense(uc, base, manifest, actors, enemies, stats, sp,
     def setup(char=2, state=10, timer=100, control=2, guard=True, press=True,
               up=False, duration=2, cancel=1, jump=1, pending=0, fighter=1):
         reset()
+        put(base+manifest['data_rva']+0x1a4e,'B',0)
         put(flags+10,'BB',cancel,jump)
         put(flags+13,'B',fighter)
         put(base+0x12cea60,'Q',master)
@@ -66,6 +67,7 @@ def check_cast_defense(uc, base, manifest, actors, enemies, stats, sp,
             uc.hook_del(hook)
         assert reached, (hex(start),hex(uc.reg_read(UC_X86_REG_RIP)-base))
         stack_delta = 8 if stops is None else (-0x68 if start == 0xd51f0 else 0)
+        if start==0x72490 and stops==[0x72495]:stack_delta=-24
         assert uc.reg_read(UC_X86_REG_RSP) == entry_sp+stack_delta
         return reached[0]
 
@@ -230,7 +232,28 @@ def check_cast_defense(uc, base, manifest, actors, enemies, stats, sp,
                     execute(0x112d10,stubs=(0x7fe70,0x114980,0x1b5ca0))
                     assert get(actor+0xa4,'H')==0x40 and get(actor+0x6d,'B')==71
                     assert get(actor+0x8c,'H')>0
+        # New run option acts before both native readers, without touching input.
+        for char in range(7):
+            for reader,control in ((0x114300,2),(0x72490,1)):
+                for button in (0x80,0x20,0x40):
+                    for enabled in (0,1):
+                        setup(char=char,state=3,control=control,guard=False,press=False)
+                        put(base+manifest['data_rva']+0x1a4e,'B',enabled)
+                        put(actor+0x18,'h',320);put(inputs,'II',button,button)
+                        reg('rcx',actor)
+                        # Stop at the original reader entry: it sees the adjusted state.
+                        end=0x114305 if reader==0x114300 else 0x72495
+                        execute(reader,[end])
+                        assert get(actor+0x52,'B')==(0 if enabled else 3)
+                        assert get(actor+0x18,'h')==(0 if enabled else 320)
+                        assert get(inputs,'I')==button and get(inputs+4,'I')==button
+        for state in (0,2,4,8,9,10):
+            setup(state=state);put(base+manifest['data_rva']+0x1a4e,'B',1)
+            put(actor+0x18,'h',320);reg('rcx',actor)
+            execute(manifest['symbols']['action_stops_run'])
+            assert get(actor+0x52,'B')==state and get(actor+0x18,'h')==320
     finally:
         put(flags+10,'BB',1,1)
         put(flags+13,'B',1)
+        put(base+manifest['data_rva']+0x1a4e,'B',1)
     return cases

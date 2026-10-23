@@ -41,6 +41,12 @@ def emit_storage(emit,mem,jump,data,state,profile,string,symbols,usage):
     for key in usage_hooks:
         usage_hooks[key] += '\n' + pref_hooks[key]
     usage['preferences'] = preferences
+    from spell_catchup import storage_layout
+    exp_hooks = emit_usage_storage(emit,mem,data,state,string,fingerprint,usage['catchup'],
+        record_name='spell_catchup', section_name='SpellCatchUp-v1',
+        layout=storage_layout(state))
+    for key in usage_hooks:
+        usage_hooks[key] += '\n' + exp_hooks[key]
     # ECX write flag, EDX slot, R8 serialized buffer, R9 96-byte mod profile.
     io=emit('artesphere_storage_io',f'''
         push rbx

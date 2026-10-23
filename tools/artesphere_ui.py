@@ -1,7 +1,7 @@
 """Original six-row arte editor, scoped to A/B/C without geometry patches."""
 
 
-def emit_ui(emit,mem,jump,state,loc,symbols,initialize,enter,leave,L2,R2):
+def emit_ui(emit,mem,jump,state,loc,symbols,initialize,enter,leave,L2,R2,data):
     page=state+1
     native_input=emit('artesphere_native_input',
                       'mov qword ptr [rsp+0x18], rbx; jmp 0x228ad5')
@@ -9,6 +9,17 @@ def emit_ui(emit,mem,jump,state,loc,symbols,initialize,enter,leave,L2,R2):
         push rbx
         sub rsp, 0x20
         call {initialize:#x}
+        mov eax, dword ptr {mem(data+0x1a80)}
+        test eax, eax
+        je mastery_done
+        lea rdx, {mem(0)}
+        add rax, rdx
+        call rax
+        test eax, eax
+        je done
+    mastery_done:
+        cmp byte ptr {mem(data+0x1a47)}, 0
+        je native
         cmp word ptr {mem(0x1119f96)}, 0
         jne native
         cmp byte ptr {mem(0x1119fa4)}, 1
@@ -46,6 +57,8 @@ def emit_ui(emit,mem,jump,state,loc,symbols,initialize,enter,leave,L2,R2):
     text=symbols['settings_text']
     draw=emit('artesphere_draw',f"""
         sub rsp, 0x28
+        cmp byte ptr {mem(data+0x1a47)}, 0
+        je done
         {loc('a')}
         mov eax, 0xffffad61
         cmp byte ptr {mem(page)}, 0
@@ -83,9 +96,25 @@ def emit_ui(emit,mem,jump,state,loc,symbols,initialize,enter,leave,L2,R2):
                      'mov r11, rsp; mov qword ptr [r11+8], rbx; jmp 0x224927')
     render=emit('artesphere_menu_render',f"""
         sub rsp, 0x28
+        mov eax, dword ptr {mem(data+0x1a84)}
+        test eax, eax
+        je native
+        lea rdx, {mem(0)}
+        add rax, rdx
+        call rax
+        test eax, eax
+        jne done
+    native:
         call {enter:#x}
         call {native_draw:#x}
         call {leave:#x}
+        mov eax, dword ptr {mem(data+0x1a88)}
+        test eax, eax
+        je after_hint
+        lea rdx, {mem(0)}
+        add rax, rdx
+        call rax
+    after_hint:
         cmp byte ptr {mem(0x1119fa4)}, 1
         jne done
         cmp byte ptr {mem(0x1119fa5)}, 255

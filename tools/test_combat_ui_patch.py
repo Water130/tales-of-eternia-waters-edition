@@ -16,6 +16,8 @@ def check_combat_ui(uc, base, manifest, actors, enemies, stats, impact, sp,
 
     def setup():
         reset()
+        put(data+0x1a05, 'B', 1)
+        put(data+0x1a4b, 'B', 0)
         put(base+0x11c9ce8, 'B', 3)
         uc.mem_write(data+0x1000, b'\0'*0x208)
         uc.mem_write(data+0x1400, b'\0'*0xd0)
@@ -25,6 +27,8 @@ def check_combat_ui(uc, base, manifest, actors, enemies, stats, impact, sp,
         put(allocation+0x2000008, 'I', 0)
         put(base+0x644a10, 'Q', 0)
         put(base+0x644a18, 'Q', 0)
+        put(base+0x12d0f00, 'B', 0)
+        put(data+0x167f, 'B', 0)
         put(base+0x12cea68, 'Q', actors+0xc100)
         put(stats+0x18, 'i', 1000)
         for i in range(5):put(actors+i*0x248+0x4e, 'B', i)
@@ -95,16 +99,169 @@ def check_combat_ui(uc, base, manifest, actors, enemies, stats, impact, sp,
                     color=bytes(uc.mem_read(base+0x11ce670,4))
                     wanted=bytes((128,76+(56-lifetime)//2,76+(56-lifetime)//2)) if side==0 else bytes(uc.mem_read(data+0x1300+(expected-0x10),3))
                     assert color[:3]==wanted and color[3]==0x99
-        for original_type in [0,1,2,3,4,255]:
+        for original_type in [0,2,4,255]:
             setup();reg('rbx',impact);put(impact+5,'B',original_type)
             put(base+0x11ce670,'I',0x99885511)
             execute('draw_damage_color',0x11cf45,[0x1114a0])
             assert get(base+0x11ce670,'I')==0x99885511
-        checks.append('Damage ring: all 11 elements, invalid element fallback, received-hit priority, red-to-white age tint; original heal/TP types unchanged')
+        for original_type in (1,3):
+            for lifetime in (56,40,20,1):
+                setup();reg('rbx',impact);reg('rbp',lifetime)
+                put(impact+5,'B',original_type)
+                execute('draw_damage_color',0x11cf45,[0x1114a0])
+                channel=112+(56-lifetime)//4
+                assert bytes(uc.mem_read(base+0x11ce670,3))==bytes((channel,128,channel))
+        checks.append('Damage ring: 11 elements, received-hit priority, pale-mint recovery distinguished from dark wind')
 
     if 'combat_ui' not in manifest['features']:
         uc.mem_unmap(allocation,0x2001000)
         return checks,count
+
+    # Native Compendium scans persist across encounters and loaded saves.
+    # Exercise the actual Spectacles flag write, then the new read-only display.
+    for scanned in (False, True):
+        for enabled in (False, True):
+            for slot in (0,1,7):
+                setup()
+                master=actors+0xa000
+                species=203
+                put(base+0x12cea60,'Q',master)
+                put(base+0x12cece9,'B',8)
+                put(base+0x12d0f33+slot,'B',species)
+                put(enemies+0x4f,'B',slot)
+                put(enemies+0xe8,'Q',stats)
+                put(enemies+0x2c,'i',600)
+                put(master+0xcf8+species,'B',1)
+                if scanned:
+                    reg('rax',master);reg('rcx',species)
+                    execute(0x923be,0x923c6)
+                put(data+0x1a4b,'B',int(enabled))
+                before=bytes(uc.mem_read(master,0x1000))
+                reg('rcx',enemies)
+                value=execute('ui_scanned_enemy_hp')
+                assert value==(600*65536//1000 if scanned and enabled else 0)
+                assert bytes(uc.mem_read(master,0x1000))==before
+                # A subsequent battle has a different actor slot for that species.
+                put(enemies+0x4f,'B',2)
+                put(base+0x12d0f33+2,'B',species)
+                reg('rcx',enemies)
+                assert execute('ui_scanned_enemy_hp')==value
+                # Loading a different, unscanned save must not inherit scans.
+                put(base+0x12cea60,'Q',actors+0xb000)
+                put(actors+0xb000+0xcf8+species,'B',1)
+                reg('rcx',enemies)
+                assert execute('ui_scanned_enemy_hp')==0
+    for casts_enabled in (0,1):
+        setup();put(data+0x1a4b,'B',1);put(data+0x1a05,'B',casts_enabled)
+        master=actors+0xa000
+        put(base+0x12cea60,'Q',master);put(base+0x12d0f33,'B',203)
+        put(master+0xcf8+203,'B',3)
+        put(enemies+0x4f,'B',0);put(enemies+0xe8,'Q',stats)
+        put(enemies+0x2c,'i',500);put(enemies+0x8c,'h',0)
+        anchor=data+0x1400+5*16
+        put(anchor,'Qii',enemies,240,120);put(anchor+0x108,'ii',270,70)
+        execute('ui_cast_bars');q=quads()
+        assert len(q)==3 and q[-1][1]['x']-q[-1][0]['x']==14, q
+        assert q[-1][0]['y']==64, q
+        execute('ui_cast_bars');assert len(quads())==3,'stale anchor drawn again'
+    checks.append('Spectacles: saved native scan flag, encounter remap, save isolation, independent optional HP gauge')
+
+    # Real atlas initialization previously overwrote the Spectacles label table
+    # at 17B0 (Lightning's entry at 1800 became a vtable pointer). Exercise all
+    # ten icon objects before R1, including both translated label tables.
+    label_pairs=[('???','???'),('PV','HP'),('Rs :','Rs:'),('Fb :','Wk:'),('—','—'),
+                 ('Eau','Water'),('Vent','Wind'),('Feu','Fire'),('Terre','Earth'),('Glace','Ice'),
+                 ('Foudre','Volt'),('Lumière','Light'),('Ténèbres','Dark'),('Élémental','Element'),('Temps','Time')]
+    setup()
+    if 'ui_bind_spirit_atlas' in sym:
+        for spirit in range(10):
+            reg('rdi',spirit)
+            execute('ui_bind_spirit_atlas')
+    for language, column in ((3,0),(1,1)):
+        put(base+0x11c9ce8,'B',language)
+        for index, pair in enumerate(label_pairs):
+            reg('rcx',index);execute('scan_panel_label')
+            pointer=uc.reg_read(regs['rcx'])
+            assert data <= pointer < data+0x2000, ('corrupted Spectacles label', language, index, hex(pointer))
+            expected=pair[column].encode('utf-8')+b'\0'
+            assert bytes(uc.mem_read(pointer,len(expected)))==expected, (language,index)
+    checks.append('Spectacles/Craymel storage regression: ten real atlas initializations followed by all 30 FR/EN labels and R1')
+
+    # The smaller target panel reads the same saved species and resistances as
+    # Spectacles; it never re-scans, changes HP, or spends an item.
+    for language in (3,1):
+        for condition in ('shown','no_selector','other_target','unscanned','off','dead','lens_open','lens_closing_frame'):
+            setup();master=actors+0xa000;anchor=data+0x1450
+            put(data+0x1a4b,'B',int(condition!='off'))
+            put(base+0x11c9ce8,'B',language)
+            put(base+0x12cea60,'Q',master);put(base+0x12d0f33,'B',203)
+            put(master+0xcf8+203,'B',1 if condition=='unscanned' else 3)
+            put(enemies+0xe8,'Q',stats);put(enemies+0x2c,'i',543)
+            put(enemies+0x78,'b',50);put(stats+0x18,'I',750)
+            put(stats+0x31,'10b',100,0,0,0,-50,-30,0,0,0,0)
+            put(base+0x12ceb8d,'B',0 if condition=='no_selector' else 1)
+            put(actors+0x63,'B',int(condition=='other_target'))
+            if condition=='dead':put(actors+0x3c,'H',2)
+            if condition=='lens_open':put(base+0x12d0f00,'B',128)
+            if condition=='lens_closing_frame':
+                execute('ui_native_spectacles_visible',0xd4198,[0x91ca0])
+                assert get(data+0x167f,'B')==1
+            put(anchor+0x108,'ii',450,50)
+            put(base+0x644a10,'Q',allocation+0x1000)
+            manager=allocation+0x2000;catalog=allocation+0x30000;record=allocation+0x2100
+            put(base+0x644a70,'Q',manager);put(manager+8,'I',0 if language==3 else 1)
+            put(manager+0x18,'Q',catalog);put(catalog+0x214d0+203*8,'Q',record)
+            for lang,title in enumerate(('Cisailleur','Slicer')):
+                ptr=allocation+0x2200+lang*0x40
+                put(record+8+lang*8,'Q',ptr);uc.mem_write(ptr,(title+'\0').encode('utf-8'))
+            # Execute native 2518A0, including its palette, circular sprite UVs,
+            # localized captions and font sizing; intercept only submission.
+            for element in range(1,11):
+                msg=get(base+0x50fff8+element*4,'i')
+                entry=allocation+0x50000+element*0x100
+                put(catalog+msg*8,'Q',entry)
+                for lang in (0,1):
+                    ptr=entry+0x40+lang*0x40
+                    put(entry+8+lang*8,'Q',ptr)
+                    uc.mem_write(ptr,(label_pairs[element+4][lang]+'\0').encode('utf8'))
+            text=[];windows=[];icons=[];captions=[]
+            def panel_boundary(rva,rsp):
+                if rva==0x11ac40:
+                    windows.append(tuple(uc.reg_read(regs[r])&0xffffffff for r in ('rcx','rdx','r8','r9'))+(get(rsp+0x28,'I'),))
+                if rva in (0xb480,0xcb90):
+                    ptr=uc.reg_read(regs['rcx']);raw=bytearray()
+                    for i in range(128):
+                        b=bytes(uc.mem_read(ptr+i,1))
+                        if b==b'\0':break
+                        raw.extend(b)
+                    (text if rva==0xb480 else captions).append(raw.decode('utf8'))
+                if rva==0x12cb0:
+                    from unicorn.x86_const import UC_X86_REG_XMM1,UC_X86_REG_XMM2
+                    import struct
+                    coords=tuple(struct.unpack('<f',(uc.reg_read(r)&0xffffffff).to_bytes(4,'little'))[0]
+                                 for r in (UC_X86_REG_XMM1,UC_X86_REG_XMM2))
+                    icons.append((uc.reg_read(regs['rcx']),coords,get(rsp+0x28,'f'),get(rsp+0x30,'f')))
+            before=bytes(uc.mem_read(master,0x1000));before_actor=bytes(uc.mem_read(enemies,0x248))
+            reg('rcx',enemies);reg('rdx',anchor)
+            execute('ui_scanned_target_panel',stubs=[0x11ac40,0x24f290,0xb480,0x12cb0,0xcb90],intercept=panel_boundary)
+            if condition=='shown':
+                assert windows==[(300,0xfffffffc,508,96,56)],windows
+                assert text==(['Cisailleur','PV','543','/750','Rs :','Fb :'] if language==3 else
+                              ['Slicer','HP','543','/750','Rs:','Wk:']),text
+                assert captions==(['Eau','Glace','Foudre'] if language==3 else ['Water','Ice','Volt']),captions
+                assert icons==[(10,(406.,37.),14.,14.),(10,(406.,52.),14.,14.),(10,(420.,52.),14.,14.)],icons
+            else:assert not text and not windows,condition
+            assert bytes(uc.mem_read(master,0x1000))==before
+            assert bytes(uc.mem_read(enemies,0x248))==before_actor
+            if condition=='lens_closing_frame':
+                execute('ui_cast_bars')
+                assert get(data+0x167f,'B')==0, 'closing latch must reset each HUD frame'
+                text.clear();windows.clear()
+                reg('rcx',enemies);reg('rdx',anchor)
+                execute('ui_scanned_target_panel',stubs=[0x11ac40,0x24f290,0xb480,0x12cb0,0xcb90],intercept=panel_boundary)
+                assert len(windows)==1 and text, 'R1 panel must resume on the following frame'
+    put(base+0x644a70,'Q',0)
+    checks.append('R1 Spectacles: native 96x56 bubble, real elemental discs/captions, HP layout, right gutter, viewport clamp, saved scans, no gameplay writes')
 
     # Execute the real animated-pad layout and intercept only the final glyph
     # submission. Direction/blink/size stay native; placement shares HUD space.
@@ -204,7 +361,8 @@ def check_combat_ui(uc, base, manifest, actors, enemies, stats, impact, sp,
             assert max(x+w for x,gy,w,h in glyphs)==slot_index*48+11
             bar_y=220 if metric==0 else 235
             assert y+12==bar_y, 'digits obscure gauge'
-            assert min(x for x,gy,w,h in glyphs)>=slot_index*48-20, 'digits extend left of shortened gauge'
+            assert min(x for x,gy,w,h in glyphs)>=slot_index*48-25, 'digits extend outside the reserved slot'
+            assert all(abs(glyphs[i][0]-glyphs[i-1][0])==8 for i in range(1,len(glyphs))), 'native digit advance'
             if metric:assert min(gy for x,gy,w,h in glyphs)>=223, 'TP digits over HP gauge'
     # Execute the unchanged portrait branch with only its two new immediates.
     for slot_index in range(4):

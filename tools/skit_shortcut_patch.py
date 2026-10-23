@@ -7,7 +7,9 @@ If any exploration binding uses action ID 13, require L2+Select instead.
 
 
 def emit_skit_shortcut(emit, mem, jump, data, symbols, keyboard_bridge):
-    previous, claimed, actions = data+0x1a60, data+0x1a64, data+0x1a68
+    # 1a60..1a6f is the third settings bank. Input polling writes a full
+    # dword even in menus: sharing it silently disabled faculties/specials.
+    previous, claimed, actions = data+0x1ad0, data+0x1ad4, data+0x1ad8
     flag = data+0x1a40
     # Native bindings at +54..80 are exploration actions 13..24. Action
     # bytes in the input structure have held/pressed/repeated/changed banks.

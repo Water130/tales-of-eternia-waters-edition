@@ -81,11 +81,13 @@ def check_spell_palettes(u, base, m, sp, put, get, reg, regs):
         return get(renderer+0x270, 'Q')
 
     try:
+        put(base+m['data_rva']+0x1a45,'B',1)
         put(vtable_entry, 'Q', base+0x670e0)
         put(allocator, 'Q', avtable); put(avtable+8, 'Q', allocfn)
         put(avtable+0x18, 'Q', allocfn+0x10)
         put(manager+0x20, 'QQQ', vector, vector, vector+0x1000)
         put(base+0x11c9e18, 'Q', manager)
+        enemy = load(10, 1)
         # Air Thrust's template uses CLUT 0x7d00 (x=0, y=500).
         # Spread may use the same coordinates but a different part/extent.
         air = load(126, 2, w=16, h=4)
@@ -101,11 +103,20 @@ def check_spell_palettes(u, base, m, sp, put, get, reg, regs):
         # Opposite load order, a third spell, and cached/repeated loads.
         third = load(129, 7, w=32, h=2)
         assert select(126) == air and select(188) == spread and select(129) == third
+        assert select(10) == enemy, 'Enemy palette borrowed a later party-spell palette'
         for resource, part, ptr, width in ((188, 5, spread, 256), (126, 2, air, 16)):
             for _ in range(4):
                 assert load(resource, part, w=width) == ptr
                 assert select(resource) == ptr
-        assert (get(manager+0x28, 'Q')-vector)//8 == 3, 'repeat cast grows palette objects'
+        assert (get(manager+0x28, 'Q')-vector)//8 == 4, 'repeat cast grows palette objects'
+        # Boss-only large effects are outside the party overlap allowlist but
+        # still upload into the same VRAM palette coordinates.
+        boss_palettes={rid:load(rid,3,w=64) for rid in (160,165,199)}
+        assert len(set(boss_palettes.values()))==3
+        assert all(select(rid)==p for rid,p in boss_palettes.items())
+        assert select(126)==air and select(188)==spread and select(10)==enemy
+        assert all(load(rid,3,w=64)==p for rid,p in boss_palettes.items())
+        assert (get(manager+0x28,'Q')-vector)//8==7
         # Non-spell uploads cannot overwrite retained spell palettes either.
         other = load(10, 1)
         assert other not in (air, spread, third)
