@@ -1,61 +1,11 @@
-Tales of Eternia - Water's Edition - 0.13.8 test release
+Water's Edition is an experimental overhaul for Tales of Eternia Remastered on Windows / Steam.
+It adds combat and interface changes, three Artesphere pages, spell usage mastery,
+Farah Energy faculties and configurable mod settings. Mod text is French or English.
 
-An experimental combat and UI mod for Tales of Eternia Remastered on Steam.
+Download, installation and features:
+https://github.com/Water130/tales-of-eternia-waters-edition
 
-Created, designed and directed by Water, a human. All of the mod's code was
-written by AI. This mod has bugs, and unknown bugs or new regressions may appear
-in current and future versions. Not all bugs will necessarily be fixed.
-Fixes, support and future updates are not guaranteed.
-
-Use at your own risk. Provided as-is, without warranty. To the extent permitted
-by applicable law, the creator accepts no liability for problems or losses
-resulting from its use, including damage to game files, save corruption or lost
-progress. Back up your saves separately before installing. The installer does
-not directly edit saves, but gameplay bugs may still affect your progress.
-
-Current features include TP recovery from basic physical hits, adjusted
-post-battle TP recovery, a smoother player-and-target camera, reduced spell
-freezes, and limited overlapping spell effects. You can choose a full-vitality
-Craymel summon by holding the Arte command through an elemental cast, while L1
-holds a completed spell instead.
-
-The interface adds animated HP/TP gauges, casting and item cooldown bars,
-element-colored casting effects and damage numbers, plus compact Craymel
-miniatures with colored vitality counters. Startup goes straight to the opening.
-
-The title screen features a blue Water's Edition wordmark with a cyan glow,
-visible after the original title reveal and before pressing Start.
-The settings page draws over the title logo. The page
-follows the native Options layout, with gold labels, side-by-side choices,
-a hand cursor, Reset/Default controls and live keyboard/controller button hints.
-The Mod settings page on the title screen lets you toggle the camera, both TP
-recovery features, damage colors, custom HUD, casting bars, item cooldown bar,
-skit notifications, difficulty rebalancing, multiple MAX vitality,
-Guard spell cancelling and Guard + Up mage jumps independently. Settings are saved automatically.
-Mod text is French with the French game text language, and English with every
-other language.
-
-The mod includes three arte pages of six commands (18 total): A in blue,
-B in red (L2/LT) and C in yellow (R2/RT), with configurable keyboard keys and
-per-save assignments. The original six-row arte menu layout is restored.
-Spell usage counters sit beside their element icons. Victory TP numbers keep
-their normal animation and draw in front of the TP bars.
-An optional skit notice works on the overworld and in fields/dungeons.
-
-This is a TEST release. Native-code regressions and installer checks pass,
-but new features still need broader in-game testing.
-Some camera edges and summon backdrops can still have issues.
-Same-effect and special spells are still queued.
-A Compatibility mode restores the native spell queue while keeping the other
-changes.
-
-Requires Windows and Steam build 25190541. Extract the ZIP, close the game,
-double-click Install.cmd, then type Y and press Enter. The game folder is detected
-automatically. To remove the mod, run Uninstall.cmd and confirm the same way.
-The installer checks the exact game version and backs up the original DLL.
-The ZIP contains patch data, not the complete game DLL.
-
-If uninstalling fails, close the game and try Steam's game-file verification:
-https://help.steampowered.com/en/faqs/view/0C48-FCBD-DA71-93EB
-Reinstalling the game may be necessary if problems persist. Verification and
-reinstallation do not guarantee recovery of damaged saves or lost progress.
+Created and directed by Water. All mod code was written by AI.
+Bugs, crashes and regressions are possible. Fixes, support and updates are not
+guaranteed. Use at your own risk and back up your saves and mod preferences.
+See the repository's authorship and sharing permissions before redistributing.

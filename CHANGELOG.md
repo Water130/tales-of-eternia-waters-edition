@@ -1,5 +1,7 @@
 # Changelog
 
+[Overview](README.md) · [Installation](docs/INSTALLATION.md) · [All releases](https://github.com/Water130/tales-of-eternia-waters-edition/releases)
+
 ## 0.13.8 - Experimental release
 
 - Add a persistent Mastery list and rooted skill trees from Stats (Square),

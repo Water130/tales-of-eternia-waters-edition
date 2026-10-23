@@ -1,6 +1,8 @@
 # Building and testing
 
-End users should use the Easy Install ZIP in Releases. These steps are for developers.
+[Overview](README.md) · [Documentation](docs/README.md)
+
+These steps are for developers. To play, follow the [installation guide](docs/INSTALLATION.md).
 
 ## Requirements
 
