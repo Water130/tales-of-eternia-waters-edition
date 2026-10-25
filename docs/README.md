@@ -1,17 +1,15 @@
-# Documentation
+# Player guides
 
 [Back to Water's Edition](../README.md)
 
 | Looking for… | Read this |
 | --- | --- |
-| Download, install, update or remove the mod | [Installation](INSTALLATION.md) |
-| Features, progression and compatibility | [Features and limits](FEATURES.md) |
-| In-game screenshots of combat, progression and settings | [Screenshot gallery](GALLERY.md) |
-| Artesphere pages and keyboard/controller inputs | [Controls](CONTROLS.md) |
-| What changed between versions | [Changelog](../CHANGELOG.md) |
+| Install, update or remove the mod | [Installation](INSTALLATION.md) |
+| An overview of the changes to the game | [Features](FEATURES.md) |
+| Learning conditions, bonuses and timings | [Detailed feature reference](FEATURE-REFERENCE.md) |
+| Controller and keyboard inputs | [Controls](CONTROLS.md) |
+| In-game images | [Screenshot gallery](GALLERY.md) |
+| Additions and fixes by version | [GitHub Releases](https://github.com/Water130/tales-of-eternia-waters-edition/releases) |
 | Creator's statement and sharing permissions | [About Water's Edition](ABOUT.md) |
-| Build the mod or run offline tests | [Developer guide](../BUILDING.md) |
 
-These guides describe the published **0.14.30R** release. Its
-[release notes](RELEASE-0.14.30R.md) and [verification record](VERIFICATION-0.14.30R.json)
-remain available. Older release notes describe their own versions.
+These guides describe version **0.14.30**. For source code instructions, see [Building](../BUILDING.md).

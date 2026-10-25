@@ -1,53 +1,44 @@
-# Features and limits
+# Features
 
-## New approved spells
-- Spark Wave (French: Vague d'etincelles): Volt level 5, power 1400,
-  base casting time 240 frames before progression modifiers.
-- Fear Flare (French: Rafale ardente): Efreet level 10, nominal total
-  power 1440 across 18 meteors, base casting time 180 frames.
-The required spirit must be in the caster's cage. Both Keele and Meredy
-can learn these additions. They have no level-one testing bypass.
-These adaptations apply to party casters; enemy versions retain native data.
+[Overview](../README.md) · [Detailed reference](FEATURE-REFERENCE.md) · [Controls](CONTROLS.md)
 
-## Editions
-R identifies public releases; T identifies personal test builds of the same
-revision. The common gameplay is shared. Unapproved prototype spells are
-unavailable in R, including when loading old test assignments or preferences.
+Most features can be enabled or disabled in **Mod settings**. Choices are saved automatically. Magic, Reid and Farah each have their own progression switch.
 
-## Combat, progression and interface
-- Optional dynamic camera, custom HUD, casting and item cooldown bars.
-- TP recovery, elemental damage colors and supported overlapping spells.
-- Three six-slot Artesphere pages and configurable keyboard controls.
-- Spell mastery caps at 500 credited uses, with separate progress for each mage.
-  Catch-up EXP does not increase real cast counts for learning requirements.
-- Craymel EXP, faculty trees, individual toggles and detailed FR/EN effects.
-- Expanded Reid and Farah mastery branches; custom physical prototypes paused.
-- Native-style mastery notices, compact cage gauges and elemental spell icons.
-- French HP/TP digits use the original combat glyph shapes.
-- Settings help scrolls with the right stick.
+## Combat
 
-## Compatibility and limits
+- Dynamic battle camera, custom HUD and enemy HP information.
+- Casting progress and item cooldown bars.
+- TP recovery adjustments and elemental damage colors.
+- Overlapping spell effects, with some combinations still queued.
+- Optional casting cancellation and Guard + Up jumping.
+- Three Artesphere pages and configurable keyboard shortcuts.
 
-Most systems can be toggled in Mod settings. Same-effect and special spells
-may still queue. Offline tests are not a guarantee of whole-game stability
-or final visual quality. Back up saves and mod preferences before updating.
+## Magic and Craymels
 
-## Authorship, bugs and use at your own risk
-Water's Edition was created, designed and directed by Water, a human.
-All of the mod's code was written by AI.
-This mod was made for personal use and is shared as-is. Requests are not accepted.
-This mod has bugs. Unknown bugs and new regressions may appear. Crashes, visual
-glitches and unintended gameplay behavior are possible. Not every bug will
-necessarily be fixed; fixes, support and future updates are not guaranteed.
-Use at your own risk, without warranty. Back up your saves separately. The
-installer and uninstaller do not directly edit saves; gameplay bugs may still
-affect progress. Steam verification or reinstalling does not guarantee recovery
-of damaged saves or lost progress.
+Keele and Meredy build their own spell mastery through use. The mage who is behind receives extra mastery EXP to help catch up. Craymels also gain EXP from the spells used in battle, unlocking faculties that can be enabled individually.
 
-Do not claim authorship. Reuploads, redistribution of modified releases, reuse
-of original mod material in publicly distributed projects, sales and paid mod
-packs require Water's prior written permission, to the extent enforceable and
-subject to applicable law and third-party rights. Link to the official release
-when sharing.
-Unofficial fan mod, not affiliated with or endorsed by Bandai Namco Entertainment.
-The game and its original assets belong to their respective rights holders.
+**Spark Wave** (*Vague d'étincelles*) requires **Volt level 5**. **Fear Flare** (*Rafale ardente*) requires **Efreet level 10**. Either mage can learn them when the required spirit is in their cage.
+
+**Fringe: free cages** lets a recipe's supporting Craymel be in either cage. The required spirits and levels are still needed, and the main Craymel still determines which mage receives the spell.
+
+## Reid and Farah
+
+Their mastery trees add longer chains, extra normal attacks and faculties that reward different fighting styles. Farah's Energy progression improves her healing artes. Reid also has options for his special techniques.
+
+**Standalone team-up artes** can be learned by practising their component artes, then used by Reid or Farah without a partner casting alongside them.
+
+## Interface and convenience
+
+- Mastery trees, spell progression pages and EXP gauges.
+- Elemental spell icons, damage colors and casting effects.
+- Enemy scan memory and skit shortcuts.
+- English and French descriptions and mastery notices.
+- Saved settings, with long descriptions scrolled using the **right stick**.
+
+For learning conditions, bonus values and timings, see the [detailed reference](FEATURE-REFERENCE.md). Changes between versions are listed in [GitHub Releases](https://github.com/Water130/tales-of-eternia-waters-edition/releases).
+
+## Compatibility
+
+Requires **Windows / Steam build 25190541**. Other mods that change the same game files may conflict. See the [installation guide](INSTALLATION.md) before installing, updating or removing the mod.
+
+Created by Water; all code was written by AI. Bugs and crashes can occur, and fixes or support are not guaranteed. Use at your own risk and back up your saves and mod settings. [About and sharing permissions](ABOUT.md).

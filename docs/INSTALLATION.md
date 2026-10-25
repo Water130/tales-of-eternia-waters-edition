@@ -2,45 +2,39 @@
 
 [Overview](../README.md) · [Features](FEATURES.md) · [Controls](CONTROLS.md)
 
+Requires **Windows / Steam build 25190541** and at least **5 GiB of free space**. Mods that change the same game files may conflict.
+
 ## Install
 
-Requires **Windows / Steam build 25190541**. The installer checks the exact game file.
-
 1. Back up your saves and `%LOCALAPPDATA%\TalesOfEternia-WatersEdition.ini`.
-2. Close the game and [download the Easy-Install ZIP](https://github.com/Water130/tales-of-eternia-waters-edition/releases/tag/v0.14.30R).
-3. Extract the whole ZIP. Keep **Install.cmd**, **Uninstall.cmd** and **Support** together.
-4. Run **Install.cmd**, check the detected game folder, type **Y**, then press Enter.
+2. Close the game and [download the mod archive](https://github.com/Water130/tales-of-eternia-waters-edition/releases/latest). Choose the archive containing **Install.cmd**, rather than GitHub's source code downloads.
+3. Extract the whole archive. Keep **Install.cmd**, **Uninstall.cmd** and **Support** together.
+4. Run **Install.cmd**, check the game folder and confirm with **Y**.
 5. Wait for **Installed and verified**, then launch through Steam.
 
-Choose the **Easy-Install.zip** asset, not GitHub's **Source code** downloads.
-No Python, mod loader or extra download is needed. Keep at least **5 GiB free**.
+If asked for the game folder, open Steam and select **Manage → Browse local files** for Tales of Eternia, then copy that folder's path.
 
 ## Update or remove
 
-- **Update:** uninstall the older release using its own **Uninstall.cmd**, then install the new one.
-- **Remove:** close the game, run **Uninstall.cmd**, confirm the folder with **Y**.
+To **update**, uninstall the previous version using the uninstaller that came with it, then install the new one.
 
-The installer backs up the original DLL and French HP/TP font bundle beside
-each patched file. Keep both backups for removal. Saves are not directly edited by the installer;
-mod preferences are retained when uninstalling.
+To **remove** the mod, close the game, run **Uninstall.cmd** and confirm the game folder. Keep the original-file backups created by the installer. Mod settings are retained after removal.
 
-## If the installer cannot continue
-
-| Message or situation | What to do |
-| --- | --- |
-| Game folder requested | In Steam, choose **Manage → Browse local files**, then paste that folder's path. |
-| Game still running | Close Tales of Eternia completely and try again. |
-| Unsupported or modified DLL | Restore the supported original game file. Do not force a patch onto another build or DLL mod. |
-| Uninstall fails | Close the game and try [Steam's file verification](https://help.steampowered.com/en/faqs/view/0C48-FCBD-DA71-93EB). |
-
-Verifying or reinstalling game files cannot recover damaged saves or lost progress.
+If the uninstaller cannot restore the files, use [Steam's file verification](https://help.steampowered.com/en/faqs/view/0C48-FCBD-DA71-93EB). This restores game files and may also replace changes made by other mods. It cannot recover damaged saves or lost progress.
 
 ## Settings and backups
 
-Open **Mod settings** on the title screen. Options are saved automatically.
-The INI file above also contains extra arte assignments and spell counters tied
-to saves; back it up and copy it when moving PCs. Steam Cloud does not automatically include it.
+Open **Mod settings** on the title screen. Choices are saved automatically.
 
-**Support/Status.cmd** checks the installation.
-**Support/Compatibility-Mode.cmd** restores the native spell queue while keeping other changes.
-See [compatibility limits](FEATURES.md#compatibility-and-limits) and [use-at-your-own-risk terms](ABOUT.md).
+The settings file listed above also stores extra arte assignments and progression data. Back it up alongside your saves and copy it when moving to another PC; Steam Cloud does not automatically include it.
+
+## Troubleshooting
+
+| Situation | What to do |
+| --- | --- |
+| Game still running | Close it completely before installing or removing the mod. |
+| Unsupported or modified game files | Check the required game build and restore its original files before installing. |
+| Check whether the mod is installed | Run **Support/Status.cmd**. |
+| Problems with overlapping spells | Run **Support/Compatibility-Mode.cmd** to restore the original spell queue. |
+
+See [About Water's Edition](ABOUT.md) for the project's limitations and sharing permissions.

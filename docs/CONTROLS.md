@@ -41,14 +41,4 @@ confirm, release held keys, then press the new key. **Esc** cancels.
 Choose two different keys that do not conflict with the game's own controls.
 Bindings are shared across saves; arte assignments are stored separately per save.
 
-For manual configuration, close the game and edit `%LOCALAPPDATA%\TalesOfEternia-WatersEdition.ini`:
-
-```ini
-[ArtesphereControls]
-PageKey=118
-PageCKey=119
-```
-
-These are Windows virtual-key codes: **118 = F7**, **119 = F8**. Invalid or identical
-values fall back to the defaults. Do not edit the INI's encoded save records.
-Back up this file alongside saves; it is not automatically included in Steam Cloud.
+Back up `%LOCALAPPDATA%\TalesOfEternia-WatersEdition.ini` alongside your saves. It is not automatically included in Steam Cloud.

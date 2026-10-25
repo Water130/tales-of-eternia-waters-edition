@@ -3,8 +3,7 @@
 [Back to Water's Edition](../README.md) · [Download and install](INSTALLATION.md) · [Nexus Mods gallery](https://www.nexusmods.com/talesofeterniaremastered/mods/13?tab=images)
 
 Screenshots provided by Water, showing the English interface. Click any image to
-view the original PNG. The mod is in development, so wording and layout may change.
-See [Features and limits](FEATURES.md) for the published release's supported behavior.
+view the original PNG. Some screenshots show an earlier interface. See [Features](FEATURES.md) for the current overview.
 
 ## Combat
 
@@ -51,14 +50,6 @@ Punch, Kick and Energy levels on the stats screen, with a shortcut to the master
 
 [![Farah's stats with Punch, Kick and Energy level gauges](../assets/screenshots/farah-stats.png)](../assets/screenshots/farah-stats.png)
 
-### Reid's mixed mastery tree — development preview
-
-The Slash + Thrust page combines normal-attack extensions with proposed arte-chain
-faculties. **The selected Mixed double technique is a preview with no battle effect**,
-as indicated in the screenshot; it is not an implemented combo feature.
-
-[![Reid's mixed mastery tree; selected arte-chain faculty is marked in development](../assets/screenshots/reid-mastery-preview.png)](../assets/screenshots/reid-mastery-preview.png)
-
 ## Mod settings
 
 ### Settings categories
@@ -80,15 +71,6 @@ casting controls, jumps and supported spell effects.
 Camera, HUD, casting bars, item cooldown, skit and display options.
 
 [![Quality-of-life settings with the dynamic camera selected](../assets/screenshots/quality-of-life-settings.png)](../assets/screenshots/quality-of-life-settings.png)
-
-### Progression options
-
-Grouped switches for magic, Farah and Reid, plus Fringe and standalone team-up
-artes. Long descriptions can be scrolled with the right stick. This capture contains
-an earlier catch-up description; the [published feature guide](FEATURES.md) explains
-how credited uses now contribute to progression and use-based requirements.
-
-[![Progression settings with the scrollable magic progression description](../assets/screenshots/progression-settings.png)](../assets/screenshots/progression-settings.png)
 
 ### Startup and keyboard options
 

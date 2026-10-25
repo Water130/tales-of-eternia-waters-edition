@@ -4,66 +4,58 @@
   <img src="assets/branding/waters-edition-blue.png" alt="Water's Edition" width="620">
 </p>
 
-An experimental **overhaul mod** for Tales of Eternia Remastered on **Windows / Steam**:
-combat, character progression and quality-of-life changes.
+A combat, progression and interface overhaul for **Tales of Eternia Remastered on Windows / Steam**.
+Most features can be switched on or off in **Mod settings**, so you can choose the changes you enjoy.
 
-I'm Water, a player who wanted to tweak the games I love to suit my own taste.
-I'm not a programmer: **all of this mod's code was written by AI**.
-This is my personal project, shared with anyone who wants to try it.
+I'm Water, a player who wanted to adapt a game I love to my own taste. I'm not a programmer: **all of this mod's code was written by AI**. This is my personal project, shared with anyone who wants to try it.
 
 ## Download and install
 
-**[Download 0.14.30R - Easy Install](https://github.com/Water130/tales-of-eternia-waters-edition/releases/download/v0.14.30R/Tales-of-Eternia-Waters-Edition-0.14.30R-Easy-Install.zip)** · [Nexus Mods](https://www.nexusmods.com/talesofeterniaremastered/mods/13) · [All releases](https://github.com/Water130/tales-of-eternia-waters-edition/releases)
+**[Download](https://github.com/Water130/tales-of-eternia-waters-edition/releases/latest)** · [Nexus Mods](https://www.nexusmods.com/talesofeterniaremastered/mods/13) · [Installation guide](docs/INSTALLATION.md)
 
 Requires **Steam build 25190541**. Back up your saves and close the game first.
 
-1. Extract the entire ZIP.
-2. Run **Install.cmd**, check the game folder, then confirm with **Y**.
-3. Wait for **Installed and verified**, then launch the game through Steam.
+1. Download and extract the mod archive.
+2. Run **Install.cmd**, check the game folder and confirm with **Y**.
+3. Wait for **Installed and verified**, then launch through Steam.
 
-**To uninstall:** close the game, run **Uninstall.cmd**, and confirm with **Y**.
-Uninstall an older release with its own uninstaller before updating.
-No Python or mod loader is needed. [Installation help →](docs/INSTALLATION.md)
+To update, remove the previous version with its own **Uninstall.cmd** first. The [installation guide](docs/INSTALLATION.md) also covers removal and troubleshooting.
 
-## New in 0.14.30R
+## Combat and controls
 
-Spark Wave unlocks with **Volt level 5**; Fear Flare unlocks with **Efreet level 10**.
-Both are available to Keele and Meredy through the appropriate cage.
-Public **R** and personal **T** builds share a revision number; experimental
-spells stay in T. There is no level-one bypass for the two approved additions.
+- A dynamic battle camera and a redesigned HUD, with casting and item cooldown bars.
+- Adjustable TP recovery, elemental damage colors and overlapping spell effects. Some spells still need to wait for one another.
+- **Artesphere:** three pages of arte assignments, with controller shortcuts and configurable keyboard keys.
+- Optional casting cancellation and **Guard + Up** jumping.
 
-## Choose the features you want
+## Magic and progression
 
-Want the dynamic battle camera without the progression overhaul? **Most features
-can be enabled or disabled in Mod settings**, and your choices are saved.
-Related systems share coherent switches: Magic progression, Farah progression
-and Reid progression. You do not have to use the whole overhaul.
+- Separate spell mastery for **Keele and Meredy**, with bonuses earned through use and a catch-up system for the mage who is behind.
+- **Craymel faculty trees**, earned Craymel EXP and individually selectable bonuses.
+- **Spark Wave** (*Vague d'étincelles*) through Volt and **Fear Flare** (*Rafale ardente*) through Efreet, available to both mages.
+- Expanded **Reid and Farah mastery trees**, including new chaining options, combat faculties and Farah's Energy healing progression.
+- Four team-up artes that can be learned and used independently.
 
-- **Combat:** dynamic camera, TP recovery, supported overlapping spells and optional control changes.
-- **Artesphere:** three pages of six assignments, with configurable keyboard controls.
-- **Magic:** offensive spell growth tracks capped at 500 uses, catch-up EXP, earned Craymel EXP and **72 implemented Craymel faculties**.
-- **Characters:** Farah's Energy healing, extra normal attacks, Reid's special-technique options and four standalone team-up artes.
-- **Interface:** mastery trees, EXP bars, elemental effects, scan memory and French/English level-up messages.
+## Interface and convenience
 
-[Features and limits →](docs/FEATURES.md) · [Controls →](docs/CONTROLS.md) · [Changelog →](CHANGELOG.md)
+Mastery pages, progression gauges, elemental icons, enemy scan memory and skit shortcuts make information easier to find. Settings are saved automatically, and the interface supports English and French.
 
-## See it in game
+[Feature overview](docs/FEATURES.md) · [Detailed feature reference](docs/FEATURE-REFERENCE.md) · [Controls](docs/CONTROLS.md) · [Updates and fixes](https://github.com/Water130/tales-of-eternia-waters-edition/releases)
 
-| Combat interface | Craymel faculties |
+## Screenshots
+
+| Combat | Craymel faculties |
 | --- | --- |
-| [![Spread in combat with the custom HUD](assets/screenshots/battle-spread.png)](assets/screenshots/battle-spread.png) | [![Undine's faculty tree and level milestones](assets/screenshots/undine-faculties.png)](assets/screenshots/undine-faculties.png) |
+| [![Spread and the combat HUD](assets/screenshots/battle-spread.png)](assets/screenshots/battle-spread.png) | [![Undine's faculty tree](assets/screenshots/undine-faculties.png)](assets/screenshots/undine-faculties.png) |
 | Spell mastery | Farah's Energy |
-| [![Meredy's spell progression and individual bonus gauges](assets/screenshots/spell-mastery.png)](assets/screenshots/spell-mastery.png) | [![Farah's Energy tree and healing faculties](assets/screenshots/farah-energy.png)](assets/screenshots/farah-energy.png) |
+| [![Spell mastery](assets/screenshots/spell-mastery.png)](assets/screenshots/spell-mastery.png) | [![Farah's Energy tree](assets/screenshots/farah-energy.png)](assets/screenshots/farah-energy.png) |
 
-[View all 12 screenshots →](docs/GALLERY.md) · [Nexus Mods gallery](https://www.nexusmods.com/talesofeterniaremastered/mods/13?tab=images)
+[Screenshot gallery](docs/GALLERY.md) · [Nexus Mods gallery](https://www.nexusmods.com/talesofeterniaremastered/mods/13?tab=images)
 
 ## Before you play
 
-Created and directed by **Water**; **all mod code was written by AI**.
-This personal project is shared as-is. **Bugs are expected**, including possible crashes;
-fixes, support and future updates are not guaranteed. Use at your own risk.
-Back up your saves and mod preferences. Restoring game files does not restore lost progress.
+Created and directed by **Water**, with **all code written by AI**. Bugs and crashes can occur, including new issues after updates. Fixes, support and future updates are not guaranteed. Use at your own risk and keep backups of your saves and mod settings; restoring game files cannot restore lost progress.
 
-[Creator's statement and sharing permissions](docs/ABOUT.md) · [Documentation](docs/README.md) · [Build from source](BUILDING.md)
+[About and sharing permissions](docs/ABOUT.md) · [Player guides](docs/README.md) · [Build from source](BUILDING.md)
 
 Unofficial fan mod, not affiliated with or endorsed by Bandai Namco Entertainment.
