@@ -4,8 +4,8 @@ import hashlib
 import json
 
 ROOT=Path(__file__).resolve().parents[1]
-STAGE=ROOT/'build/combat-test'
-GROUPS=('core','mastery','mastery-menu','energy','fringe','craymel-exp','teamup','faculties')
+from build_profile import OUT as STAGE
+GROUPS=('core','mastery','mastery-menu','energy','fringe','craymel-exp','teamup','faculties','mastery-badges','farah-artes','expansion','custom-artes','camera-floor','camera','casting')
 
 
 def main():
@@ -25,6 +25,31 @@ def main():
             assert any(c.startswith(base) for c in report['checks']), f'{group}: missing ASLR base {base}'
         checks.extend(report['checks'])
         sources.append(dict(file=path.name,sha256=hashlib.sha256(raw).hexdigest()))
+    for group in ('tidal-presentation','tidal-recoil'):
+        path=STAGE/f'{group}-verification.json'
+        raw=path.read_bytes()
+        report=json.loads(raw)
+        assert report['passed'] is True and report['sha256']==digest, f'{group}: failed or stale binary'
+        assert report['cases']>0 and report['results'], f'{group}: no native executions'
+        assert {r['base'] for r in report['results']}=={'0x180000000','0x7ffb00000000'}, f'{group}: missing ASLR coverage'
+        checks.append(f"{group}: {report['cases']} native execution cases; GPU appearance requires user testing")
+        sources.append(dict(file=path.name,sha256=hashlib.sha256(raw).hexdigest()))
+    branch_path=STAGE/'native-branch-audit.json'
+    branch_raw=branch_path.read_bytes()
+    branches=json.loads(branch_raw)
+    assert branches['passed'] and not branches['branch_hazards'], 'Native branch enters an overwritten detour span'
+    assert branches['patched_sha256']==digest, 'Stale native branch audit; run verify_native_detour_branches.py'
+    checks.append(f"Native direct-branch audit: {branches['checked_native_functions']} functions, {branches['checked_direct_branches']} branches; no detour-interior targets")
+    sources.append(dict(file=branch_path.name,sha256=hashlib.sha256(branch_raw).hexdigest()))
+    font_path=STAGE/'hp-tp-font/verification.json'
+    font=json.loads(font_path.read_text(encoding='utf-8'))
+    assert font['passed'] and font['damage_digits_unchanged'] and font['outside_pixels_unchanged']
+    assert hashlib.sha256((font_path.parent/font['file']).read_bytes()).hexdigest()==font['patched_sha256']
+    installer=json.loads((STAGE/'installer-verification.json').read_text(encoding='utf-8-sig'))
+    assert installer['passed'] and installer['real_game_modified'] is False
+    sources.append(dict(file='hp-tp-font/verification.json',sha256=hashlib.sha256(font_path.read_bytes()).hexdigest()))
+    checks.append('FR HP/TP: owned EN glyph strip; all pixels outside strip and serialized metadata unchanged; native catalog CRC=0')
+    checks.append('Installer: install, repeat, full restore, unknown-asset rejection and injected-failure rollback passed')
     result=dict(passed=True,version=manifest['version'],patched_sha256=digest,
                 checks=checks,source_reports=sources,runtime_validated=False,
                 note='Complete verification split into fresh emulator processes. '

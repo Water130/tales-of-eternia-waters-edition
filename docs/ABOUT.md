@@ -23,7 +23,7 @@ the overhaul. Related progression features are grouped under shared switches;
 individual Craymel faculties also have their own saved choices.
 See the [features guide](FEATURES.md) for the current groups and limitations.
 
-The same release is available on [GitHub](https://github.com/Water130/tales-of-eternia-waters-edition/releases/tag/v0.14.11-test)
+The current release is available on [GitHub](https://github.com/Water130/tales-of-eternia-waters-edition/releases/tag/v0.14.30R)
 and [Water's official Nexus Mods page](https://www.nexusmods.com/talesofeterniaremastered/mods/13).
 
 ## Sharing permissions

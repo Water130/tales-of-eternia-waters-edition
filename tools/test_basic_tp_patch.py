@@ -58,6 +58,9 @@ def check_basic_tp(uc, base, manifest, actors, enemies, stats, impact, sp,
         put(actor + 0x53, 'B', 1)
         put(actor + 0x12, 'h', -128 if action == 4 else 0)
         put(base + 0x12cea60, 'Q', actors + 0xa000)
+        # The successful-arte commit also observes its descriptor ID for
+        # mastery chains. Match the native initialized descriptor table.
+        put(base + 0x12cea78, 'Q', base + 0x551780)
         # Meredy's native command delegates to Quickie when he is ready.
         put(actors + 4 * 0x248 + 0x75, 'B', 3)
         if char == 3:

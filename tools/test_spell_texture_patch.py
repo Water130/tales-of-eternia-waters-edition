@@ -58,7 +58,8 @@ def check_spell_textures(u, base, m, actors, sp, reset, put, get, reg, regs):
         reset()
         put(base+m['data_rva']+0x1a45,'B',1)
         # Spell A remains intact after B overwrites the very same native objects.
-        for a,b in ((66,4),(4,66),(61,62),(1,25),(38,4),(4,38),(43,66),(77,1),(30,38)):
+        for a,b in ((66,4),(4,66),(61,62),(1,25),(38,4),(4,38),(43,66),(77,1),(30,38),
+                    (24,49),(49,24),(19,52),(52,19)):
             first=load(a,32,128)
             saved=bytes(u.mem_read(first,0x68))
             second=load(b,64,256)

@@ -13,7 +13,7 @@ This is my personal project, shared with anyone who wants to try it.
 
 ## Download and install
 
-**[Download 0.14.11 — Easy Install](https://github.com/Water130/tales-of-eternia-waters-edition/releases/download/v0.14.11-test/Tales-of-Eternia-Waters-Edition-0.14.11-Easy-Install.zip)** · [Nexus Mods](https://www.nexusmods.com/talesofeterniaremastered/mods/13) · [All releases](https://github.com/Water130/tales-of-eternia-waters-edition/releases)
+**[Download 0.14.30R - Easy Install](https://github.com/Water130/tales-of-eternia-waters-edition/releases/download/v0.14.30R/Tales-of-Eternia-Waters-Edition-0.14.30R-Easy-Install.zip)** · [Nexus Mods](https://www.nexusmods.com/talesofeterniaremastered/mods/13) · [All releases](https://github.com/Water130/tales-of-eternia-waters-edition/releases)
 
 Requires **Steam build 25190541**. Back up your saves and close the game first.
 
@@ -25,6 +25,13 @@ Requires **Steam build 25190541**. Back up your saves and close the game first.
 Uninstall an older release with its own uninstaller before updating.
 No Python or mod loader is needed. [Installation help →](docs/INSTALLATION.md)
 
+## New in 0.14.30R
+
+Spark Wave unlocks with **Volt level 5**; Fear Flare unlocks with **Efreet level 10**.
+Both are available to Keele and Meredy through the appropriate cage.
+Public **R** and personal **T** builds share a revision number; experimental
+spells stay in T. There is no level-one bypass for the two approved additions.
+
 ## Choose the features you want
 
 Want the dynamic battle camera without the progression overhaul? **Most features
@@ -34,7 +41,7 @@ and Reid progression. You do not have to use the whole overhaul.
 
 - **Combat:** dynamic camera, TP recovery, supported overlapping spells and optional control changes.
 - **Artesphere:** three pages of six assignments, with configurable keyboard controls.
-- **Magic:** five offensive spell growth tracks, catch-up EXP, earned Craymel EXP and **72 implemented Craymel faculties**.
+- **Magic:** offensive spell growth tracks capped at 500 uses, catch-up EXP, earned Craymel EXP and **72 implemented Craymel faculties**.
 - **Characters:** Farah's Energy healing, extra normal attacks, Reid's special-technique options and four standalone team-up artes.
 - **Interface:** mastery trees, EXP bars, elemental effects, scan memory and French/English level-up messages.
 

@@ -197,13 +197,20 @@ def emit_casting_colors(emit, mem, jump, edit, data_rva):
         popfq
         ret
     ''')
-    sites = [(0xcc6f4, 0x8b540, 0x10), (0xcc73e, 0x8b540, 0x10),
+    # cc3c0 is the ordinary casting loop, distinct from the held-cast loop
+    # at cc570. It emits the same rising template (+de0), including Meredy's
+    # purple RGB evolution. Tint both paths, not only held incantations.
+    aliases = {0xcc437: 0xcc73e, 0xcc4a9: 0xcc900}
+    sites = [(0xcc40e, 0x8b540, 0x10), (0xcc437, 0x8b540, 0x10),
+             (0xcc4a9, 0x8b7e0, 0x22),
+             (0xcc6f4, 0x8b540, 0x10), (0xcc73e, 0x8b540, 0x10),
              (0xcc78e, 0x8b7e0, 0x22), (0xcc7c3, 0x8b7e0, 0x22),
              (0xcc7f6, 0x8b7e0, 0x22), (0xcc860, 0x8b7e0, 0x22),
              (0xcc8da, 0x8b540, 0x10), (0xcc900, 0x8b7e0, 0x22),
              (0xcc92a, 0x8b6a0, 0x0a)]
     for site, constructor, offset in sites:
-        target, argument = (profile,list(PROFILES).index(site)) if site in PROFILES else (tint,offset)
+        profile_site = aliases.get(site, site)
+        target, argument = (profile,list(PROFILES).index(profile_site)) if profile_site in PROFILES else (tint,offset)
         start = emit(f'cast_color_{site:x}', f'''
             call {constructor:#x}
             push rdx
@@ -217,5 +224,20 @@ def emit_casting_colors(emit, mem, jump, edit, data_rva):
     # cc86b (ordinary non-emission ticks and a full particle pool). Never put
     # it inside an option gate: those jumps would enter its JMP displacement.
     # Include the preceding AND instead, ending the five-byte gate at cc8b9.
-    edit(0xcc8b4,b'\x24\x1f'+b'\x90'*3,'Keep Meredy motes in their elemental hue instead of adding red alone')
+    motes = emit('cast_color_mote_variation', f'''
+        and al, 0x1f
+        pushfq; push rdx
+        mov rdx, qword ptr [rdi]
+        test rdx, rdx; je native
+        cmp byte ptr [rdx+0x51], 0; jne native
+        cmp byte ptr [rdx+0x4f], 2; jb native
+        cmp byte ptr [rdx+0x4f], 3; ja native
+        cmp byte ptr [rdx+0x6c], 44; jae native
+        pop rdx; popfq; jmp 0xcc8b9
+    native:
+        pop rdx; popfq
+        add byte ptr [rbx+0x22], al
+        jmp 0xcc8b9
+    ''')
+    jump(0xcc8b4,5,motes,'Player casting motes: preserve elemental hue; enemy red variation stays native')
     return b''.join(bytes(rgb)+b'\0' for rgb in [*COLORS.values(), NEUTRAL_CAST])

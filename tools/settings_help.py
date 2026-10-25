@@ -1,83 +1,16 @@
-"""Concrete option help and bounded, independent left-stick scrolling."""
-
-
+"""Concrete option help and bounded, independent right-stick scrolling."""
 
 DETAILS = {
-
-12: (
-
-    "SORTS\nKeele et Meredy progressent séparément. Chaque lancer réussi rapporte 1 EXP. Pour les sorts de Craymel, le mage en retard gagne jusqu'à 3 EXP par lancer, sans dépasser l'autre mage. Les six sorts initiaux sont exclus du rattrapage. Les utilisations réelles servant aux déblocages ne changent pas. À 500 EXP : puissance +25 %, incantation et récupération -15 %, critique +15 points. À 999 EXP : jusqu'à 3 ou 6 projectiles supplémentaires selon le sort, ou zone +50 %. Les soins ne reçoivent pas ces bonus.\n"
-
-    "BUFFS\nÀ 100 / 250 / 500 EXP, les buffs monocibles touchent 1 / 2 / 3 alliés supplémentaires qui ne possèdent pas déjà le buff. Leur durée native est conservée.\n"
-
-    "CRAYMEL\nChaque sort élémentaire réussi rapporte 50 / 200 / 500 EXP selon son rang au Craymel recruté de cet élément. Le total est versé à la victoire et remplace l'EXP automatique. Le niveau du Craymel augmente la puissance et la portée de son invocation. Les facultés de Craymel indiquées « En préparation » ne sont pas encore actives.\n"
-
-    "EXTENSIONS\nMaelstrom demande Ondine niveau 10 et au moins 5/10 de vitalité. Les prérequis de résistance à l'eau sont retirés.",
-
-    "SPELLS\nKeele and Meredy progress independently. Each successful cast earns 1 EXP. For Craymel spells, the trailing mage earns up to 3 EXP per cast without overtaking the other mage. The six starting spells are excluded. Real cast counts for unlock requirements are unchanged. At 500 EXP: power +25%, cast time and recovery -15%, critical chance +15 points. At 999 EXP: up to 3 or 6 extra projectiles depending on the spell, or area +50%. Healing spells do not gain these bonuses.\n"
-
-    "BUFFS\nAt 100 / 250 / 500 EXP, single-target buffs also affect 1 / 2 / 3 allies without that buff. Native duration is retained.\n"
-
-    "CRAYMELS\nEach completed elemental spell grants 50 / 200 / 500 EXP by spell rank to the recruited Craymel of that element. EXP is awarded at victory, replacing automatic EXP. Craymel levels increase summon power and reach. Craymel faculties marked In development are not active yet.\n"
-
-    "EXTENSIONS\nMaelstrom requires level 10 Undine and at least 5/10 vitality. Water-resistance requirements are removed."),
-
-17: (
-
-    "POING ET PIED\nLa branche Poing + Pied accorde 1 attaque normale supplémentaire lorsque les deux maîtrises atteignent le niveau 15, puis 2 au niveau 30, dans les enchaînements au sol.\n"
-
-    "ÉNERGIE\nUne troisième barre apparaît dans Stats. Son niveau correspond au plus bas des niveaux Poing et Pied.\n"
-
-    "Niveau 10 : Guérisseur rend 40 % des PV max au lieu de 30 %.\n"
-
-    "Niveau 15 : Désintoxication rend aussi 25 % des PV max.\n"
-
-    "Niveau 20 : Guérisseur soigne un deuxième allié pour 50 % du soin principal, en priorité celui au plus faible pourcentage de PV.\n"
-
-    "Niveau 25 : Désintoxication retire les mêmes altérations que Rétablissement, hors KO et états non purifiables.\n"
-
-    "Niveau 30 : Guérisseur soigne un troisième allié pour 25 % du soin principal. Renaissance réanime avec 35 % des PV max au lieu de 20 %.\n"
-
-    "Les facultés indiquées « En préparation » dans l'arbre ne modifient pas encore les enchaînements d'artes.",
-
-    "PUNCH AND KICK\nThe Punch + Kick branch grants 1 extra normal attack when both masteries reach level 15 and 2 at level 30 in grounded chains.\n"
-
-    "ENERGY\nA third gauge appears in Stats. Its level is the lower of Punch and Kick.\n"
-
-    "Level 10: Healer restores 40% of max HP instead of 30%.\n"
-
-    "Level 15: Detoxify also restores 25% of max HP.\n"
-
-    "Level 20: Healer also heals a second ally for 50% of the primary heal, prioritizing the lowest HP ratio.\n"
-
-    "Level 25: Detoxify removes the same ailments as Recover, excluding KO and uncleansable states.\n"
-
-    "Level 30: Healer also heals a third ally for 25% of the primary heal. Life revives with 35% of max HP instead of 20%.\n"
-
-    "Faculties marked In development in the tree do not yet change arte chains."),
-
-31: (
-
-    "TRANCHANT ET ESTOC\nLa branche Tranchant + Estoc prolonge les enchaînements d'attaques normales au sol :\n"
-
-    "Niveau 15 : 1 attaque supplémentaire.\nNiveau 30 : 2 attaques supplémentaires au total.\n"
-
-    "Les deux maîtrises doivent atteindre le niveau requis. Les facultés s'activent dès que le niveau requis est atteint et peuvent être désactivées dans Maîtrise.\n"
-
-    "Les facultés d'enchaînement d'artes indiquées « En préparation » ne sont pas encore actives.",
-
-    "SLASH AND THRUST\nThe Slash + Thrust branch extends grounded normal attack chains:\n"
-
-    "Level 15: 1 extra attack.\nLevel 30: 2 extra attacks in total.\n"
-
-    "Both masteries must reach the required level. Faculties activate upon reaching the required level and can be disabled in Mastery.\n"
-
-    "Arte-chain faculties marked In development are not active yet."),
-
+    12: (
+        "Fait progresser les sorts à l'usage et débloque les facultés des Craymel. Les bonus et conditions sont visibles dans Maîtrise.\nSORTS ET RATTRAPAGE\nKeele et Meredy ont chacun leur progression. Un lancer réussi rapporte 1 EXP. Pour les sorts de Craymel concernés, le mage en retard gagne jusqu'à 3 EXP par lancer jusqu'à rejoindre l'autre. Ces crédits comptent aussi dans les utilisations affichées et les conditions de déblocage. Les six sorts initiaux et les soins sont exclus du rattrapage.\nÀ 500 EXP, un sort offensif atteint +25 % de puissance, -15 % de temps d'incantation, -15 % d'attente après le lancer et +15 points de chance de critique. À 500 EXP, il gagne jusqu'à 3 ou 6 projectiles supplémentaires selon le sort, ou +50 % de zone. Éruption cumule les deux : jusqu'à 9 boules de feu supplémentaires et +50 % de zone. Les soins ne reçoivent pas ces bonus.\nSORTS DE RENFORCEMENT\nÀ 100 / 250 / 500 EXP, un renforcement monocible touche aussi 1 / 2 / 3 alliés qui ne possèdent pas déjà cet effet. Sa durée reste inchangée.\nCRAYMEL\nChaque sort élémentaire réussi en combat rapporte 50 / 200 / 500 EXP selon son rang au Craymel recruté de cet élément. Le total est reçu à la victoire, à la place de l'EXP automatique de combat. Les niveaux renforcent son invocation et débloquent des facultés aux paliers indiqués dans l'arbre. Vous pouvez les activer séparément pour Keele et Meredy.\nMAELSTROM\nIl faut Ondine niveau 10, au moins 5/10 de vitalité et 50 utilisations créditées de Geyser par le lanceur. Aucune résistance à l'eau n'est demandée.\nDésactiver la progression retire ses bonus sans effacer les niveaux, compteurs et choix de facultés.",
+        'Makes spells grow with use and unlocks Craymel faculties. Bonuses and requirements are shown in Mastery.\nSPELLS AND CATCH-UP\nKeele and Meredy progress separately. A successful cast earns 1 EXP. For eligible Craymel spells, the trailing mage earns up to 3 EXP per cast until catching up. These credits also count toward displayed uses and unlock requirements. The six starting spells and healing spells are excluded from catch-up.\nAt 500 EXP, an offensive spell reaches +25% power, -15% casting time, -15% recovery time after casting, and +15 percentage points of critical chance. At 500 EXP, it gains up to 3 or 6 extra projectiles depending on the spell, or +50% area. Eruption gains both: up to 9 extra fireballs and +50% area. Healing spells do not receive these bonuses.\nSUPPORT SPELLS\nAt 100 / 250 / 500 EXP, a single-target buff also reaches 1 / 2 / 3 allies who do not already have that effect. Its duration is unchanged.\nCRAYMELS\nEach successful elemental battle cast grants 50 / 200 / 500 EXP by spell rank to the recruited Craymel of that element. The total is awarded at victory instead of automatic battle EXP. Levels strengthen its summon and unlock faculties at the milestones shown in its tree. You can enable them separately for Keele and Meredy.\nMAELSTROM\nRequires level 10 Undine, at least 5/10 vitality, and 50 credited uses of Spread by the caster. No water resistance is required.\nTurning progression off removes its bonuses without erasing levels, counters or faculty choices.'),
+    17: (
+        "Débloque les facultés de Farah grâce aux niveaux de Poing et Pied. Activez ou désactivez chaque bonus dans Maîtrise.\nENCHAÎNEMENTS D'ARTES\nPoing ou Pied niveau 15 : jusqu'à 5 artes de cette famille. Au niveau 30 : jusqu'à 6. Pour mélanger Poing et Pied, les deux maîtrises doivent atteindre le palier. Les coûts en PT et les contraintes de position au sol/en l'air restent applicables.\nATTAQUES NORMALES\nQuand Poing ET Pied atteignent le niveau 15, Farah peut ajouter 1 attaque normale à ses enchaînements au sol. Au niveau 30 des deux maîtrises, le bonus passe à 2 attaques au total.\nRÉCEPTION ACTIVE\nAvec Poing et Pied niveau 20, réduit de moitié l'attente à l'atterrissage après un arte aérien.\nÉNERGIE ET SOINS\nLe niveau d'Énergie est le plus bas des niveaux Poing et Pied. Exemple : Poing 12 et Pied 10 donnent Énergie 10.\nNiveau 10 : Guérisseur rend 40 % des PV max au lieu de 30 %.\nNiveau 15 : Désintoxication rend aussi 25 % des PV max.\nNiveau 20 : Guérisseur soigne un deuxième allié pour 50 % du soin principal. Priorité à celui au plus faible pourcentage de PV.\nNiveau 25 : Désintoxication retire les mêmes altérations que Rétablissement, sauf le KO et les états impossibles à purifier.\nNiveau 30 : Guérisseur soigne aussi un troisième allié pour 25 % du soin principal. Renaissance réanime avec 35 % des PV max au lieu de 20 %. La faculté Soin inébranlable empêche les coups d'interrompre les trois soins pendant leur incantation ; Farah reçoit toujours les dégâts et altérations.\nLes facultés marquées En préparation n'ont pas encore d'effet. Désactiver la progression retire les bonus et masque Énergie, sans effacer vos choix. Le réglage de saut reste indépendant.",
+        "Unlocks Farah's faculties through Punch and Kick levels. Enable or disable each bonus in Mastery.\nARTE CHAINS\nPunch or Kick level 15: up to 5 artes from that family. At level 30: up to 6. Mixed chains require both masteries at the milestone. Native TP costs and grounded/airborne requirements still apply.\nNORMAL ATTACKS\nWhen BOTH Punch and Kick reach level 15, Farah can add 1 normal attack to her grounded chains. At level 30 in both masteries, the bonus becomes 2 extra attacks in total.\nACTIVE LANDING\nWith Punch and Kick at level 20, halves landing recovery after an aerial arte.\nENERGY AND HEALING\nEnergy is the lower of Punch and Kick levels. Example: Punch 12 and Kick 10 give Energy 10.\nLevel 10: Healer restores 40% of max HP instead of 30%.\nLevel 15: Detoxify also restores 25% of max HP.\nLevel 20: Healer also heals a second ally for 50% of the main heal. Prioritizes the lowest HP percentage.\nLevel 25: Detoxify removes the same ailments as Recover, except KO and states that cannot be cleansed.\nLevel 30: Healer also heals a third ally for 25% of the main heal. Life revives with 35% of max HP instead of 20%. Steadfast Healer prevents hits from interrupting all three healing artes while casting; Farah still takes damage and status ailments.\nFaculties marked In development have no effect yet. Turning progression off removes bonuses and hides Energy without erasing your choices. The jump setting is separate."),
+    31: (
+        "Débloque les facultés de Reid grâce aux niveaux de Tranchant et Estoc. Activez ou désactivez chaque bonus dans Maîtrise.\nENCHAÎNEMENTS D'ARTES\nTranchant ou Estoc niveau 10 : deux artes de base successifs de cette famille. Au niveau 30 : deux arcanes successifs de cette famille. Pour mélanger les artes de base : les deux niveaux 10 et Double technique mixte. Pour mélanger les arcanes : les deux niveaux 30 et les deux facultés Double arcane. Les coûts en PT et les fenêtres d'enchaînement restent applicables.\nATTAQUES NORMALES\nQuand Tranchant ET Estoc atteignent le niveau 15, Reid peut ajouter 1 attaque normale à ses enchaînements au sol. Au niveau 30 des deux maîtrises, le bonus passe à 2 attaques au total.\nIMPACT LOURD - Tranchant 20\nLe dernier coup d'un enchaînement normal au sol prolonge de 10 % le recul de l'ennemi au sol. Les ennemis qui résistent au recul gardent leur protection.\nGARDE ENCHAÎNÉE - les deux niveaux 20\nAprès avoir bloqué un coup au sol, vous avez 0,4 seconde pour lancer un arte de base depuis la garde. Il doit remplir ses conditions habituelles et coûte toujours des PT.\nCONTRE-ATTAQUE - Estoc 25\nAprès avoir bloqué un coup au sol, appuyez sur Attaque dans les 0,4 seconde pour riposter avec un coup d'estoc. Une seule riposte est possible par blocage.\nLes facultés marquées En préparation n'ont pas encore d'effet. Désactiver la progression retire les bonus sans effacer vos choix. Le réglage de saut reste indépendant.",
+        "Unlocks Reid's faculties through Slash and Thrust levels. Enable or disable each bonus in Mastery.\nARTE CHAINS\nSlash or Thrust level 10: two successive basic artes from that family. At level 30: two successive arcane artes from that family. Mixing basic artes requires both level-10 masteries and Mixed Double Technique. Mixing arcane artes requires both level-30 masteries and both Double Arcane faculties. Native TP costs and chaining windows still apply.\nNORMAL ATTACKS\nWhen BOTH Slash and Thrust reach level 15, Reid can add 1 normal attack to his grounded chains. At level 30 in both masteries, the bonus becomes 2 extra attacks in total.\nHEAVY IMPACT - Slash 20\nThe final hit of a grounded normal chain extends a grounded enemy's recoil by 10%. Enemies protected from recoil keep their protection.\nCHAINED GUARD - both at level 20\nAfter blocking a hit on the ground, you have 0.4 seconds to launch a basic arte from guard. Its usual requirements and TP cost still apply.\nCOUNTERATTACK - Thrust 25\nAfter blocking a hit on the ground, press Attack within 0.4 seconds to retaliate with a thrust. Only one counterattack is allowed per block.\nFaculties marked In development have no effect yet. Turning progression off removes bonuses without erasing your choices. The jump setting is separate."),
 }
-
-
-
 
 
 def emit_help(emit, mem, data, symbols, table, count, hint):
@@ -158,9 +91,10 @@ def emit_help(emit, mem, data, symbols, table, count, hint):
 
         jbe done
 
-        # Native 19dc42..19dc67 preserves separate stick bits alongside
-
-        # the optional mirrored D-pad bits. Use the repeat bank directly.
+        # Native 5d580/5d600 reads the second (right) stick into raw +0xc/+0x10.
+        # 19dc42..19dc67 converts its Y axis to bits 24/25, with optional
+        # D-pad mirroring. The left stick already feeds the low D-pad bits.
+        # Use the right-stick repeat bank without changing option selection.
 
         mov ecx, dword ptr {mem(0x8c9188)}
 

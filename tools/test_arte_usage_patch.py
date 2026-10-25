@@ -52,7 +52,7 @@ def check_arte_usage(u, base, m, actors, sp, reset, put, get, reg, regs):
             ret(api+(0x20 if text(rdx)=='GetPrivateProfileStructW' else 0x30))
         elif address in (api+0x20, api+0x30):
             section = text(rcx, True)
-            assert (section, r9) in (('ArteUsage-v1',size+8),('Artesphere-v1',104),('Artesphere-v2',104),('MasteryChoices-v1',232),('SpellCatchUp-v1',1800))
+            assert (section, r9) in (('ArteUsage-v1',size+8),('Artesphere-v1',104),('Artesphere-v2',104),('MasteryChoices-v1',232),('SpellCatchUp-v1',1800),('HeroShortcuts-v1',104))
             key = (section, text(rdx,True))
             if address == api+0x30:
                 if not failed:

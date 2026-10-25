@@ -37,10 +37,10 @@ def check_floor(uc,base,data,manifest,actors,sp,reset,put,get,reg,regs):
         put(base+0x12ceaa0,'hhhhhhh',128,128,128,0,128,128,128)
         actor_before=bytes(uc.mem_read(actors,0x5000))
         camera_before=bytes(uc.mem_read(base+0x12cea90,16))
-        originals=[];quads=[];rectangles=[];first=False;reached=False;disabled_grid=None
+        originals=[];quads=[];rectangles=[];first=False;reached=False;disabled_grid=None;raw_grid=None
         projection_return=int(row['callsite'],16)+5 if row['callsite'] else -1
         def step(emu,address,size,user):
-            nonlocal first,reached,disabled_grid
+            nonlocal first,reached,disabled_grid,raw_grid
             rva=address-base
             if rva==sentinel:
                 reached=True;emu.emu_stop();return
@@ -50,15 +50,15 @@ def check_floor(uc,base,data,manifest,actors,sp,reset,put,get,reg,regs):
             if rva==extend and not first:
                 first=True
                 pointer=get(data+0x48,'Q')
-                if pointer and get(data+0x40,'I'):
+                if pointer:
                     # The backdrop has consumed native coordinates; nothing in
                     # the grid changed during capture or backdrop drawing.
-                    raw_grid=bytes(emu.mem_read(pointer,len(originals)*4))
-                    assert raw_grid==b''.join(originals),(stage,'pre-draw grid differs',[(i,raw_grid[i*4:i*4+4].hex(),old.hex()) for i,old in enumerate(originals) if raw_grid[i*4:i*4+4]!=old][:6])
-                    if corrupt:
+                    raw_grid=bytes(emu.mem_read(pointer,row['grid_span']))
+                    assert all(raw_grid[offset:offset+4]==old for offset,old in zip(row['grid_offsets'],originals)),(stage,'pre-draw grid differs')
+                    if corrupt and get(data+0x40,'I'):
                         destination=get(data+0x308,'Q')
                         put(destination,'I',get(destination,'I')^1)
-                        disabled_grid=bytes(emu.mem_read(pointer,len(originals)*4))
+                        disabled_grid=bytes(emu.mem_read(pointer,row['grid_span']))
             if rva==0x11e6f0:
                 corners=struct.unpack('<8h',emu.mem_read(base+0x11ce640,16))
                 quads.append(list(zip(corners[::2],corners[1::2])))
@@ -69,7 +69,7 @@ def check_floor(uc,base,data,manifest,actors,sp,reset,put,get,reg,regs):
             if bytes(emu.mem_read(address,1))==b'\xe8':
                 raw=bytes(emu.mem_read(address,5))
                 target=rva+5+struct.unpack_from('<i',raw,1)[0]
-                if target in [capture,extend,0x1a07d0]:return
+                if target in [capture,manifest['symbols'].get('capture_ground_border_rdi'),extend,0x1a07d0]:return
                 if target==0x120f70:
                     rectangles.append(struct.unpack('<4h',emu.mem_read(base+0x11ce660,8)))
                 # Native backdrop/quad allocation, cookie check and optional
@@ -84,17 +84,23 @@ def check_floor(uc,base,data,manifest,actors,sp,reset,put,get,reg,regs):
         assert bytes(uc.mem_read(base+0x12cea90,16))==camera_before,'Camera changed'
         eligible=row['compatible'] and phase==6 and rotation==64 and 512<=depth<=4096 and not corrupt
         if eligible:
-            assert get(data+0x46,'B')==1,(stage,depth,'border correction did not run')
+            assert first and get(data+0x44,'H')==stage and len(originals)==row['point_count'],(stage,'grid not captured')
+            # At close zoom the native beach already covers every border.
+            # No mutation is then needed, but the coverage check still applies.
+            assert get(data+0x46,'B')==int(get(data+0x40,'I')!=0),(stage,depth,'border correction did not run')
             pointer=get(data+0x48,'Q')
-            after=bytes(uc.mem_read(pointer,len(originals)*4))
-            points=[struct.unpack_from('<hh',after,i*4) for i in range(len(originals))]
+            after=bytes(uc.mem_read(pointer,row['grid_span']))
+            points=[struct.unpack_from('<hh',after,offset) for offset in row['grid_offsets']]
+            padding=set(range(0,row['grid_span'],4))-set(row['grid_offsets'])
+            assert all(after[p:p+4]==raw_grid[p:p+4] for p in padding),(stage,'grid padding changed')
             cols=row['point_count']//len(row['z_rows'])
             # All interior coordinates remain bit-for-bit native. Only left,
             # right and front borders may have been extended.
             final_drawn_row=max(row['drawn_grid_indices'])//cols
             for i,point in enumerate(points):
                 if i%cols not in [0,cols-1] and i//cols != final_drawn_row:
-                    assert after[i*4:i*4+4]==originals[i],(stage,i,'interior changed')
+                    offset=row['grid_offsets'][i]
+                    assert after[offset:offset+4]==originals[i],(stage,i,'interior changed')
             top=max(points[0][1],points[cols-1][1])+1
             for y in range(top,241,8):
                 for x in [0,40,80,120,160,200,240,280,319]:
@@ -105,14 +111,20 @@ def check_floor(uc,base,data,manifest,actors,sp,reset,put,get,reg,regs):
             assert get(data+0x46,'B')==0,(stage,'unexpected correction')
             if corrupt:
                 pointer=get(data+0x48,'Q')
-                assert bytes(uc.mem_read(pointer,len(originals)*4))==disabled_grid,'Partial mutation after failed validation'
+                assert bytes(uc.mem_read(pointer,row['grid_span']))==disabled_grid,'Partial mutation after failed validation'
         return len(quads)
 
     for stage in manifest['floor_extension']['supported_stages']:
         stage_case(stage)
+    # Newly accepted alternate draw branches, padded rows and deeper back edge.
+    for stage in (47,97,101,111,113):
+        for center in (-160,512):
+            for depth in (668,2048):
+                stage_case(stage,center,depth)
     for center in [-160,0,176,352,512]:
         for depth in [668,1024,1536,2048,3072]:
             stage_case(7,center,depth)
+            stage_case(10,center,depth)
     stage_case(7,phase=5)
     stage_case(7,rotation=0)
     stage_case(7,depth=4097)

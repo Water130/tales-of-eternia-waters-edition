@@ -139,7 +139,7 @@ def emit_recovery(emit, mem, jump, state, data, usage, preserve, faculties=None)
         # Ice Needles emits one projectile every twenty ticks; mastery also
         # extends its real native loop, so measure recovery against that end.
         movzx eax, word ptr [r10+10]
-        mov r9d, 999
+        mov r9d, 500
         cmp eax, r9d
         cmova eax, r9d
         imul eax, eax, 3

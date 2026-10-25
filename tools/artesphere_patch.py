@@ -49,6 +49,8 @@ def emit_artesphere(emit, mem, jump, edit, data, symbols, state):
     initialized, page, depth, modal = (state+i for i in range(4))
     owner, choice, selected_char, error = (state+i for i in (4,5,6,7))
     profile = state+0x20
+    from character_shortcuts import emit_shortcuts
+    shortcuts = emit_shortcuts(emit,mem,jump,state,profile)
     # Each page stores 7*4 directional bytes + 4*4 ally-shortcut bytes.
     # Two 44-byte pages fit in the existing 96-byte transport.
     # New profiles copy native A into B and C once per loaded game.
@@ -74,7 +76,24 @@ def emit_artesphere(emit, mem, jump, edit, data, symbols, state):
         jne palette
         mov byte ptr {mem(initialized)}, 1
     done:
-        ret
+        cmp byte ptr {mem(depth)}, 0; jne nested
+        cmp byte ptr {mem(0x12d0ef7)}, 6; jne field_owner
+        mov rdx, qword ptr {mem(0x12cecd8)}
+        movzx r10d, byte ptr {mem(0x12cece8)}
+        test rdx, rdx; je field_owner
+    find_owner:
+        test r10d, r10d; je field_owner
+        cmp word ptr [rdx+0x3c], 1; jne next_owner
+        cmp byte ptr [rdx+0x51], 0; jne next_owner
+        cmp byte ptr [rdx+0x56], 0; jne next_owner
+        movzx ecx, byte ptr [rdx+0x4f]
+        jmp {shortcuts['sync']:#x}
+    next_owner:
+        add rdx, 0x248; dec r10d; jmp find_owner
+    field_owner:
+        movzx ecx, word ptr {mem(0x11cad10)}; dec ecx
+        jmp {shortcuts['sync']:#x}
+    nested: ret
     ''')
     swap = emit('artesphere_exchange',f'''
         lea rax, {mem(0x11ca4ba)}
@@ -132,9 +151,15 @@ def emit_artesphere(emit, mem, jump, edit, data, symbols, state):
     ''')
     # RCX character index, EDX arte. Do not accept enemy/unlearned IDs.
     learned = emit('artesphere_learned',f'''
+        cmp edx, 112
+        jae extended
         cmp byte ptr {mem(data+0x1a42)}, 0
         jne extended
+        cmp byte ptr {mem(data+0x1a64)}, 0
+        jne extended
         cmp byte ptr {mem(data+0x1a63)}, 0
+        jne extended
+        cmp byte ptr {mem(data+0x1a41)}, 0
         je native
     extended:
         lea r8, {mem(0x11ca420)}
@@ -236,11 +261,13 @@ def emit_artesphere(emit, mem, jump, edit, data, symbols, state):
         sub rsp, 0x40
         mov dword ptr [rsp+0x20], ecx
         mov dword ptr [rsp+0x28], r9d
+        mov qword ptr [rsp+0x30], r10
         dec ecx
         mov edx, ebp
         call {learned:#x}
         mov ecx, dword ptr [rsp+0x20]
         mov r9d, dword ptr [rsp+0x28]
+        mov r10, qword ptr [rsp+0x30]
         add rsp, 0x40
         test eax, eax
         je skip
@@ -270,6 +297,7 @@ def emit_artesphere(emit, mem, jump, edit, data, symbols, state):
     from arte_usage_patch import emit_usage
     usage = emit_usage(emit,mem,jump,state,data)
     from artesphere_storage import emit_storage
+    usage['character_shortcuts']=shortcuts
     storage = emit_storage(emit,mem,jump,data,state,profile,string,symbols,usage)
 
     from artesphere_keyboard import emit_keyboard

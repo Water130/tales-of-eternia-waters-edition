@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.14.30R - Public release
+
+- Add Spark Wave through Volt level 5 (power 1400; longer casting).
+- Add Fear Flare through Efreet level 10 (nominal total power 1440).
+- Separate public R and personal T editions of the same revision. Block
+  unapproved spells in public menus, AI, saved assignments and cast admission.
+- Keep custom physical prototypes suspended for Reid and Farah.
+- Include the common mastery, controls, interface and player-spell fixes.
+- Cap spell mastery at 500 uses and package the French HP/TP font correction.
+- Verify and install both owned files transactionally, with original backups.
+
+Native-code emulation and disposable installer fixtures are checked before
+publication. They do not guarantee whole-game stability or final GPU rendering.
+
 [Overview](README.md) · [Installation](docs/INSTALLATION.md) · [All releases](https://github.com/Water130/tales-of-eternia-waters-edition/releases)
 
 ## 0.14.11 - Experimental release

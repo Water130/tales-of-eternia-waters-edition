@@ -1,5 +1,5 @@
 TALES OF ETERNIA - WATER'S EDITION
-Version 0.14.11 - Experimental test release
+Version 0.14.30R - Public release
 Windows / Steam build 25190541
 
 1. Back up your saves separately and close the game completely.
@@ -13,7 +13,7 @@ If asked for a folder, use Steam > Manage > Browse local files for the game.
 Uninstall an older Water's Edition release with its own uninstaller before
 updating. Unknown game versions and modified DLLs are refused without changes.
 To uninstall: close the game, run Uninstall.cmd, and confirm the detected folder.
-The original GameNative.dll backup is kept beside the game DLL for removal.
+Original DLL and font backups are kept beside each patched file for removal.
 Uninstalling keeps mod preferences and the verified original backup.
 
 Back up %LOCALAPPDATA%\TalesOfEternia-WatersEdition.ini alongside your saves.

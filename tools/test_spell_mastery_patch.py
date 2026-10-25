@@ -199,7 +199,7 @@ def check_spell_mastery(u, base, m, actors, enemies, impact, sp,
             reg('rcx',char);reg('rdx',73);run('arte_usage_increment')
             assert get(live+(char*128+73)*2,'H')==99
             assert get(extra+(char*128+73)*2,'H')==22
-        from spell_growth import PROJECTILE_CAPS
+        from spell_growth import PROJECTILE_CAPS, HYBRID_AREA_PROJECTILES
         import struct
         # Summons snapshot native Craymel levels, not use counts. Independent
         # toggle, exact level-one/native behavior and no spell critical stacking.
@@ -266,12 +266,12 @@ def check_spell_mastery(u, base, m, actors, enemies, impact, sp,
                                 assert got==expected,(spirit,level,enabled,got,expected)
         rng_roll=99
         put(summon_flag,'B',0)
-        for uses in (0,165,166,498,998):
+        for uses in (0,82,83,165,166,248,249,332,333,415,416,498,499,998):
             for enabled,disabled,side in ((1,0,0),(0,0,0),(1,1,0),(1,0,1)):
                 setup();rec,actor=capture(2,94,uses,side=side)
                 put(context,'Q',rec);put(flag,'B',enabled)
                 if disabled:put(preferences+2*32+94//8,'B',1<<(94%8))
-                extra=min(999,uses+1)*6//999 if enabled and not disabled and not side else 0
+                extra=min(500,uses+1)*6//500 if enabled and not disabled and not side else 0
                 star_active=True
                 try:
                     for tick in range(40,128):
@@ -285,13 +285,13 @@ def check_spell_mastery(u, base, m, actors, enemies, impact, sp,
                         if added:assert bytes(u.mem_read(actors+0x9000,8))==star_impacts[0]
                 finally:
                     star_active=False
-        for uses in (0,165,166,498,998):
+        for uses in (0,82,83,165,166,248,249,332,333,415,416,498,499,998):
             for enabled,disabled,side in ((1,0,0),(0,0,0),(1,1,0),(1,0,1)):
                 setup();rec,actor=capture(2,91,uses,side=side)
                 put(pool+0x10,'Q',base+0x5785d0)
                 put(context,'Q',rec);put(flag,'B',enabled)
                 if disabled:put(preferences+2*32+91//8,'B',1<<(91%8))
-                extra=min(999,uses+1)*6//999 if enabled and not disabled and not side else 0
+                extra=min(500,uses+1)*6//500 if enabled and not disabled and not side else 0
                 reg('rcx',pool);run('mastery_dark_force_script')
                 script=get(pool+0x10,'Q')
                 assert script==(state+0x5000 if extra else base+0x5785d0),(uses,enabled,disabled,side,extra,hex(script),hex(state),get(pool+0x38,'H'),bytes(u.mem_read(rec,16)).hex())
@@ -311,13 +311,13 @@ def check_spell_mastery(u, base, m, actors, enemies, impact, sp,
                     assert (128+extra*6,8) in script_sprites
                 finally:
                     execute_scripts=False
-        for uses in (0,165,166,498,998):
+        for uses in (0,82,83,165,166,248,249,332,333,415,416,498,499,998):
             for enabled,disabled,side in ((1,0,0),(0,0,0),(1,1,0),(1,0,1)):
                 setup();rec,actor=capture(2,89,uses,slot=13,side=side)
                 effect=pool+13*0x120
                 put(context,'Q',rec);put(flag,'B',enabled)
                 if disabled:put(preferences+2*32+89//8,'B',1<<(89%8))
-                extra=min(999,uses+1)*6//999 if enabled and not disabled and not side else 0
+                extra=min(500,uses+1)*6//500 if enabled and not disabled and not side else 0
                 reg('rsi',effect);put(effect+0x38,'H',0)
                 run(0x947f5,0x947fb,rsp=sp-8)
                 record=state+0x4010+13*4
@@ -342,14 +342,14 @@ def check_spell_mastery(u, base, m, actors, enemies, impact, sp,
                 ret()
         aqua_hook=u.hook_add(UC_HOOK_CODE,aqua_phase)
         try:
-            for uses in (0,331,332,665,998):
+            for uses in (0,165,166,332,333,498,499,998):
                 for enabled,disabled,side in ((1,0,0),(0,0,0),(1,1,0),(1,0,1)):
                     setup();rec,actor=capture(2,70,uses,slot=14,side=side)
                     effect=pool+14*0x120
                     put(effect+0x10,'Q',impact)
                     put(context,'Q',rec);put(flag,'B',enabled)
                     if disabled:put(preferences+2*32+70//8,'B',1<<(70%8))
-                    extra=min(999,uses+1)*3//999 if enabled and not disabled and not side else 0
+                    extra=min(500,uses+1)*3//500 if enabled and not disabled and not side else 0
                     for tick in range(113):
                         phases.clear();put(effect+0x38,'H',tick);reg('rcx',effect)
                         run(0xcefa0)
@@ -362,13 +362,13 @@ def check_spell_mastery(u, base, m, actors, enemies, impact, sp,
                     assert phases==[112]
         finally:
             u.hook_del(aqua_hook)
-        for uses in (0,331,332,665,998):
+        for uses in (0,165,166,332,333,498,499,998):
             for enabled,disabled,side in ((1,0,0),(0,0,0),(1,1,0),(1,0,1)):
                 setup();rec,actor=capture(2,90,uses,slot=15,side=side)
                 effect=pool+15*0x120
                 put(context,'Q',rec);put(flag,'B',enabled)
                 if disabled:put(preferences+2*32+90//8,'B',1<<(90%8))
-                extra=min(999,uses+1)*3//999 if enabled and not disabled and not side else 0
+                extra=min(500,uses+1)*3//500 if enabled and not disabled and not side else 0
                 array=state+0x3000+15*256
                 put(effect+0x38,'H',0);reg('r14',effect)
                 run(0x9bacd,0x9bad4,rsp=sp-8)
@@ -395,14 +395,14 @@ def check_spell_mastery(u, base, m, actors, enemies, impact, sp,
                 for i in range(22):
                     values=struct.unpack('<hh',u.mem_read(actors+0x8000+i*0x80+0x5a,4))
                     assert values==((3,36) if i<16+2*extra else (4,100)),(uses,enabled,disabled,side,i,values)
-        for uses in (0,165,498,998):
+        for uses in (0,82,83,165,166,248,249,332,333,415,416,498,499,998):
             for enabled in (0,1):
                 setup();rec,actor=capture(2,93,uses)
                 put(context,'Q',rec);put(flag,'B',enabled);reg('rbp',pool)
                 put(pool+0x38,'H',0)
                 run(0x9cb8d,0x9cb94,rsp=sp-8)
                 array=state+0x2000
-                extra=min(999,uses+1)*6//999 if enabled else 0
+                extra=min(500,uses+1)*6//500 if enabled else 0
                 assert u.reg_read(regs['rsi'])==array
                 assert get(array+0x78,'I')==8+extra
                 for tick in range(192):
@@ -417,12 +417,12 @@ def check_spell_mastery(u, base, m, actors, enemies, impact, sp,
                 put(flag,'B',not enabled);put(pool+0x38,'H',1);reg('rbp',pool)
                 run(0x9cb8d,0x9cb94,rsp=sp-8)
                 assert get(array+0x78,'I')==8+extra
-        for uses in (0,331,332,665,998):
+        for uses in (0,165,166,332,333,498,499,998):
             for enabled,disabled,side in ((1,0,0),(0,0,0),(1,1,0),(1,0,1)):
                 setup();rec,actor=capture(2,72,uses,side=side)
                 put(context,'Q',rec);put(flag,'B',enabled)
                 if disabled:put(preferences+2*32+72//8,'B',1<<(72%8))
-                extra=min(999,uses+1)*3//999 if enabled and not disabled and not side else 0
+                extra=min(500,uses+1)*3//500 if enabled and not disabled and not side else 0
                 for site,native,ticks,yes,no in ((0xca2c5,12,(24,40,56),0xca2cb,0xca329),(0xca333,32,(44,60,76),0xca33d,0xca3f8)):
                     for tick in range(1,88):
                         put(pool+0x38,'H',tick);reg('rbx',pool);reg('rcx',pool);reg('rax',tick)
@@ -432,12 +432,12 @@ def check_spell_mastery(u, base, m, actors, enemies, impact, sp,
                         assert saved=={r:u.reg_read(regs[r]) for r in saved}
         # Freeze Lancer's native emission branch creates both a real lance
         # sprite and its collision object. No fixed VFX array is extended.
-        for uses in (0,165,166,498,998):
+        for uses in (0,82,83,165,166,248,249,332,333,415,416,498,499,998):
             for enabled,disabled,side in ((1,0,0),(0,0,0),(1,1,0),(1,0,1)):
                 setup();rec,actor=capture(2,83,uses,side=side)
                 put(context,'Q',rec);put(flag,'B',enabled)
                 if disabled:put(preferences+2*32+83//8,'B',1<<(83%8))
-                extra=min(999,uses+1)*6//999 if enabled and not disabled and not side else 0
+                extra=min(500,uses+1)*6//500 if enabled and not disabled and not side else 0
                 for tick in range(64):
                     put(pool+0x38,'H',tick)
                     reg('rdi',pool);reg('rcx',pool);reg('rax',tick%4)
@@ -446,7 +446,7 @@ def check_spell_mastery(u, base, m, actors, enemies, impact, sp,
                     run(0x931c1,0x931c9 if expected else 0x932f7,rsp=sp-8)
                     assert saved=={r:u.reg_read(regs[r]) for r in saved}
         for arte in info['offensive_arte_ids']:
-            for uses in (0,18,19,498,998):
+            for uses in (0,8,9,18,19,498,499,998):
                 for enabled in (0,1):
                     setup();rec,actor=capture(2,arte,uses)
                     put(context,'Q',rec);projectile(actor)
@@ -457,7 +457,7 @@ def check_spell_mastery(u, base, m, actors, enemies, impact, sp,
                     before={r:u.reg_read(v) for r,v in regs.items() if r!='rbx'}
                     put(projectiles+5*0x30+0x28,'Q',packed)
                     run(0x1162b5,0x1162ba,rsp=sp-8)
-                    pct=(min(999,uses+1)*50//999) if enabled and arte not in PROJECTILE_CAPS else 0
+                    pct=(min(500,uses+1)*50//500) if enabled and (arte not in PROJECTILE_CAPS or arte in HYBRID_AREA_PROJECTILES) else 0
                     expected=(-100-pct,-50-pct//2,100+pct,50+pct//2)
                     got=struct.unpack('<4h',u.reg_read(regs['rbx']).to_bytes(8,'little'))
                     assert got==expected,(arte,uses,enabled,got,expected)
@@ -538,7 +538,7 @@ def check_spell_mastery(u, base, m, actors, enemies, impact, sp,
                 elif mode=='no_scope':put(context,'Q',0)
                 reg('rcx',pool);run('mastery_spell_recovery')
                 assert get(actor+0x77,'B')==1,mode
-            for arte,duration in ((75,80),(79,36),(82,100)):
+            for arte,duration in ((75,80),(79,36),(82,140)):
                 setup();rec,actor=capture(2,arte,499)
                 put(context,'Q',rec);put(pool+0x10,'Q',0)
                 put(actor+0x52,'B',10);put(actor+0x77,'B',1);put(actor+0x8c,'H',0)
@@ -583,7 +583,7 @@ def check_spell_mastery(u, base, m, actors, enemies, impact, sp,
         air=info['projectile_growth'][0]
         arrays=base+air['arrays_rva']
         for slot in range(16):
-            for uses in (0,165,166,332,499,665,831,998,9999):
+            for uses in (0,82,83,165,166,248,249,332,333,415,416,498,499,9999):
                 for enabled in (0,1):
                     setup();rec,actor=capture(2,73,uses,slot=slot)
                     put(flag,'B',enabled)
@@ -591,7 +591,7 @@ def check_spell_mastery(u, base, m, actors, enemies, impact, sp,
                     reg('rsi',fx)
                     before={r:u.reg_read(v) for r,v in regs.items() if r!='r14'}
                     run(0x94234,0x9423b,rsp=sp-8)
-                    count=4+(min(999,uses+1)*6//999 if enabled else 0)
+                    count=4+(min(500,uses+1)*6//500 if enabled else 0)
                     assert get(arrays+slot*128+0x70,'I')==count
                     assert u.reg_read(regs['r14'])==arrays+slot*128+2
                     assert before=={r:u.reg_read(regs[r]) for r in before}
@@ -610,14 +610,14 @@ def check_spell_mastery(u, base, m, actors, enemies, impact, sp,
                         if other!=slot:
                             assert get(arrays+other*128+0x70,'I')==0
         for arte,site,end,countreg in ((75,0xc9ba3,0xc9ba8,'rbp'),(82,0xce252,0xce259,'rdi')):
-            for uses in (0,331,332,665,998,9999):
+            for uses in (0,165,166,332,333,498,499,998,9999):
                 for enabled in (0,1):
                     for native_count in (3,4):
                         setup();rec,actor=capture(2,arte,uses)
                         put(flag,'B',enabled);put(context,'Q',rec)
                         reg('rbx',pool);reg(countreg,native_count)
                         run(site,end,rsp=sp-8)
-                        assert u.reg_read(regs[countreg])==native_count+(min(999,uses+1)*3//999 if enabled else 0)
+                        assert u.reg_read(regs[countreg])==native_count+(min(500,uses+1)*3//500 if enabled else 0)
 
         # Thresholds, every ordinary offensive arte, both mages, capped and
         # non-castable/excluded data; records replace stale allocations.

@@ -4,6 +4,7 @@ Native physical counters remain authoritative. Casts are counted only after
 the cast-completion dispatcher accepts them, not when incantation starts.
 """
 
+from custom_test_artes import LAST_ID
 SIZE = 7 * 128 * 2
 
 
@@ -19,9 +20,12 @@ def emit_usage(emit, mem, jump, state, data):
         ja done
         cmp edx, 126
         jb ordinary
-        cmp edx, 129
+        cmp edx, {LAST_ID}
         ja done
         sub edx, 126
+        cmp edx, 4; jb mapped_counter
+        add edx, 4
+    mapped_counter:
         jmp accumulate
     ordinary:
         cmp edx, 113
@@ -109,8 +113,9 @@ def emit_usage(emit, mem, jump, state, data):
         movzx edx, byte ptr [rdi+0x6d]
         cmp edx, 126
         jb ordinary
-        cmp edx, 129
+        cmp edx, {LAST_ID}
         ja done
+        cmp edx, 135; ja done
         jmp count
     ordinary:
         cmp edx, 43
@@ -141,7 +146,7 @@ def emit_usage(emit, mem, jump, state, data):
         jbe shown
         cmp ebp, 126
         jb skipped
-        cmp ebp, 129
+        cmp ebp, {LAST_ID}
         ja skipped
     shown:
         mov r15d, ebp
@@ -175,9 +180,11 @@ def emit_usage(emit, mem, jump, state, data):
         mov eax, ebp
         cmp eax, 126
         jb ordinary
-        cmp eax, 129
+        cmp eax, {LAST_ID}
         ja zero
         sub eax, 126
+        cmp eax, 4; jb ordinary
+        add eax, 4
     ordinary:
         add ecx, eax
         lea rax, {mem(live)}

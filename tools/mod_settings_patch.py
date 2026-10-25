@@ -5,6 +5,7 @@ French message table); voice language at the next byte is deliberately ignored.
 No game save or native options structure is extended. No runtime code writes.
 """
 import struct
+from build_profile import TEST_EDITION
 
 FEATURES = [
     ('DynamicCamera', 'Caméra dynamique', 'Dynamic camera'),
@@ -43,8 +44,9 @@ FEATURES = [
     ('CraymelSpellEXP', 'EXP des Craymel par les sorts', 'Craymel EXP from spells'),
     ('ReidSpecials', 'Techniques spéciales de Reid', 'Reid special techniques'),
     ('StandaloneTeamups', 'Artes combinés autonomes', 'Standalone team-up artes'),
+    ('TestArts', 'Test artes', 'Test artes'),
 ]
-DEFAULTS = [0 if key == 'RelaxedFringe' else 1 for key, _, _ in FEATURES]
+DEFAULTS = [0 if key == 'RelaxedFringe' or (key == 'TestArts' and not TEST_EDITION) else 1 for key, _, _ in FEATURES]
 
 # Preserve the sixteen existing flag addresses and the menu control bytes.
 # Extra flags/snapshots have their own bank, leaving room for future options.
@@ -56,11 +58,14 @@ FLAG_OFFSETS = [0x1a00+i if i < 16 else 0x1a40+i-16 if i<32 else 0x1a60+i-32 for
 GROUPS = {12: (12,19,25,32,33), 17: (17,14)}
 HIDDEN = {i for master, members in GROUPS.items() for i in members if i != master}
 
+if not TEST_EDITION:
+    HIDDEN.add(36)
+
 # Display order only: persistent feature IDs, flag banks and INI keys stay fixed.
 CATEGORIES = [
     ('Quality of Life', 'Quality of Life', [0,3,4,5,6,7,16,15,22,26,27]),
     ('Combat', 'Combat', [1,2,8,9,10,11,13,20,21,29,30,23,24,34]),
-    ('Progression', 'Progression', [12,17,31,18,35]),
+    ('Progression', 'Progression', [12,17,31,18,35]+([36] if TEST_EDITION else [])),
     ('Autres', 'Other', [28,len(FEATURES)+1]),
 ]
 
@@ -89,7 +94,7 @@ def emit_settings(emit, mem, jump, data, symbols):
     for name in ('GetEnvironmentVariableW','GetPrivateProfileIntW','WritePrivateProfileStringW'):string(name,name)
     for name,text in [('environment','LOCALAPPDATA'),('suffix','\\TalesOfEternia-WatersEdition.ini'),('section','Features'),('zero','0'),('one','1')]:string(name,text,True)
     for index,(key,fr,en) in enumerate(FEATURES):
-        if index in HIDDEN:
+        if index in HIDDEN and index != 36:
             master=next(k for k,v in GROUPS.items() if index in v)
             _,fr,en=FEATURES[master]
         string(f'key{index}',key,True);string(f'fr{index}',fr);string(f'en{index}',en)
@@ -166,7 +171,7 @@ def emit_settings(emit, mem, jump, data, symbols):
     synchronize=emit('settings_synchronize_groups', '\n'.join(
         f'mov al, byte ptr {mem(data+FLAG_OFFSETS[master])}\n'+ '\n'.join(
             f'mov byte ptr {mem(data+FLAG_OFFSETS[i])}, al' for i in members if i!=master)
-        for master,members in GROUPS.items())+'\nret')
+        for master,members in GROUPS.items())+(f'\nmov byte ptr {mem(data+FLAG_OFFSETS[36])}, 0' if not TEST_EDITION else '')+'\nret')
     initialize=emit('settings_initialize',f'''
         cmp byte ptr {mem(initialized)}, 0
         jne fast_return

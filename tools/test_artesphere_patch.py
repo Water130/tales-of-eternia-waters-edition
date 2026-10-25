@@ -17,7 +17,7 @@ def check_artesphere(u,base,m,actors,sp,reset,put,get,reg,regs):
     held=set();foreground=True;settings={};polls=[];native_edits=False;draws=[];admit=True
     native_inputs=[];executions=[];checks=[];real_input=False;real_mouse=False;row_render=False;key_writes=[];key_save_ok=True;row_text_y=[];trigger_glyphs=[]
     row_commands=[];text_colors=[]
-    catchup_records = {}
+    catchup_records = {}; shortcut_records = {}
     def string(ptr,wide=False):
         out=bytearray();step=2 if wide else 1
         for i in range(2048):
@@ -39,10 +39,10 @@ def check_artesphere(u,base,m,actors,sp,reset,put,get,reg,regs):
         elif address==api+0x10:ret(names[string(rdx)])
         elif address in (names['GetPrivateProfileStructW'],names['WritePrivateProfileStructW']):
             section=string(rcx,True)
-            assert (section,r9) in (('Artesphere-v1',104),('Artesphere-v2',104),('ArteUsage-v1',1800),('MasteryChoices-v1',232),('SpellCatchUp-v1',1800))
+            assert (section,r9) in (('Artesphere-v1',104),('Artesphere-v2',104),('ArteUsage-v1',1800),('MasteryChoices-v1',232),('SpellCatchUp-v1',1800),('HeroShortcuts-v1',104))
             assert string(get(rsp+0x28,'Q'),True).endswith('TalesOfEternia-WatersEdition.ini')
             key=string(rdx,True)
-            target=records if section=='Artesphere-v2' else legacy_records if section=='Artesphere-v1' else choice_records if section=='MasteryChoices-v1' else catchup_records if section=='SpellCatchUp-v1' else usage_records
+            target=records if section=='Artesphere-v2' else legacy_records if section=='Artesphere-v1' else choice_records if section=='MasteryChoices-v1' else catchup_records if section=='SpellCatchUp-v1' else shortcut_records if section=='HeroShortcuts-v1' else usage_records
             if address==names['WritePrivateProfileStructW']:
                 if not write_fail:target[key]=bytes(u.mem_read(r8,r9))
                 ret(int(not write_fail))
@@ -92,6 +92,7 @@ def check_artesphere(u,base,m,actors,sp,reset,put,get,reg,regs):
     hook=u.hook_add(UC_HOOK_CODE,stub)
     def setup():
         reset();u.mem_write(state,b'\0'*0x400);u.mem_write(master,b'\0'*0x1070)
+        u.mem_write(state+0x1a000,bytes(0x1000))
         put(raw,'III',0,0,0)
         put(base+0x2a9058,'Q',api);put(base+0x2a9060,'Q',api+0x10)
         put(data+0x1a10,'BB',1,0);put(data+0x1b08,'Q',api+0x100);put(data+0x1b10,'Q',api+0x110)
@@ -111,6 +112,9 @@ def check_artesphere(u,base,m,actors,sp,reset,put,get,reg,regs):
         put(master+0x918,'4B',1,1,1,1);put(base+0x11c9da0,'Q',0)
         put(base+0x1119fa4,'BB',1,255);put(base+0x11c9ce8,'B',1)
         native_inputs.clear();executions.clear();draws.clear();polls.clear()
+        # Opening Techniques builds its dedicated visible list before the
+        # shortcut chooser starts. Availability refresh alone no longer does so.
+        reg('rcx',master);run(m['fringe']['menu_refresh'])
     def run(name,stops=None,aligned=False):
         nonlocal count
         count+=1;start=sym[name] if isinstance(name,str) else name;rsp=sp-8 if aligned else sp
@@ -127,6 +131,46 @@ def check_artesphere(u,base,m,actors,sp,reset,put,get,reg,regs):
         if stops is None:assert u.reg_read(UC_X86_REG_RSP)==rsp+8,(name,'unbalanced stack')
         return reached[0]-base
     try:
+        # Real editor scopes and battle owner changes retain BOTH ally commands
+        # on every page. The other controllers' assignments stay byte-exact.
+        setup();run('artesphere_initialize')
+        short=info['usage']['character_shortcuts'];live=base+short['live_rva']
+        untouched=[bytes(u.mem_read(p,12)) for p in (master+0x920,profile+32,profile+76)]
+        assignments={}
+        for hero in range(7):
+            reg('rcx',hero);run('character_shortcuts_sync')
+            if hero:assert all(get(p,'I')==0 for p in (master+0x91c,profile+28,profile+72))
+            assignments[hero]=tuple(0x30201000+hero*0x1010101+page for page in range(3))
+            for p,value in zip((master+0x91c,profile+28,profile+72),assignments[hero]):put(p,'I',value)
+        for hero in (3,0,6,1,4,2,5,0):
+            reg('rcx',hero);run('character_shortcuts_sync')
+            assert tuple(get(p,'I') for p in (master+0x91c,profile+28,profile+72))==assignments[hero]
+        assert [bytes(u.mem_read(p,12)) for p in (master+0x920,profile+32,profile+76)]==untouched
+        # Field first-party hero vs the actual controller-zero actor in battle.
+        put(base+0x12d0ef7,'B',0);put(master+0x8f0,'H',4);run('artesphere_initialize')
+        assert get(base+short['owner'],'B')==4
+        put(base+0x12d0ef7,'B',6);put(actors+0x4f,'B',2);run('artesphere_initialize')
+        assert get(base+short['owner'],'B')==3
+        put(actors+0x4f,'B',1);reg('rcx',actors)
+        run(0x11338e,[0x113395],True)
+        assert get(base+short['owner'],'B')==2 and u.reg_read(regs['rcx'])==actors
+        assert get(master+0x91c,'I')==assignments[1][0]
+        before=bytes(u.mem_read(live,96));put(actors+0x56,'B',1);put(actors+0x4f,'B',6)
+        reg('rcx',actors);run(0x11338e,[0x113395],True)
+        assert bytes(u.mem_read(live,96))==before and get(base+short['owner'],'B')==2
+        checks.append('Hero shortcuts: seven independent A/B/C pairs; field/battle control changes; no inheritance or other-controller mutation')
+
+        savebuf=actors+0x9000;u.mem_write(savebuf,bytes(0x12d4))
+        run('character_shortcuts_flush');expected=bytes(u.mem_read(live,96))
+        reg('rcx',1);reg('rdx',17);reg('r8',savebuf);reg('r9',live);run('character_shortcuts_storage_io')
+        assert shortcut_records['Slot17'][8:]==expected
+        u.mem_write(live,bytes(96))
+        reg('rcx',0);reg('rdx',17);reg('r8',savebuf);reg('r9',live);run('character_shortcuts_storage_io')
+        assert bytes(u.mem_read(live,96))==expected
+        put(savebuf,'B',1);u.mem_write(live,bytes(96))
+        reg('rcx',0);reg('rdx',17);reg('r8',savebuf);reg('r9',live);run('character_shortcuts_storage_io')
+        assert bytes(u.mem_read(live,96))==bytes(96) and u.reg_read(regs['rax'])==0
+        checks.append('Hero shortcut persistence: fingerprinted sidecar round-trip and mismatched native-save rejection')
         for selected_page in (1,2):
             setup();run('artesphere_initialize');native=bytes(u.mem_read(master,0x1070))
             for offset in (0,44):

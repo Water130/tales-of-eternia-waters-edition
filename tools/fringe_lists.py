@@ -13,9 +13,11 @@ def emit_lists(emit,mem,data,state,teamup=None):
     teamup_init = f"sub rsp, 0x20; call {teamup['initialize']:#x}; add rsp, 0x20" if teamup else ''
     teamup_append = ''
     if teamup:
-        for r in teamup['recipes']:
+        entries=teamup['recipes']+teamup.get('native_test_entries',[])
+        entries=entries+[dict(r,character=2) for r in teamup['recipes'] if r['character']==3]
+        for r in entries:
             aid, char = r['id'], r['character']
-            teamup_append += f'''
+            block = f'''
                 mov ecx, {char}
                 mov edx, {aid}
                 mov r8, r12
@@ -39,6 +41,9 @@ def emit_lists(emit,mem,data,state,teamup=None):
                 mov byte ptr [rdi+rax], {aid}
             teamup_next_{aid}:
             '''
+            for prefix in ('teamup_next_','teamup_search_','teamup_store_'):
+                block=block.replace(prefix+str(aid),prefix+str(aid)+'_'+str(char))
+            teamup_append += block
     # RCX master state -> refreshed lists. No external calls; no save writes.
     refresh=emit('fringe_refresh_lists',f'''
         push rbx
@@ -53,15 +58,30 @@ def emit_lists(emit,mem,data,state,teamup=None):
         xor ebx, ebx
     character:
         xor r8d, r8d
-    copy:
-        xor eax, eax
-        cmp r8d, 32
-        jae store
-        mov al, byte ptr [rsi+r8]
-    store:
-        mov byte ptr [rdi+r8], al
+    clear:
+        mov byte ptr [rdi+r8], 0
         inc r8d
         cmp r8d, {CAPACITY}
+        jb clear
+        xor r8d, r8d
+        xor r9d, r9d
+    copy:
+        xor eax, eax
+        mov al, byte ptr [rsi+r8]
+        test eax, eax
+        je next_native
+        # 112/113 are qualified additions; 114..125 are equipment passives.
+        # The native row renderer suppresses
+        # them but still counts their slots. Virtual attacks are added below.
+        # Compact the view without changing equipment or saved learned lists.
+        cmp eax, 112
+        jae next_native
+    store:
+        mov byte ptr [rdi+r9], al
+        inc r9d
+    next_native:
+        inc r8d
+        cmp r8d, 32
         jb copy
         add rsi, {STRIDE}
         add rdi, {STRIDE}

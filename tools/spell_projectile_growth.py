@@ -30,7 +30,7 @@ def emit_small_projectile_growth(emit, mem, jump, state, data, usage, preserve):
         bt dword ptr [r11], edx
         jc done
         movzx eax, word ptr [r10+10]
-        mov r9d, 999
+        mov r9d, 500
         cmp eax, r9d
         cmova eax, r9d
         imul eax, r8d
@@ -54,6 +54,40 @@ def emit_small_projectile_growth(emit, mem, jump, state, data, usage, preserve):
         ''')+f'{native}; jmp {continuation:#x}')
         jump(site,length,code,'Spell EXP: '+name+' spawns up to three extra native projectiles')
     return extra
+
+
+def emit_eruption_growth(emit, jump, extra, preserve):
+    from spell_growth import PROJECTILE_CAPS
+    cap=PROJECTILE_CAPS[76]
+    # Frame 208 emits twenty independent native fireball sprites (579dc0),
+    # each with its own collision (116580). Extend only that emission loop;
+    # frame 192's sixteen cosmetic sparks and the magma remain unchanged.
+    # The old ring-rendering scratch at frame-RSP+270 is dead after frame 192.
+    # Cache one bounded count here, below the cookie at +280. No VFX array is
+    # indexed by this count; allocation failures retain the native skip path.
+    count = emit('mastery_eruption_count', preserve(f'''
+        sub rsp, 0x20
+        mov rcx, r12
+        mov edx, 76
+        mov r8d, {cap}
+        call {extra:#x}
+        add eax, 20
+        mov dword ptr [rsp+0x2d0], eax
+        add rsp, 0x20
+    ''') + '''
+        mov esi, 0xc80
+        mov ebp, 0x2f00
+        jmp 0x97dba
+    ''')
+    jump(0x97db0,10,count,'Eruption: retain magma and add up to nine native fireballs')
+    loop = emit('mastery_eruption_loop', '''
+        cmp r14d, dword ptr [rsp+0x270]
+        jl 0x97dc0
+        jmp 0x97e80
+    ''')
+    jump(0x97e76,10,loop,'Eruption: bounded native fireball allocation loop')
+    return dict(arte=76,native_count=20,additional_cap=cap,emission_tick=208,
+                retains_area=True,count_rva=count,loop_rva=loop)
 
 
 def emit_freeze_lancer_growth(emit, jump, extra):
@@ -652,7 +686,7 @@ def emit_air_thrust_growth(emit, mem, jump, state, effects, data, usage):
         bt dword ptr [r11], ecx
         jc done
         movzx eax, word ptr [r10+10]
-        mov ecx, 999
+        mov ecx, 500
         cmp eax, ecx
         cmova eax, ecx
         imul eax, eax, 6
@@ -693,6 +727,6 @@ def emit_air_thrust_growth(emit, mem, jump, state, effects, data, usage):
         jl 0x94251
         jmp 0x9451e
     ''')
-    jump(0x94515,9,end,'Air Thrust: four native projectiles plus up to six at 999 casts')
-    return dict(arte=73,native_count=4,additional_cap=6,max_casts=999,
+    jump(0x94515,9,end,'Air Thrust: four native projectiles plus up to six at 500 casts')
+    return dict(arte=73,native_count=4,additional_cap=6,max_casts=500,
                 arrays_rva=arrays,stride=128,slots=16,independent_hits=hits)

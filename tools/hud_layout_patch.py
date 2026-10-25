@@ -7,7 +7,7 @@ def emit_hud_layout(emit, mem, jump, edit, data_rva, rect, save_ui, restore_ui):
     edit(0x80b1b, b'\x66\x41\x83\xe8\x1c', 'Portraits right four units within unchanged 48-unit slots')
     for metric, site, y in [(0,0xd1c23,208),(1,0xd1cd4,223)]:
         fn = emit(f'ui_hud_number_{metric}', f'''
-            lea edx, [rdi-1]
+            lea edx, [rdi{'+3' if metric == 0 else '-1'}]
             mov r8d, {y}
             # Original atlas, glyph dimensions and native kerning (12-4=8).
             # Native renderer anchors the final digit; four digits span 36.
@@ -15,7 +15,7 @@ def emit_hud_layout(emit, mem, jump, edit, data_rva, rect, save_ui, restore_ui):
             call 0x1114a0
             jmp {site+5:#x}
         ''')
-        jump(site,5,fn,'Right-align '+('HP' if metric==0 else 'TP')+' digits inside lowered gauge, reserving four digits')
+        jump(site,5,fn,('Align HP glyph ink with gauge (+4 units)' if metric==0 else 'Preserve TP digit anchor'))
 
     from spirit_icon_patch import emit_spirit_icons
     icon = emit_spirit_icons(emit, mem, data_rva)

@@ -84,7 +84,7 @@ Camera, HUD, casting bars, item cooldown, skit and display options.
 ### Progression options
 
 Grouped switches for magic, Farah and Reid, plus Fringe and standalone team-up
-artes. Long descriptions can be scrolled with the left stick. This capture contains
+artes. Long descriptions can be scrolled with the right stick. This capture contains
 an earlier catch-up description; the [published feature guide](FEATURES.md) explains
 how credited uses now contribute to progression and use-based requirements.
 

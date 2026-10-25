@@ -66,85 +66,95 @@ function Get-PatchedBytes([byte[]]$Original, $Profile) {
     return ,$result
 }
 
+function Write-NewFile([string]$Path, [byte[]]$Bytes) {
+    $stream = [IO.File]::Open($Path,[IO.FileMode]::CreateNew,[IO.FileAccess]::Write,[IO.FileShare]::None)
+    try { $stream.Write($Bytes,0,$Bytes.Length); $stream.Flush() } finally { $stream.Dispose() }
+}
+
 try {
     $patch = Get-Content -LiteralPath (Join-Path $PSScriptRoot 'patch.json') -Raw | ConvertFrom-Json
-    if ($patch.format -ne 1) { throw 'Unsupported patch format.' }
+    if ($patch.format -ne 2) { throw 'Unsupported patch format.' }
     if (-not $GameDir) { $GameDir = Find-GameFolder }
     $GameDir = [IO.Path]::GetFullPath([Environment]::ExpandEnvironmentVariables($GameDir.Trim().Trim('"')))
-    $target = Join-Path $GameDir 'Tales of Eternia Remastered_Data\Plugins\x86_64\GameNative.dll'
-    if (-not (Test-Path -LiteralPath $target -PathType Leaf)) { throw 'GameNative.dll was not found. Select the game installation folder, not its Data or Plugins subfolder.' }
-    $backup = $target + '.toe-combat-original'
-    $stage = $target + '.toe-combat-stage'
-    $current = [IO.File]::ReadAllBytes($target)
-    $currentHash = Get-Hash $current
-    $supportedHashes = @($patch.base_sha256, $patch.profiles.Full.sha256, $patch.profiles.Compatibility.sha256)
-    $state = if ($currentHash -eq $patch.base_sha256) { 'Original' } elseif ($currentHash -eq $patch.profiles.Full.sha256) { 'Full' } elseif ($currentHash -eq $patch.profiles.Compatibility.sha256) { 'Compatibility' } else { 'Unsupported / modified' }
-    Write-Host ("Tales of Eternia - Water's Edition {0} - TEST RELEASE" -f $patch.version) -ForegroundColor Cyan
+    $dllPath = 'Tales of Eternia Remastered_Data/Plugins/x86_64/GameNative.dll'
+    $assets = @([pscustomobject]@{path=$dllPath; base_sha256=$patch.base_sha256; profiles=$patch.profiles}) + @($patch.assets)
+    $plan = @(); $paths = @{}
+    Write-Host ("Tales of Eternia - Water's Edition {0}" -f $patch.version) -ForegroundColor Cyan
     Write-Host ("Game folder: {0}" -f $GameDir)
-    Write-Host ("Current state: {0}" -f $state)
+    if ($Action -ne 'Status') { Assert-GameClosed }
+    foreach ($asset in $assets) {
+        $target = [IO.Path]::GetFullPath((Join-Path $GameDir $asset.path))
+        if (-not $target.StartsWith($GameDir.TrimEnd('\')+'\',[StringComparison]::OrdinalIgnoreCase) -or $paths.ContainsKey($target)) { throw 'Invalid or duplicate patch target.' }
+        $paths[$target] = $true
+        if (-not (Test-Path -LiteralPath $target -PathType Leaf)) { throw ("Required game file was not found: {0}. Select the game installation folder." -f $asset.path) }
+        $current = [IO.File]::ReadAllBytes($target); $currentHash = Get-Hash $current
+        $state = if ($currentHash -eq $asset.base_sha256) { 'Original' } elseif ($currentHash -eq $asset.profiles.Full.sha256) { 'Full' } elseif ($currentHash -eq $asset.profiles.Compatibility.sha256) { 'Compatibility' } else { 'Unsupported / modified' }
+        Write-Host ("{0}: {1}" -f [IO.Path]::GetFileName($target),$state)
+        if ($Action -eq 'Status') { continue }
+        if ($state -eq 'Unsupported / modified') { throw 'Unsupported or modified DLL / asset. Restore a clean compatible game before installing. No files changed.' }
+        $backup = $target+'.toe-combat-original'; $stage = $target+'.toe-combat-stage'
+        $original = $current; $hasBackup = Test-Path -LiteralPath $backup
+        if ($hasBackup) {
+            $original = [IO.File]::ReadAllBytes($backup)
+            if ((Get-Hash $original) -ne $asset.base_sha256) { throw 'The existing original backup has an unexpected hash. It will not be overwritten.' }
+        } elseif ($state -ne 'Original') { throw 'Original backup missing. Restore the original game using the previous installer or Steam.' }
+        if (Test-Path -LiteralPath $stage) { throw 'A staging file from another operation exists. No files changed.' }
+        if ($Action -eq 'Uninstall') { $payload = $original; $expectedHash = $asset.base_sha256 }
+        else { $payload = Get-PatchedBytes $original $asset.profiles.$Mode; $expectedHash = $asset.profiles.$Mode.sha256 }
+        if ($currentHash -ne $expectedHash) {
+            $plan += [pscustomobject]@{Target=$target; Backup=$backup; Stage=$stage; Original=$original; Current=$current; CurrentHash=$currentHash; Payload=$payload; ExpectedHash=$expectedHash; HasBackup=$hasBackup; StageOwned=$false}
+        }
+    }
     if ($Action -eq 'Status') { exit 0 }
-    Assert-GameClosed
-    if ($currentHash -notin $supportedHashes) {
-        throw ("Unsupported or modified DLL. This release only supports the original Steam build {0} or this exact mod version. No files changed. Restore a clean compatible game before installing; do not force the patch after a Steam update." -f $patch.steam_build)
+    if (-not $plan.Count) {
+        if ($Action -eq 'Uninstall') { Write-Host 'The original game is already restored.' } else { Write-Host 'This mode is already installed.' }
+        exit 0
     }
-    $backupBytes = $null
-    if (Test-Path -LiteralPath $backup) {
-        $backupBytes = [IO.File]::ReadAllBytes($backup)
-        if ((Get-Hash $backupBytes) -ne $patch.base_sha256) { throw 'The existing original backup has an unexpected hash. It will not be overwritten.' }
-    }
-    if (($state -ne 'Original') -and ($null -eq $backupBytes)) {
-        throw 'Original backup missing. Restore the original DLL using your previous installer or Steam before using this package.'
-    }
-    if ($Action -eq 'Uninstall') {
-        if ($state -eq 'Original') { Write-Host 'The original game is already restored.'; exit 0 }
-        $payload = $backupBytes
-        $expectedHash = $patch.base_sha256
-    } else {
-        $source = $current
-        if ($state -ne 'Original') { $source = $backupBytes }
-        $profile = $patch.profiles.$Mode
-        $payload = Get-PatchedBytes $source $profile
-        $expectedHash = $profile.sha256
-        if ($currentHash -eq $expectedHash) { Write-Host 'This mode is already installed.'; exit 0 }
-    }
-    $drive = New-Object IO.DriveInfo ([IO.Path]::GetPathRoot($target))
-    if ($drive.AvailableFreeSpace -lt (5GB + 2*$payload.Length)) { throw 'Not enough free space to keep at least 5 GiB free after installation.' }
-    if (Test-Path -LiteralPath $stage) { throw 'A staging file from another operation exists. No files changed. Check GameNative.dll.toe-combat-stage before trying again.' }
+    $needed = 0L
+    foreach ($item in $plan) { $needed += 2*$item.Payload.Length+$item.Original.Length }
+    $drive = New-Object IO.DriveInfo ([IO.Path]::GetPathRoot($GameDir))
+    if ($drive.AvailableFreeSpace -lt (5GB+$needed)) { throw 'Not enough free space to keep at least 5 GiB free after installation.' }
     if ($DryRun) { Write-Host ("Dry run passed: {0} / {1}. No files changed." -f $Action,$Mode); exit 0 }
     if ($Prompt) {
-        Write-Host ''
-        if ($Action -eq 'Uninstall') {
-            Write-Host 'This will restore the original game. Your saves and mod preferences will be kept.'
-            $question = "Uninstall Water's Edition from this folder? [Y/N]"
-        } else {
-            Write-Host 'This will install the mod and keep a verified original backup. Your saves will not be changed.'
-            $question = "Install Water's Edition in this folder? [Y/N]"
-        }
-        $answer = ([string](Read-Host $question)).Trim()
-        if ($answer -notin @('y','yes')) { Write-Host 'Cancelled. No files changed.'; exit 0 }
+        Write-Host 'Verified original backups will be kept. Back up your saves separately.'
+        $question = if ($Action -eq 'Uninstall') { "Uninstall Water's Edition from this folder? [Y/N]" } else { "Install Water's Edition in this folder? [Y/N]" }
+        if (([string](Read-Host $question)).Trim() -notin @('y','yes')) { Write-Host 'Cancelled. No files changed.'; exit 0 }
     }
-    Assert-GameClosed
-    if ((Get-Hash ([IO.File]::ReadAllBytes($target))) -ne $currentHash) { throw 'Game file changed during preparation. Try again after Steam finishes.' }
-    if (($Action -eq 'Install') -and ($null -eq $backupBytes)) {
-        # CreateNew refuses a concurrent overwrite. One original backup only.
-        $stream = [IO.File]::Open($backup,[IO.FileMode]::CreateNew,[IO.FileAccess]::Write,[IO.FileShare]::None)
-        try { $stream.Write($current,0,$current.Length); $stream.Flush() } finally { $stream.Dispose() }
-        if ((Get-Hash ([IO.File]::ReadAllBytes($backup))) -ne $patch.base_sha256) { throw 'Original backup verification failed. Game DLL not changed.' }
-    }
-    $stageOwned = $false
+    $applied = New-Object 'Collections.Generic.List[object]'
     try {
-        $stream = [IO.File]::Open($stage,[IO.FileMode]::CreateNew,[IO.FileAccess]::Write,[IO.FileShare]::None)
-        $stageOwned = $true
-        try { $stream.Write($payload,0,$payload.Length); $stream.Flush() } finally { $stream.Dispose() }
-        if ((Get-Hash ([IO.File]::ReadAllBytes($stage))) -ne $expectedHash) { throw 'Staging verification failed.' }
         Assert-GameClosed
-        if ((Get-Hash ([IO.File]::ReadAllBytes($target))) -ne $currentHash) { throw 'Game file changed during staging. Nothing replaced.' }
-        [IO.File]::Replace($stage,$target,[NullString]::Value)
-        if ((Get-Hash ([IO.File]::ReadAllBytes($target))) -ne $expectedHash) { throw 'Post-install verification failed. Keep the original backup for recovery.' }
+        foreach ($item in $plan) {
+            if ((Get-Hash ([IO.File]::ReadAllBytes($item.Target))) -ne $item.CurrentHash) { throw 'Game file changed during preparation.' }
+            if (-not $item.HasBackup) {
+                Write-NewFile $item.Backup $item.Original
+                if ((Get-Hash ([IO.File]::ReadAllBytes($item.Backup))) -ne (Get-Hash $item.Original)) { throw 'Original backup verification failed.' }
+            }
+            Write-NewFile $item.Stage $item.Payload
+            $item.StageOwned = $true
+            if ((Get-Hash ([IO.File]::ReadAllBytes($item.Stage))) -ne $item.ExpectedHash) { throw 'Staging verification failed.' }
+        }
+        Assert-GameClosed
+        foreach ($item in $plan) {
+            if ((Get-Hash ([IO.File]::ReadAllBytes($item.Target))) -ne $item.CurrentHash) { throw 'Game file changed during staging.' }
+            [IO.File]::Replace($item.Stage,$item.Target,[NullString]::Value)
+            $applied.Add($item)
+            if ((Get-Hash ([IO.File]::ReadAllBytes($item.Target))) -ne $item.ExpectedHash) { throw 'Post-install verification failed.' }
+        }
+    } catch {
+        $failure = $_
+        for ($i=$applied.Count-1; $i -ge 0; $i--) {
+            $item = $applied[$i]
+            Write-NewFile $item.Stage $item.Current
+            [IO.File]::Replace($item.Stage,$item.Target,[NullString]::Value)
+            if ((Get-Hash ([IO.File]::ReadAllBytes($item.Target))) -ne $item.CurrentHash) { throw 'Rollback verification failed. Keep all original backups for recovery.' }
+        }
+        throw $failure
     } finally {
-        if ($stageOwned -and (Test-Path -LiteralPath $stage)) { Remove-Item -LiteralPath $stage }
+        foreach ($item in $plan) {
+            if ($item.StageOwned -and (Test-Path -LiteralPath $item.Stage)) { Remove-Item -LiteralPath $item.Stage }
+        }
     }
-    if ($Action -eq 'Uninstall') { Write-Host 'Original game restored and verified. The original backup has been kept.' }
+    if ($Action -eq 'Uninstall') { Write-Host 'Original game restored and verified. The original backups have been kept.' }
     else { Write-Host ("Installed and verified: {0} mode. You can start the game." -f $Mode) }
     exit 0
 } catch {

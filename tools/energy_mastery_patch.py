@@ -9,7 +9,7 @@ PREFERENCE_IDS = tuple(range(128, 134))
 FLAG_OFFSET = 0x1a41
 
 
-def emit_energy(emit, mem, jump, data, usage):
+def emit_energy(emit, mem, jump, data, usage, expansion=None):
     choices = usage['preferences']['live_rva']
     flag = data + FLAG_OFFSET
     tests = ''
@@ -47,6 +47,25 @@ def emit_energy(emit, mem, jump, data, usage):
         jmp {enabled:#x}
     done:
         ret
+    ''')
+    healing_ward=emit('energy_healing_ward',f'''
+        xor eax, eax
+        test rcx, rcx; je done
+        cmp byte ptr {mem(0x12d0ef7)}, 6; jne done
+        cmp byte ptr {mem(flag)}, 0; je done
+        cmp byte ptr [rcx+0x4f], 1; jne done
+        cmp byte ptr [rcx+0x51], 0; jne done
+        cmp word ptr [rcx+0x3c], 1; jne done
+        cmp dword ptr [rcx+0x2c], 0; jle done
+        cmp byte ptr [rcx+0x52], 10; jne done
+        cmp word ptr [rcx+0x8c], 0; jle done
+        cmp byte ptr [rcx+0x6d], 39; jb done
+        cmp byte ptr [rcx+0x6d], 41; ja done
+        cmp byte ptr {mem(0x11cb038)}, 30; jne done
+        cmp byte ptr {mem(0x11cb040)}, 30; jne done
+        test byte ptr {mem(choices+32+150//8)}, {1<<(150%8)}; jne done
+        mov eax, 1
+    done: ret
     ''')
     # RCX actor/menu-character pointer, R8 mode (0 battle, 1 menu).
     # EAX current HP (zero if ineligible), R9D max HP. Full HP is excluded.
@@ -405,6 +424,20 @@ def emit_energy(emit, mem, jump, data, usage):
     for name, site, size, continuation in (
         ('healer',0xcbee3,10,0xcbeed),('detoxify',0xccfb1,7,0xccfb8)):
         target=healer if name=='healer' else detox
+        if expansion:
+            wrapped=emit('fighter_energy_'+name,f'''
+                # RSI is the native effect; its owner/recipient are stable here.
+                push rbx; push rdi; push rbp; push r12; sub rsp, 0x28
+                mov rbx, qword ptr [rsi]; mov rdi, qword ptr [rsi+8]
+                mov ebp, dword ptr [rdi+0x2c]; mov r12d, dword ptr [rdi+0x30]
+                call {target:#x}
+                mov r8d, dword ptr [rdi+0x2c]; sub r8d, ebp
+                mov rcx, rbx; mov rdx, rdi; call {expansion['healed']:#x}
+                {f'''mov r8d, dword ptr [rdi+0x30]; not r8d; and r8d, r12d
+                mov rcx, rbx; mov rdx, rdi; call {expansion['purified']:#x}''' if name=='detoxify' else ''}
+                add rsp, 0x28; pop r12; pop rbp; pop rdi; pop rbx; ret
+            ''')
+            target=wrapped
         hook=emit('energy_battle_'+name, preserve(f'''
             mov rcx, qword ptr [rsi]
             call {owner:#x}
@@ -414,6 +447,14 @@ def emit_energy(emit, mem, jump, data, usage):
             call {target:#x}
         ''')+f'jmp {continuation:#x}')
         jump(site,size,hook,'Energy: Farah '+name+' at native application frame')
+    if expansion:
+        from craymel_faculties import preserve as preserve_all
+        revived=emit('fighter_life_application',f'''
+            call 0xccdd0
+            {preserve_all(f'mov rcx, qword ptr [rsi]; mov rdx, qword ptr [rsi+8]; call {expansion["revived"]:#x}')}
+            jmp 0xcccb0
+        ''')
+        jump(0xcccab,5,revived,'Protect only an ally actually revived at the native Life application')
     for name,site,size,continuation in (
         ('healer',0x22459c,13,0x2245a9),('detoxify',0x2245bf,9,0x2245c8)):
         target=healer if name=='healer' else detox
@@ -490,6 +531,7 @@ def emit_energy(emit, mem, jump, data, usage):
     ''')
     jump(0x2244e3,7,eligible,'Energy: allow injured or newly curable Detoxify menu targets')
     return dict(flag_rva=flag, levels=list(LEVELS), preference_ids=list(PREFERENCE_IDS),
+                healing_ward=healing_ward,healing_ward_preference=150,
                 absolute_heal_rva=absolute, select_targets_rva=select,
                 character=1, level_source='min(Punch, Kick)',
                 battle_and_menu=True, secondary_basis='theoretical primary heal',

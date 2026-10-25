@@ -32,7 +32,7 @@ def preserve(body):
     '''
 
 
-def emit_mastery(emit, mem, jump, data, state, usage, faculties=None):
+def emit_mastery(emit, mem, jump, data, state, usage, faculties=None, teamups=None):
     faculty_power=faculty_impact=faculty_defense=''
     if faculties:
         faculty_power=f'''
@@ -64,6 +64,8 @@ def emit_mastery(emit, mem, jump, data, state, usage, faculties=None):
     from spell_projectile_growth import emit_air_thrust_growth, emit_small_projectile_growth, emit_freeze_lancer_growth, emit_wind_blade_growth, emit_meteor_growth, emit_holy_lance_growth, emit_aqua_edge_growth, emit_ray_growth, emit_dark_force_growth, emit_shooting_star_growth
     air_growth = emit_air_thrust_growth(emit, mem, jump, state, effects, data, usage)
     extra_projectiles=emit_small_projectile_growth(emit,mem,jump,state,data,usage,preserve)
+    from spell_projectile_growth import emit_eruption_growth
+    eruption_growth=emit_eruption_growth(emit,jump,extra_projectiles,preserve)
     emit_freeze_lancer_growth(emit,jump,extra_projectiles)
     wind_growth=emit_wind_blade_growth(emit,jump,extra_projectiles)
     meteor_growth=emit_meteor_growth(emit,mem,jump,state,extra_projectiles,preserve)
@@ -418,8 +420,15 @@ def emit_mastery(emit, mem, jump, data, state, usage, faculties=None):
         ('small', 0x115d1c, 10,
          'mov rax, qword ptr [rdx+rax*8+0x4e9690]', 0x115d26),
     ):
+        before=after=''
+        if teamups and name in ('script','large','small'):
+            frame=teamups['state_rva']+0x5600
+            # EDI is the per-effect advance decision established at 115957.
+            # The shared pause byte can still contain a fade countdown.
+            before=f'mov qword ptr {mem(frame)}, rcx; mov dword ptr {mem(frame+8)}, edi;'
+            after=f'mov qword ptr {mem(frame)}, 0;'
         wrapper = emit('mastery_scope_'+name,
-                       f'{setup}; call {scoped:#x}; jmp {end:#x}')
+                       f'{setup}; {before} call {scoped:#x}; {after} jmp {end:#x}')
         jump(site, length, wrapper, 'Mastery: scope native '+name+' callback')
 
     born = emit('mastery_projectile_capture', preserve(f'''
@@ -615,7 +624,7 @@ def emit_mastery(emit, mem, jump, data, state, usage, faculties=None):
                 area_growth_rva=area_growth, area_extent_percent=50,
                 cast_reduction_percent=15, critical_chance_points=15,
                 critical_damage_multiplier=2, common_track_max_casts=500,
-                projectile_growth=[air_growth,wind_growth,meteor_growth,holy_growth,aqua_growth,ray_growth,dark_growth,star_growth,dict(arte=75,additional_cap=3),dict(arte=82,additional_cap=3),
+                projectile_growth=[air_growth,wind_growth,meteor_growth,holy_growth,aqua_growth,ray_growth,dark_growth,star_growth,eruption_growth,dict(arte=75,additional_cap=3),dict(arte=82,additional_cap=3),
                                    dict(arte=83,native_count=16,additional_cap=6)],
                 extra_projectiles_rva=extra_projectiles,
                 offensive_arte_ids=list(range(70, 102))+[112, 113],

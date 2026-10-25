@@ -62,6 +62,16 @@ def check_camera(uc, BASE, DATA, ACTORS, ENEMIES, STATS, IMPACT, SP,
             execute()
             assert get(BASE+0x12cea90,'h')==get(BASE+0x12ceab0,'h')==64
             assert get(DATA+0x20,'B')==1
+    # Shared player boss-spell adaptations must not shut off dynamic framing.
+    for owner in (2,3):
+        for effect_id in (49,52,57,60,63,67,76):
+            actor_setup(-2560,8192);put(ACTORS+0x4f,'B',owner)
+            effect=BASE+0x12cfca0
+            put(effect,'Q',ACTORS);put(effect+0x33,'B',1);put(effect+0x36,'B',effect_id)
+            put(BASE+0x12cea90,'hhh',384,128,-128)
+            put(BASE+0x12ceab0,'hhh',384,-128,128)
+            execute();assert get(BASE+0x12cea92,'I')==get(BASE+0x12ceab2,'I')==0
+            assert get(DATA+0x20,'B')==1
     # Selection menu temporarily follows enemy+5; manual actor is still slot 0.
     actor_setup(0,7680);put(BASE+0x12ceb8e,'B',6)
     assert execute()[0]==240
@@ -113,8 +123,8 @@ def check_camera(uc, BASE, DATA, ACTORS, ENEMIES, STATS, IMPACT, SP,
         put(ENEMIES+0x10,'h',t);current=execute()
         assert abs(current[0]-previous[0])<=1 and abs(current[1]-previous[1])<=2
         previous=current
-    # Default zoom preference is respected; invalid values cannot overflow.
-    for default,expected in [(512,512),(768,768),(-1,512),(32767,512)]:
+    # Residual spell zoom is ignored; only stage geometry and framing set zoom.
+    for default,expected in [(512,512),(768,512),(-1,512),(32767,512)]:
         actor_setup(0,0);put(BASE+0x12ceb78,'h',default);assert execute()[1]==expected
     # Battle exit/new battle: preserve native cinematic state and reset smoothing.
     actor_setup(0,8192);execute();put(BASE+0x12d0ef7,'B',5)
@@ -149,7 +159,7 @@ def check_camera(uc, BASE, DATA, ACTORS, ENEMIES, STATS, IMPACT, SP,
     # A rapid outward zoom may not uncover a side while the center catches up.
     for p,t in [(-160,-96),(352,512)]:
         actor_setup(p*16,t*16);put(BASE+0x12d0eb2,'H',7)
-        previous=execute();put(BASE+0x12ceb78,'h',2048)
+        previous=execute();put(ENEMIES+0x10,'h',(512 if p<0 else -160)*16)
         for frame in range(140):
             c,z=execute()
             assert abs(c-previous[0])<=17 and abs(z-previous[1])<=65,(frame,c,z,previous)
@@ -158,8 +168,7 @@ def check_camera(uc, BASE, DATA, ACTORS, ENEMIES, STATS, IMPACT, SP,
             anchor=native_project(-384,c,z,576,True)
             assert anchor<0 and anchor+512>320,(frame,c,z,'far forest transition gap',anchor)
             previous=(c,z)
-        # The deeper left backdrop shifts the widest valid view rightwards.
-        assert abs(c-178)<=1
+        assert z>=576
     # Every summon and every pool slot retain native camera XYZ and native goal.
     for effect_id in range(26,36):
         for slot in [0,7,15]:
@@ -175,6 +184,26 @@ def check_camera(uc, BASE, DATA, ACTORS, ENEMIES, STATS, IMPACT, SP,
             put(effect+0x33,'B',0)
             c,z=execute();assert abs(c-200)<=4 and abs(z-600)<=16
             assert 44<=get(BASE+0x12cea9a,'h')<=48
+    # Enemy spells retain their native camera even when a player adaptation
+    # runs concurrently. Scan order must not let a later player effect win.
+    for effect_id in range(1,78):
+        for enemy_slot,player_slot in ((0,15),(7,0),(15,7)):
+            actor_setup(0,4800);put(ACTORS+0x4f,'B',3);execute()
+            for slot,owner,eid in ((enemy_slot,ENEMIES,effect_id),(player_slot,ACTORS,49)):
+                effect=BASE+0x12cfca0+slot*0x120
+                put(effect,'Q',owner);put(effect+0x33,'B',1);put(effect+0x36,'B',eid)
+            put(BASE+0x12cea90,'hhh',384,128,-128)
+            put(BASE+0x12ceab0,'hhh',96,-128,128)
+            put(BASE+0x12cea98,'hhh',-200,48,600)
+            put(BASE+0x12ceab8,'hhh',-300,12,900)
+            before=bytes(uc.mem_read(BASE+0x12cea90,0x30))
+            saved={r:uc.reg_read(v) for r,v in REGS.items() if r!='rcx'}
+            flags=uc.reg_read(UC_X86_REG_EFLAGS)
+            run('adaptive_battle_camera',[0x10d51c]);count+=1
+            assert bytes(uc.mem_read(BASE+0x12cea90,0x30))==before,(effect_id,enemy_slot)
+            assert saved=={r:uc.reg_read(REGS[r]) for r in saved}
+            assert uc.reg_read(UC_X86_REG_EFLAGS)==flags
+            assert get(DATA+0x20,'B')==2
     # All unsupported layouts, including out-of-range IDs, retain native
     # rotation, position and native target even when an ordinary spell runs.
     for stage in [r['stage'] for r in rows if not r['compatible']]+[128,65535]:

@@ -10,7 +10,7 @@ from mastery_catalog import catalog
 from mastery_tree_layout import prepare, connections, LEVELS, NODE_SIZE, ROOT, ORIGIN
 
 
-def emit_mastery_menu(emit, mem, jump, data, state, symbols, usage):
+def emit_mastery_menu(emit, mem, jump, data, state, symbols, usage, native, expansion=None):
     pref = usage['preferences']
     ui, choices = pref['ui_state_rva'], pref['live_rva']
     from spell_browser import arrange, emit_availability, emit_browser
@@ -41,7 +41,7 @@ def emit_mastery_menu(emit, mem, jump, data, state, symbols, usage):
             runs=[encode_runs(t,payload,state,string) for t in n['label']]
             ns.append(struct.pack('<24I',*pair(n['label']),*pair(n['title']),
                 *pair(n['description']),*pair(n['detail']),*[lineblock(lines) for lines in requirements],
-                n['required'],int(n['implemented']),n['x'],n['y'],*n['neighbors'],
+                n['required'],int(n['implemented']) | (n.get('preference',0)<<8),n['x'],n['y'],*n['neighbors'],
                 *[lineblock(lines) for lines in n['lines']],
                 *[lineblock(lines) for lines in n['title_lines']],*runs))
         while len(payload)%4: payload.append(0)
@@ -72,7 +72,7 @@ def emit_mastery_menu(emit, mem, jump, data, state, symbols, usage):
         'empty':('Aucune branche disponible dans cette catégorie.','No branch available in this category.'),
         'preview':('Les facultés en préparation ne sont pas encore jouables.','Faculties in development do not have battle effects yet.'),
         'save':('Choix conservés avec la sauvegarde de la partie.','Choices are stored when you save the game.'),
-        'back':('Retour','Back'), 'browse':('Arbre','Tree'),
+        'character':('Personnage','Character'), 'back':('Retour','Back'), 'browse':('Arbre','Tree'),
         'toggle':('Activer / désactiver','Toggle'), 'tab':('Catégorie','Category'), 'branch':('Branche','Branch'),
         'current':('Niveau :','Level:'), 'next':('Suite : haut / bas','More: up / down'),
         'summonpower':('Invocation : dégâts','Summon: damage'),
@@ -116,6 +116,10 @@ def emit_mastery_menu(emit, mem, jump, data, state, symbols, usage):
 
     character=emit('mastery_menu_character',f'''
         movzx eax, byte ptr {mem(0x111a674)}
+        cmp byte ptr {mem(ui)}, 0
+        je native_slot
+        movzx eax, byte ptr {mem(ui+0xd)}
+    native_slot:
         cmp al, byte ptr {mem(0x111a672)}
         jae invalid
         cmp eax, 7
@@ -295,6 +299,31 @@ def emit_mastery_menu(emit, mem, jump, data, state, symbols, usage):
         je spirit
         cmp dword ptr [rcx], 1
         jne spell
+        mov eax, dword ptr [rdx+44]
+        shr eax, 8
+        test eax, eax
+        je legacy_preference
+        mov r10d, eax
+        jmp spell
+    legacy_preference:
+        # These IDs are independent of node insertion/order and do not
+        # overlap Energy 128..133 or the normal-chain switches 134..137.
+        cmp r10d, 0; jne not_impact
+        cmp dword ptr [rdx+40], 20; jne basic
+        mov r10d, 138; jmp spell
+    not_impact:
+        cmp r10d, 1; jne not_counter
+        cmp dword ptr [rdx+40], 25; jne basic
+        mov r10d, 139; jmp spell
+    not_counter:
+        cmp r10d, 4; jne not_guard
+        cmp dword ptr [rdx+40], 20; jne mixed_basic
+        mov r10d, 140; jmp spell
+    not_guard:
+        cmp r10d, 6; jne not_landing
+        cmp dword ptr [rdx+40], 20; jne mixed_basic
+        mov r10d, 141; jmp spell
+    not_landing:
         cmp r10d, 4
         jb basic
         cmp r10d, 4
@@ -529,9 +558,11 @@ def emit_mastery_menu(emit, mem, jump, data, state, symbols, usage):
         pop rbx
         ret
     ''')
+    from mastery_badges import emit_badges
+    badges=emit_badges(emit,mem,native)
     from spell_bonus_panel import emit_bonus_panel
     bonus=emit_bonus_panel(emit,mem,ui,data,choices,value,text,number,loc,string,payload,state,tabletext,usage)
-    browser=emit_browser(emit,mem,ui,rows,payload,state,string,lineblock,lookup,availability,text,frame,icon,tabletext,loc,bonus,data)
+    browser=emit_browser(emit,mem,ui,rows,payload,state,string,lineblock,lookup,availability,text,frame,icon,tabletext,loc,bonus,data,badges)
     native_input=emit('mastery_status_native_input','push rbx; push rbp; push rsi; push rdi; jmp 0x241965')
     inp=emit('mastery_status_input',f'''
         push rbx
@@ -547,6 +578,8 @@ def emit_mastery_menu(emit, mem, jump, data, state, symbols, usage):
         call {entry_key:#x}
         test dword ptr {mem(0x8c9184)}, edx
         je native
+        movzx edx, byte ptr {mem(0x111a674)}
+        mov byte ptr {mem(ui+0xd)}, dl
         mov byte ptr {mem(ui)}, 1
         mov byte ptr {mem(ui+4)}, al
         mov byte ptr {mem(ui+3)}, 0
@@ -569,6 +602,43 @@ def emit_mastery_menu(emit, mem, jump, data, state, symbols, usage):
         mov byte ptr {mem(ui+6)}, 0
         jmp handled
     category_input:
+        mov eax, ebx
+        and eax, 0x300
+        cmp eax, 0x100
+        je previous_character
+        cmp eax, 0x200
+        je next_character
+        jmp category_page
+    previous_character:
+        movzx ecx, byte ptr {mem(0x111a672)}
+        cmp ecx, 2; jb handled
+        cmp ecx, 7; ja handled
+        movzx eax, byte ptr {mem(ui+0xd)}
+        test eax, eax; jne decrement_character
+        mov eax, ecx
+    decrement_character:
+        dec eax; jmp select_character
+    next_character:
+        movzx ecx, byte ptr {mem(0x111a672)}
+        cmp ecx, 2; jb handled
+        cmp ecx, 7; ja handled
+        movzx eax, byte ptr {mem(ui+0xd)}
+        inc eax
+        cmp eax, ecx; jb select_character
+        xor eax, eax
+    select_character:
+        mov byte ptr {mem(ui+0xd)}, al
+        call {character:#x}
+        cmp eax, 6; ja handled
+        mov byte ptr {mem(ui+4)}, al
+        cmp eax, 2; jb character_faculties
+        cmp eax, 3; jbe rebuild_character
+    character_faculties:
+        mov byte ptr {mem(ui+3)}, 0
+    rebuild_character:
+        call {rebuild:#x}
+        jmp handled
+    category_page:
         test ebx, 0x1000
         je navigate
         cmp byte ptr {mem(ui+4)}, 2
@@ -731,6 +801,12 @@ def emit_mastery_menu(emit, mem, jump, data, state, symbols, usage):
     navigation_hint:
         mov dword ptr [rsp+0x20], 255
         call 0x21cbb0
+        mov ecx, eax
+        xor edx, edx
+        mov r8d, 0x300
+        {loc('character','r9')}
+        mov dword ptr [rsp+0x20], 255
+        call 0x21cbb0
     done:
         add rsp, 0x28
         ret
@@ -744,11 +820,17 @@ def emit_mastery_menu(emit, mem, jump, data, state, symbols, usage):
             call {text:#x}'''
     from mastery_tree_renderer import emit_tree_draw
     draw=emit_tree_draw(emit,mem,ui,data,lookup,value,status,icon,frame,text,number,hints,
-                       loc,tabletext,label,names,string,browser,payload,state)
+                       loc,tabletext,label,names,string,browser,payload,state,badges)
     from basic_attack_mastery import emit_basic_attacks
     payload.extend(b'\0'*((-len(payload))%16))
     basic_attacks=emit_basic_attacks(emit,mem,jump,data,state+len(payload),choices)
     payload.extend(b'\0'*basic_attacks['size'])
+    from fighter_faculties import emit_fighter_faculties
+    fighter_faculties=emit_fighter_faculties(emit,mem,jump,data,state+len(payload),choices,expansion)
+    payload.extend(b'\0'*fighter_faculties['size'])
+    from fighter_arte_chains import emit_fighter_chains
+    fighter_chains=emit_fighter_chains(emit,mem,jump,data,state+len(payload),choices,expansion)
+    payload.extend(b'\0'*fighter_chains['size'])
     # Capture the actual left edge returned by every native Stats hint. The
     # final call varies with title focus and party size, so capture all tails.
     for site in (0x24167f,0x2416e1,0x241786,0x2417f6,0x241860):
@@ -840,7 +922,7 @@ def emit_mastery_menu(emit, mem, jump, data, state, symbols, usage):
         jump(site,5,edge,'Mastery: follow the native Techniques hint row')
     payload.extend(b'\0'*((-len(payload))%0x1000))
     return dict(state_rva=ui, choices=preferences_info(pref), data_rva=state, size=len(payload),
-        rows=rows, spell_browser=browser, basic_attacks=basic_attacks, table_rva=state, row_size=32,node_size=NODE_SIZE,
+        rows=rows, spell_browser=browser, basic_attacks=basic_attacks, fighter_faculties=fighter_faculties, fighter_chains=fighter_chains, table_rva=state, row_size=32,node_size=NODE_SIZE,
         tech_input=tech_input,tech_draw=tech_draw,tech_hint=tech_hint,
         entry='Square from status; Square in semi-auto/manual Techniques, Triangle in auto Techniques',
         preview_faculties=True, previews_have_gameplay_effects=False,

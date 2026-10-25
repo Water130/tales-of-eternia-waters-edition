@@ -1,5 +1,5 @@
 """Expand local collision rectangles, never the stored projectile every frame."""
-from spell_growth import PROJECTILE_CAPS
+from spell_growth import PROJECTILE_CAPS, HYBRID_AREA_PROJECTILES
 
 
 def emit_area(emit, mem, jump, state, data, usage, preserve):
@@ -57,14 +57,14 @@ def emit_area(emit, mem, jump, state, data, usage, preserve):
         cmp edx, 113
         ja done
     offensive:
-        {'; '.join(f'cmp edx, {aid}; je done' for aid in PROJECTILE_CAPS)}
+        {'; '.join(f'cmp edx, {aid}; je done' for aid in PROJECTILE_CAPS if aid not in HYBRID_AREA_PROJECTILES)}
         shl ecx, 8
         add ecx, edx
         lea r11, {mem(usage['preferences']['live_rva'])}
         bt dword ptr [r11], ecx
         jc done
         movzx eax, word ptr [r10+10]
-        mov ecx, 999
+        mov ecx, 500
         cmp eax, ecx
         cmova eax, ecx
         imul eax, eax, 50

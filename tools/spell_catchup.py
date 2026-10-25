@@ -10,7 +10,7 @@ STARTERS = (70, 72, 75, 79, 82, 86)
 ELIGIBLE = tuple(range(63, 67)) + tuple(a for a in OFFENSIVE if a not in STARTERS)
 SIZE = 1792
 OFFSET = 0xf000
-STATE_SIZE = 0x1a000
+STATE_SIZE = 0x1b000
 
 
 def emit_catchup(emit, mem, state, data, raw):
@@ -44,10 +44,7 @@ def emit_catchup(emit, mem, state, data, raw):
         mov r8d, ecx; shl r8d, 8; add r8d, edx
         lea r9, {mem(state+0xd000)}
         bt dword ptr [r9], r8d; jc done
-        mov r11d, 999
-        cmp edx, 66; ja cap_current
         mov r11d, 500
-    cap_current:
         cmp eax, r11d; jae done
         mov r8d, ecx; xor r8d, 1
         shl r8d, 7; add r8d, edx
@@ -56,10 +53,7 @@ def emit_catchup(emit, mem, state, data, raw):
         lea r9, {mem(bonus)}
         movzx r11d, word ptr [r9+r8*2]
         add r10d, r11d
-        mov r11d, 999
-        cmp edx, 66; ja cap_peer
         mov r11d, 500
-    cap_peer:
         cmp r10d, r11d; cmova r10d, r11d
         cmp eax, r10d; jae done
         add eax, 2
@@ -84,7 +78,7 @@ def emit_catchup(emit, mem, state, data, raw):
     ''')
     return dict(live_rva=bonus, size=SIZE, read_rva=read, next_rva=next_exp,
                 award_rva=award, eligible=list(ELIGIBLE), multiplier=3,
-                cap=999, raw_casts_unchanged=True)
+                cap=500, raw_casts_unchanged=True)
 
 
 def storage_layout(state):

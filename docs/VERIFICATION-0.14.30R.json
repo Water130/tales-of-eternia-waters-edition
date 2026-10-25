@@ -1,0 +1,111 @@
+{
+  "version": "0.14.30R",
+  "offline_checks_passed": true,
+  "full_dll_sha256": "36607195ea9a6dee698c8c1c578cfc12b1c019f123b1d7e1f21fff1204e062a9",
+  "runtime_validated": false,
+  "verification_scope": "Injected x64 hooks executed at two ASLR bases in isolated emulation; real installer exercised on disposable fixtures.",
+  "limitations": "Offline verification does not prove final GPU rendering or whole-game stability.",
+  "source_reports": [
+    {
+      "file": "core-verification.json",
+      "sha256": "57ea113d66a96f74f738c971587a5600097786954c1dfa267173394e154a14d6"
+    },
+    {
+      "file": "mastery-verification.json",
+      "sha256": "eb2b6f93dfb79f9d1a4063f8b44f521d6ecb2d09102123e476b14992d1bc9920"
+    },
+    {
+      "file": "mastery-menu-verification.json",
+      "sha256": "bbdce9b45669b1d37dcd56136cf3faa0f8bd52e5db0abf1b3288c3060a4fdd37"
+    },
+    {
+      "file": "energy-verification.json",
+      "sha256": "9a0269c831808d4a3f04af03ad50cb48cb6c067340288f93ad1eeb3a80c587b1"
+    },
+    {
+      "file": "fringe-verification.json",
+      "sha256": "1d68dff56675d8edfaf97d4ce85163922b685d0e5a013b2381084f5b0f5a9ca0"
+    },
+    {
+      "file": "craymel-exp-verification.json",
+      "sha256": "82510f2e6b4aa85010bc4fa45aa0eff73aeea0777c9aa45d700a6b2cdac4eb38"
+    },
+    {
+      "file": "teamup-verification.json",
+      "sha256": "b652692203f958da9ebbaa1088db1fbf0c92bb4c4153d7c57b0ed90f27c9416c"
+    },
+    {
+      "file": "faculties-verification.json",
+      "sha256": "d106a041fce919d96bd645efcf2cee372a3c2f21017b5e5f98c865e6eaa00d51"
+    },
+    {
+      "file": "mastery-badges-verification.json",
+      "sha256": "071c3d1dd0531f612d15102bbb9081b556884720de43b973c1971be77881999f"
+    },
+    {
+      "file": "farah-artes-verification.json",
+      "sha256": "5d34b3c76871b2d512bbbe6def8e2082a23cdefe13fd061427d280c8d57f7aa3"
+    },
+    {
+      "file": "expansion-verification.json",
+      "sha256": "64d565c1d8720fb6f0d1a726751599150f3b0045f902b7ea64acb3e4034042e0"
+    },
+    {
+      "file": "custom-artes-verification.json",
+      "sha256": "247d288e6ff6f504466f9fd1027320376bbe60783d8e0e2b01ae73ad3eb512bc"
+    },
+    {
+      "file": "camera-floor-verification.json",
+      "sha256": "bf6bf1179861cb5f53e7b95a9a5775172ba00639c755ccef24ab4f831c31cfcf"
+    },
+    {
+      "file": "camera-verification.json",
+      "sha256": "2ee65ef45be8a8186937cd2d24f9cfd02daae03535fa2bd892f2040997156a6a"
+    },
+    {
+      "file": "casting-verification.json",
+      "sha256": "6fa4bbcf320f13a559122a2aa9bb44f5438357c63e9faadc8b687c8161b9e233"
+    },
+    {
+      "file": "tidal-presentation-verification.json",
+      "sha256": "210ebf3d1c576dea1ee060dd3dc2df5eab5f1a2506b5056223f533742f385fbc"
+    },
+    {
+      "file": "tidal-recoil-verification.json",
+      "sha256": "9f7f55d7dcc3fd16faaa9ff07d9cc287da7ffb2fdfa10b2dcd5309de5d2a9b6a"
+    },
+    {
+      "file": "native-branch-audit.json",
+      "sha256": "e4a7a29d34e86506d4f3001e8ff1e7fd6e5966c91c4f3e0cebccc37a6aacd0c6"
+    },
+    {
+      "file": "hp-tp-font/verification.json",
+      "sha256": "8e0c2fc7162798e3da900d63e3b6dd51389bbb8cb7289ba0eb1c66e39e97b65f"
+    }
+  ],
+  "archive": {
+    "name": "Tales-of-Eternia-Waters-Edition-0.14.30R-Easy-Install.zip",
+    "bytes": 4895499,
+    "sha256": "5e9e96a99461748409c6c1b2fc091882db4d97361f8a42840e27cead55e79844"
+  },
+  "installer_fixture_checks": [
+    "Status and dry-run: original file untouched, no backup/stage created; spaces and Unicode in paths",
+    "Running-game guard rejects writes (simulated process query, fixture only)",
+    "Install confirmation: No, empty and invalid answers cancel without creating or changing files",
+    "Yes confirmation installs the exact tested DLL and stores an exact original backup",
+    "Repeated installation is idempotent",
+    "Full -> Compatibility -> Full switching uses the original backup and produces verified hashes",
+    "Uninstall cancellation leaves the installed mod and original backup intact",
+    "Uninstall restores the original byte-for-byte, preserves its backup and is idempotent",
+    "Unknown DLL / Steam-update / other-mod hashes cannot be overwritten by install or uninstall",
+    "Corrupted or unrelated backup is preserved and blocks installation",
+    "Missing-original-backup guard protects already modified installations",
+    "An existing staging file is never overwritten or deleted",
+    "Two-asset preflight rejects corrupt fonts/payloads; injected failures after either replacement restore both assets exactly",
+    "Corrupt payload/hash/range fails before creating a backup or replacing the game DLL",
+    "Wrong game folder rejected",
+    "All public files ASCII/English; checksums valid; no full game binary, original game art, save or personal paths",
+    "Easy package exposes only Install/Uninstall and a short README; all launchers resolve the bundled script and use English prompts"
+  ],
+  "includes_complete_game_files": false
+}

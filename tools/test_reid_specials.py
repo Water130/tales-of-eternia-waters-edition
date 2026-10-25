@@ -8,6 +8,7 @@ def check_reid_specials(u,base,m,actors,stats,sp,reset,put,get,reg,regs):
     stop=base+m['data_rva']-16;cases=0;learned=1;result=0;calls=[]
     def setup(on=1):
         reset();put(flag,'B',on);put(counts,'I',0)
+        put(stats+0x18,'I',1000);put(stats+0x1c,'H',999)
         put(base+0x12d0f02,'B',4);put(base+0x12d0fd2,'B',0)
     def ret(value):
         rsp=u.reg_read(UC_X86_REG_RSP)
@@ -19,6 +20,8 @@ def check_reid_specials(u,base,m,actors,stats,sp,reset,put,get,reg,regs):
         if address==base+0x744d0:
             assert u.reg_read(UC_X86_REG_RDX)==22
             ret(learned)
+        elif address==base+0x7fe70:
+            ret(0)  # Animation setup, not admission, payment or allocation.
         elif address==base+0x114980:
             calls.append((u.reg_read(UC_X86_REG_RCX),u.reg_read(UC_X86_REG_RDX)))
             ret(result)
@@ -29,6 +32,7 @@ def check_reid_specials(u,base,m,actors,stats,sp,reset,put,get,reg,regs):
         rsp=sp-8 if aligned else sp
         u.reg_write(UC_X86_REG_RSP,rsp)
         if end==stop:put(rsp,'Q',stop)
+        u.ctl_remove_cache(end-16,end+16)
         u.emu_start(base+start,end,count=10000)
         assert u.reg_read(UC_X86_REG_RIP)==end,(hex(start),hex(u.reg_read(UC_X86_REG_RIP)))
         assert u.reg_read(UC_X86_REG_RSP)==rsp+(8 if end==stop else 0)
@@ -103,42 +107,167 @@ def check_reid_specials(u,base,m,actors,stats,sp,reset,put,get,reg,regs):
                         eligible=uses>=160-chain*30 and (alive!=1 or
                             (abs(distance)<1600 and (on or second_hp<=2000+uses)))
                         assert u.reg_read(UC_X86_REG_R10)==int(eligible),(on,uses,chain,second_hp,distance,alive)
-        # Quotas are checked before input handling / native TP debit. Other
-        # actors, arte IDs and OFF all reach the original function unchanged.
+        input_state=actors+0xa000
+        def held_setup(aid, tp=150, buttons=0x40, control=2, on=1):
+            setup(on)
+            put(actors+0xf0,'Q',input_state);put(input_state,'I',buttons)
+            put(actors+0x57,'B',control);put(actors+0x6d,'B',aid)
+            put(actors+0xac,'BBBB',aid,aid,aid,aid)
+            put(actors+0x34,'h',tp)
+            reg('rcx',actors);reg('rdx',aid);reg('r8',20 if aid==19 else 24)
+
+        # Admission never pays. Held and fresh input are independent; a held
+        # command through the entire precursor succeeds with no fresh edge.
+        for aid in (19,21):
+            for control in (0,1,2,3):
+                for tp in (0,99,100,101,32767):
+                    for buttons in (0,0x20,0x40,0x60,0xc0):
+                        for fresh in (0,0x40):
+                            held_setup(aid,tp,buttons,control)
+                            put(input_state+4,'I',fresh)
+                            saved={k:u.reg_read(regs[k]) for k in regs if k!='rax'}
+                            run(0x114020)
+                            assert u.reg_read(UC_X86_REG_RAX)==int(control in (1,2) and tp>=100 and buttons&0x40!=0)
+                            assert saved=={k:u.reg_read(regs[k]) for k in saved}
+                            assert get(actors+0x34,'h')==tp and get(counts,'I')==0
+            for condition in ('used','phase','busy','ko','dead','other_arte','no_input'):
+                held_setup(aid)
+                if condition=='used':put(counts+(aid-19),'B',1)
+                if condition=='phase':put(base+0x12d0ef7,'B',5)
+                if condition=='busy':put(base+0x12d0eaa,'H',1)
+                if condition=='ko':put(actors+0x3c,'H',2)
+                if condition=='dead':put(actors+0x2c,'i',0)
+                if condition=='other_arte':put(actors+0x6d,'B',1)
+                if condition=='no_input':put(actors+0xf0,'Q',0)
+                run(0x114020);assert u.reg_read(UC_X86_REG_RAX)==0,condition
+                assert get(actors+0x34,'H')==150
+
+        # The previous Phoenix quota, other actors and the OFF native path.
         for on in (0,1):
             for char,side in ((0,0),(1,0),(0,1)):
                 for aid in (18,19,20,21,22):
                     for used in (0,1,2,3,255):
-                        setup(on);put(actors+0x4f,'B',char);put(actors+0x51,'B',side)
-                        u.mem_write(counts,bytes([used]*3));reg('rcx',actors);reg('rdx',aid);reg('r8',20)
-                        denied=on and char==side==0 and 19<=aid<=21 and used>=3
-                        run(0x114020,None if denied else 0x114025)
+                        held_setup(aid,on=on)
+                        put(actors+0x4f,'B',char);put(actors+0x51,'B',side)
+                        u.mem_write(counts,bytes([used]*3))
+                        modified=on and char==side==0 and aid in (19,21)
+                        denied=on and char==side==0 and aid==20 and used>=3
+                        run(0x114020,None if modified or denied else 0x114025)
+                        if modified:assert u.reg_read(UC_X86_REG_RAX)==int(used<1)
                         if denied:assert u.reg_read(UC_X86_REG_RAX)==0
-                        assert get(actors+0x34,'H')==10
+                        assert get(actors+0x34,'H')==150
                         assert bytes(u.mem_read(counts,3))==bytes([used]*3)
-        # Execute all three actual initial call sites, with successful and
-        # failed allocator returns. Stub only the renderer/resource allocator.
-        for site,effect_id,index in ((0xcbd53,39,1),(0xce0e6,40,0),(0xcf807,41,2)):
+        # Run the whole original helper, including input, TP debit and chain
+        # count. BP and OFF must still demand a NEW press and the native cost.
+        for aid,on,cost in ((20,1,50),(19,0,20),(21,0,24)):
+            for fresh in (0,0x40):
+                held_setup(aid,on=on);put(input_state+4,'I',fresh);reg('r8',cost)
+                run(0x114020)
+                assert u.reg_read(UC_X86_REG_RAX)==int(bool(fresh))
+                assert get(actors+0x34,'H')==150-(cost if fresh else 0)
+                assert get(actors+0x6e,'B')==int(bool(fresh))
+
+        # Actual dispatch call sites; allocator failure consumes neither TP nor
+        # allowance. Run the native TP synchronizer, and verify callee ABI.
+        for site,effect_id,index in ((0xcbd53,39,1),(0xce0e6,40,0),(0xcf807,41,2),(0xce01b,40,0)):
             for on in (0,1):
                 for char,side in ((0,0),(1,0),(0,1)):
                     for result in (0,effect_id):
                         setup(on);put(actors+0x4f,'B',char);put(actors+0x51,'B',side)
-                        for repeat in range(5):
-                            reg('rcx',actors);reg('rdx',effect_id)
-                            saved={key:u.reg_read(regs[key]) for key in ('rbx','rsi','rdi','rbp','r12','r13','r14','r15')}
-                            run(site,site+5,True)
-                            assert saved=={key:u.reg_read(regs[key]) for key in saved}
-                            assert calls[-1]==(actors,effect_id)
-                            expected=[0,0,0]
-                            if char==side==0 and result==0:expected[index]=min(3,repeat+1)
-                            assert list(u.mem_read(counts,3))==expected
-                            assert u.reg_read(UC_X86_REG_RAX)==result
-        # A saturated technique does not spend or reset the other allowances.
-        setup();u.mem_write(counts,bytes([3,1,2]))
-        for aid in (19,20,21):
-            reg('rcx',actors);reg('rdx',aid)
-            run(0x114020,None if aid==19 else 0x114025)
-        assert list(u.mem_read(counts,3))==[3,1,2]
+                        put(actors+0x34,'H',150)
+                        arg=actors
+                        if site==0xce01b:put(enemy,'Q',actors);arg=enemy
+                        reg('rcx',arg);reg('rdx',effect_id)
+                        saved={k:u.reg_read(regs[k]) for k in ('rbx','rsi','rdi','rbp','r12','r13','r14','r15')}
+                        run(site,site+5,True)
+                        assert saved=={k:u.reg_read(regs[k]) for k in saved}
+                        assert calls[-1]==(arg,effect_id)
+                        expected=[0,0,0];success=char==side==0 and result==0
+                        if success:expected[index]=1
+                        assert list(u.mem_read(counts,3))==expected
+                        assert u.reg_read(UC_X86_REG_RAX)==result
+                        paid=success and on and effect_id!=39
+                        assert get(actors+0x34,'H')==150-(100 if paid else 0)
+                        assert get(actors+0x6e,'B')==int(paid)
+                        assert get(actors+0x2c,'I')==1000
+
+        # Success/failure/retry, independent allowances, no option-toggle reset.
+        for aid,eid,site in ((19,40,0xce0e6),(21,41,0xcf807)):
+            held_setup(aid,tp=250)
+            for result in (eid,0):
+                reg('rcx',actors);reg('rdx',aid);run(0x114020)
+                assert u.reg_read(UC_X86_REG_RAX)==1
+                reg('rcx',actors);reg('rdx',eid);run(site,site+5,True)
+                assert get(actors+0x34,'H')==(250 if result else 150)
+            for on in (0,1):
+                put(flag,'B',on)
+                # Opening/changing/scolling settings cannot overwrite quotas.
+                put(base+m['data_rva']+0x1a12,'B',34)
+                put(base+0x11c9ce8,'B',3)
+                run(m['symbols']['settings_description_info'])
+                assert get(counts+aid-19,'B')==1
+            reg('rcx',actors);reg('rdx',aid);run(0x114020)
+            assert u.reg_read(UC_X86_REG_RAX)==0 and get(actors+0x34,'H')==150
+            other=21 if aid==19 else 19
+            put(actors+0x6d,'B',other);reg('rcx',actors);reg('rdx',other)
+            run(0x114020);assert u.reg_read(UC_X86_REG_RAX)==1
+
+        # Execute the real late-frame trigger and dispatch path with Arte held
+        # from frame zero. Timing and native geometric eligibility stay intact.
+        result=0
+        def segment(start,stops):
+            nonlocal cases
+            reached=[]
+            def finish(emu,address,size,user):
+                if address-base in stops:reached.append(address-base);emu.emu_stop()
+            h=u.hook_add(UC_HOOK_CODE,finish)
+            try:
+                u.ctl_remove_cache(base+start,base+max(stops)+16)
+                u.emu_start(base+start,stop,count=5000)
+            finally:u.hook_del(h)
+            cases+=1
+            assert reached,(hex(start),hex(u.reg_read(UC_X86_REG_RIP)))
+            assert u.reg_read(UC_X86_REG_RSP)==sp-8
+            return reached[0]
+        for aid,start,first,last,success_stop,failed_stops in (
+                (19,0xcdf68,156,160,0xce0eb,(0xce1b3,)),
+                (21,0xcf741,116,119,0xcf80c,(0xcf872,0xcf86b))):
+            for tick in (0,first-1,first,first+1,last,last+1):
+                for eligible in (0,1):
+                    held_setup(aid);put(effect,'QQ',actors,enemy);put(effect+0x38,'H',tick)
+                    put(actors+8,'Q',effect);put(actors+0x53,'b',-1);put(enemy+0x10,'h',100)
+                    reg('rbx',effect);reg('rdi',effect);reg('r10',eligible);reg('r14',eligible)
+                    reg('r11',0);reg('r12',0)
+                    put(base+0x551f34,'i',-1)  # Disable portrait lookup during this path.
+                    u.reg_write(UC_X86_REG_RSP,sp-8)
+                    dest=segment(start,(success_stop,)+failed_stops)
+                    succeeds=eligible and first<=tick<=last
+                    assert (dest==success_stop)==bool(succeeds),(aid,tick,eligible,hex(dest))
+                    assert get(actors+0x34,'H')==150-(100 if succeeds else 0)
+                    assert get(counts+aid-19,'B')==int(bool(succeeds))
+
+        # Real native damage mode switch, all six exact cinematic descriptors.
+        # Check linear response to base damage and no effect on enemies, OFF,
+        # other actors, or Burning Phoenix's existing 300% mixed-attack hit.
+        config=actors+0xc100
+        for row in info['impact_scaling']+[dict(descriptor_rva=0x584370,native_mode=2,native_power=300,slash_percent=300)]:
+            ptr=base+row['descriptor_rva']+8
+            assert get(ptr+2,'B')==row['native_mode'] and get(ptr+10,'h')==row['native_power']
+            original=bytes(u.mem_read(ptr,14))
+            for on in (0,1):
+                for char,side in ((0,0),(1,0),(0,1)):
+                    for amount in (0,1,99,100,333,1000,32767):
+                        setup(on);put(actors+0x4f,'B',char);put(actors+0x51,'B',side)
+                        put(base+0x12cea68,'Q',config);put(config+4,'B',0)
+                        reg('rbp',actors);reg('r12',ptr);reg('rsi',amount)
+                        saved={k:u.reg_read(regs[k]) for k in regs if k not in ('rax','rcx','rdx','rsi')}
+                        run(0x8ecbc,0x8ed32)
+                        if on and char==side==0:expected=amount*row['slash_percent']//100
+                        elif row['native_mode']==3:expected=row['native_power']
+                        else:expected=amount*row['native_power']//100
+                        assert u.reg_read(UC_X86_REG_RSI)==expected,(row,on,char,side,amount)
+                        assert saved=={k:u.reg_read(regs[k]) for k in saved}
+                        assert bytes(u.mem_read(ptr,14))==original
         for on in (0,1):
             setup(on);put(counts,'I',0xffffffff)
             # Chained native battle initialization includes Craymel EXP reset.

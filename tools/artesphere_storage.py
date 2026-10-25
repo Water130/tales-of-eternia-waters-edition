@@ -30,6 +30,10 @@ def emit_storage(emit,mem,jump,data,state,profile,string,symbols,usage):
     ''')
     from arte_usage_patch import emit_usage_storage
     usage_hooks = emit_usage_storage(emit,mem,data,state,string,fingerprint,usage)
+    from character_shortcuts import storage as shortcut_storage
+    shortcut_hooks=shortcut_storage(emit,mem,data,state,string,fingerprint,usage['character_shortcuts'])
+    for key in usage_hooks:
+        usage_hooks[key] += '\n' + shortcut_hooks[key]
     # Independent, zero-default disable bits: 256 stable faculty IDs per hero.
     # A legacy/missing record enables everything without changing usage counts.
     preferences = dict(live_rva=state+0xd000, size=224, ui_state_rva=state+0xe600)

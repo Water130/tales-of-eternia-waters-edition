@@ -31,7 +31,8 @@ Each page has **six assignments**. The original directional artes and two ally s
 In Mastery, select a branch or Craymel in the left list, then confirm to enter its
 tree. For Keele and Meredy, **Triangle** switches between Faculties and Spell
 progression. In the spell list, Left/Right changes columns and pages; Up/Down
-scrolls spells.
+scrolls spells. **L1/R1** switches to the previous/next character.
+In Mod settings, scroll long descriptions with the **right stick**.
 
 ## Change keyboard modifiers
 

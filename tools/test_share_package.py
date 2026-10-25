@@ -1,11 +1,11 @@
 """Exercise the public PS 5.1 installer only against disposable game fixtures."""
 from pathlib import Path
-import json, shutil, subprocess, tempfile
-from build_share_package import ROOT, STAGE, FILES, fingerprints, read_json, sha
+import json, os, shutil, subprocess, tempfile
+from build_share_package import ROOT, STAGE, SOURCE, FILES, fingerprints, read_json, sha, NATIVE_ORIGINAL
 
 assert shutil.disk_usage(ROOT).free>5*1024**3+64*1024**2
-original=(ROOT/'backups/build-25190541/GameNative.dll').read_bytes()
-patched=(ROOT/'build/combat-test/GameNative.dll').read_bytes()
+original=NATIVE_ORIGINAL.read_bytes()
+patched=(SOURCE/'GameNative.dll').read_bytes()
 payload=read_json(STAGE/'Support/patch.json')
 before=fingerprints();checks=[]
 powershell=Path(r'C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe')
@@ -25,6 +25,12 @@ try:
     backup=target.with_name(target.name+'.toe-combat-original')
     stage=target.with_name(target.name+'.toe-combat-stage')
     target.write_bytes(original)
+    font_name=Path(payload['assets'][0]['path']).name
+    font_original=Path(os.environ.get('TOE_FONT_ORIGINAL',str(ROOT/'backups/build-25190541/hp-tp-font'/font_name))).read_bytes()
+    font_patched=(SOURCE/'hp-tp-font'/font_name).read_bytes()
+    font=game/payload['assets'][0]['path'];font.parent.mkdir(parents=True)
+    font.write_bytes(font_original)
+    font_backup=Path(str(font)+'.toe-combat-original')
 
     def invoke(action,mode='Full',dry=False,running=False,path=None,prompt=False,answer='Y'):
         # Mock the process query in this child PowerShell process only. Tests
@@ -47,10 +53,10 @@ try:
         return output
 
     def refused(action,expected,**kwargs):
-        state={p:sha(p.read_bytes()) for p in target.parent.iterdir() if p.is_file()}
+        state={p:sha(p.read_bytes()) for p in game.rglob('*') if p.is_file()}
         code,output=invoke(action,**kwargs)
         assert code!=0 and expected in output,(action,expected,code,output)
-        assert state=={p:sha(p.read_bytes()) for p in target.parent.iterdir() if p.is_file()}, 'refusal changed game files'
+        assert state=={p:sha(p.read_bytes()) for p in game.rglob('*') if p.is_file()}, 'refusal changed game files'
 
     assert 'Original' in ok('Status')
     ok('Install',dry=True)
@@ -64,6 +70,7 @@ try:
     checks.append('Install confirmation: No, empty and invalid answers cancel without creating or changing files')
     assert "Install Water's Edition in this folder? [Y/N]" in ok('Install',prompt=True,answer='y')
     assert target.read_bytes()==patched and backup.read_bytes()==original and not stage.exists()
+    assert font.read_bytes()==font_patched and font_backup.read_bytes()==font_original
     checks.append('Yes confirmation installs the exact tested DLL and stores an exact original backup')
     stamp=target.stat().st_mtime_ns
     assert 'already installed' in ok('Install') and target.stat().st_mtime_ns==stamp
@@ -81,6 +88,7 @@ try:
     checks.append('Uninstall cancellation leaves the installed mod and original backup intact')
     assert "Uninstall Water's Edition from this folder? [Y/N]" in ok('Uninstall',prompt=True,answer='YES')
     assert target.read_bytes()==original and backup.read_bytes()==original
+    assert font.read_bytes()==font_original
     assert 'already restored' in ok('Uninstall')
     checks.append('Uninstall restores the original byte-for-byte, preserves its backup and is idempotent')
     unknown=bytearray(original);unknown[128]^=1;target.write_bytes(unknown)
@@ -107,13 +115,33 @@ try:
     (package/'Support/patch.json').write_text(json.dumps(altered),encoding='ascii')
     refused('Install','Invalid patch range')
     (package/'Support/patch.json').write_bytes((STAGE/'Support/patch.json').read_bytes())
+    altered=json.loads(json.dumps(payload));altered['assets'][0]['profiles']['Full']['sha256']='0'*64
+    (package/'Support/patch.json').write_text(json.dumps(altered),encoding='ascii')
+    refused('Install','Patch reconstruction failed')
+    assert not backup.exists()
+    (package/'Support/patch.json').write_bytes((STAGE/'Support/patch.json').read_bytes())
+    bad_font=bytearray(font_original);bad_font[128]^=1;font.write_bytes(bad_font)
+    refused('Install','Unsupported or modified DLL / asset')
+    assert not backup.exists()
+    font.write_bytes(font_original)
+    script=(package/'Support/Patch-Mod.ps1').read_text()
+    for fail_after in (1,2):
+        injected=script.replace('$applied.Add($item)',f'$applied.Add($item); if ($applied.Count -eq {fail_after}) {{ throw "Injected failure" }}')
+        (package/'Support/Patch-Mod.ps1').write_text(injected,encoding='ascii')
+        code,output=invoke('Install')
+        assert code!=0 and 'Injected failure' in output,output
+        assert target.read_bytes()==original and font.read_bytes()==font_original
+        assert backup.read_bytes()==original and font_backup.read_bytes()==font_original
+        assert not list(game.rglob('*.toe-combat-stage'))
+    (package/'Support/Patch-Mod.ps1').write_text(script,encoding='ascii')
+    checks.append('Two-asset preflight rejects corrupt fonts/payloads; injected failures after either replacement restore both assets exactly')
     checks.append('Corrupt payload/hash/range fails before creating a backup or replacing the game DLL')
     refused('Install','was not found',path=workspace/'Not a game')
     checks.append('Wrong game folder rejected')
     for name in FILES:
         data=(STAGE/name).read_bytes()
         data.decode('ascii')
-        assert b'ghp_' not in data.lower() and b'c:\\users\\' not in data.lower()
+        assert b'local_user' not in data.lower() and b'c:\\users\\' not in data.lower()
         assert not name.lower().endswith(('.dll','.exe','.png','.tim','.sav'))
     for line in (STAGE/'Support/SHA256SUMS.txt').read_text().splitlines():
         digest,name=line.split('  ',1);assert sha((STAGE/name).read_bytes())==digest

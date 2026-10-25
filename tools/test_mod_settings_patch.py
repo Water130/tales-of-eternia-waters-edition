@@ -34,7 +34,7 @@ def check_settings(u,base,m,actors,enemies,stats,sp,reset,put,get,reg,regs):
     u.mem_map(api,0x1000)
     names={'GetEnvironmentVariableW':api+0x20,'GetPrivateProfileIntW':api+0x30,'WritePrivateProfileStringW':api+0x40}
     put(base+0x2a9058,'Q',api);put(base+0x2a9060,'Q',api+0x10)
-    values={};reads=[];writes=[];texts=[];rects=[];fail_write=False;fail_key=None;missing=None;environment='C:\\Test Users\\Élodie\\AppData\\Local'
+    values={};reads=[];writes=[];texts=[];rects=[];fail_write=False;fail_key=None;missing=None;environment='C:\\Users\\Élodie\\AppData\\Local'
     count=0;real_rect=False;real_font=False;mouse_calls=[];allocation=0x40000000
     submitted=[];native_draws=[];brands=[];cursors=[];hint_buttons=[];input_device=0
     u.mem_map(allocation,0x2401000)
@@ -222,8 +222,8 @@ def check_settings(u,base,m,actors,enemies,stats,sp,reset,put,get,reg,regs):
                     run('settings_panel_input',(0x1b98d7,),True)
                     assert get(selected,'B')==order[(order.index(cursor)+delta)%len(order)]
                     assert read_flags()==before
-        # Stick scroll consumes mirrored navigation; physical D-pad still
-        # selects settings, and Back must work even while the stick is held.
+        # Right-stick scroll consumes mirrored navigation; the left stick
+        # and physical D-pad still select settings. Back works while held.
         for row in (12,17):
             setup();put(initialized,'B',1);put(page,'B',1);focus(row)
             before=read_flags();offset=base+m['progression_ui']['help_state_rva']+2

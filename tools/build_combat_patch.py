@@ -5,7 +5,7 @@ Native extension eligibility may be adjusted; no save edits.
 x64 hooks are position independent.
 """
 from pathlib import Path
-import argparse, hashlib, json, re, struct, sys
+import argparse, hashlib, json, re, struct, sys, os
 
 HERE = Path(__file__).resolve().parent
 ROOT = HERE.parent
@@ -16,8 +16,8 @@ from keystone import Ks, KS_ARCH_X86, KS_MODE_64
 
 ORIGINAL_SHA256 = '6488be2ce5ecc1dc9fc0216aa2462ec9aeba7a464468d5fd61ad3c2a8356849b'
 GAME = ROOT/'backups/build-25190541/GameNative.dll'
-OUT = ROOT/'build/combat-test'
-BACKUP = ROOT/'backups/build-25190541/GameNative.dll'
+from build_profile import OUT, VERSION, EDITION
+BACKUP = Path(os.environ.get('TOE_NATIVE_ORIGINAL', str(ROOT/'backups/build-25190541/GameNative.dll')))
 KS = Ks(KS_ARCH_X86, KS_MODE_64)
 CS = capstone.Cs(capstone.CS_ARCH_X86, capstone.CS_MODE_64)
 CS.detail = True
@@ -42,7 +42,7 @@ def build(features):
     pe = pefile.PE(data=original)
     section_alignment = pe.OPTIONAL_HEADER.SectionAlignment
     code_rva = align(max(s.VirtualAddress + max(s.Misc_VirtualSize,s.SizeOfRawData) for s in pe.sections), section_alignment)
-    code_capacity = 0x20000
+    code_capacity = 0x24000
     data_rva = code_rva + code_capacity
     credit = data_rva
     projectile_tags = data_rva+0x100  # one byte for each native 0x30 projectile slot
@@ -609,18 +609,23 @@ def build(features):
         from spell_mastery_patch import emit_mastery
         mastery_offset = align(texture_offset+texture_info['size'] if texture_info
                                else particle_offset, 0x1000)
-        from energy_mastery_patch import emit_energy
-        energy_info = emit_energy(emit, mem, jump, data_rva, artesphere_info['usage'])
         from spell_mastery_patch import SIZE as MASTERY_SIZE
         from craymel_faculties import emit_faculties
         from craymel_combat import emit_combat
         faculty_state=data_rva+mastery_offset+MASTERY_SIZE+0x2000
+        from fighter_expansion import emit_expansion, SIZE as FIGHTER_EXPANSION_SIZE
+        fighter_expansion=emit_expansion(emit,mem,jump,data_rva,faculty_state+0x2000,
+                                       artesphere_info['usage']['preferences']['live_rva'])
+        from energy_mastery_patch import emit_energy
+        energy_info = emit_energy(emit, mem, jump, data_rva, artesphere_info['usage'],fighter_expansion)
         faculty_info=emit_faculties(emit,mem,jump,data_rva,faculty_state,artesphere_info['usage'],energy_info)
+        faculty_info['fighter_expansion']=fighter_expansion
+        faculty_info['size']+=FIGHTER_EXPANSION_SIZE
         faculty_info=emit_combat(emit,mem,jump,data_rva,faculty_info)
         from craymel_event_hooks import emit_events
         faculty_info=emit_events(emit,mem,jump,data_rva,faculty_info)
         mastery_info = emit_mastery(emit, mem, jump, data_rva,
-                                   data_rva+mastery_offset, artesphere_info['usage'],faculty_info)
+                                   data_rva+mastery_offset, artesphere_info['usage'],faculty_info,teamup_info)
         from craymel_healing import emit_healing
         faculty_info=emit_healing(emit,mem,jump,data_rva,faculty_info,mastery_info)
         from craymel_experience import emit_experience, emit_exp_progress, emit_cage_gauge
@@ -637,7 +642,7 @@ def build(features):
         from mastery_menu_patch import emit_mastery_menu
         mastery_menu_offset = mastery_offset+mastery_info['size']+0x2000+faculty_info['size']
         mastery_menu_info, mastery_menu_data = emit_mastery_menu(emit, mem, jump,
-            data_rva, data_rva+mastery_menu_offset, symbols, artesphere_info['usage'])
+            data_rva, data_rva+mastery_menu_offset, symbols, artesphere_info['usage'], (pe,CS,relocate),fighter_expansion)
         from spell_level_notice import emit_notices
         notice_offset=align(mastery_menu_offset+len(mastery_menu_data),16)
         spell_notice_info,notice_data=emit_notices(emit,mem,jump,data_rva,
@@ -664,6 +669,7 @@ def build(features):
     if teamup_info:
         from teamup_autonomous import wire as wire_teamups
         wire_teamups(emit,mem,jump,edit,pe,CS,relocate,data_rva,teamup_info)
+        struct.pack_into('<I',teamup_data,0x2ff0,mastery_menu_info['choices']['live_rva'])
         for offset,hex_text in teamup_info.pop('strings',[]):
             blob=bytes.fromhex(hex_text)
             teamup_data[offset:offset+len(blob)]=blob
@@ -692,6 +698,9 @@ def build(features):
     if craymel_exp_info:struct.pack_into('<I',state,0x1ac0,craymel_exp_info['cast'])
     if faculty_info:
         struct.pack_into('<II',state,0x1ac0,faculty_info['cast_completed_callback'],faculty_info['cancel'])
+    if mastery_menu_info:
+        struct.pack_into('<I',state,0x1ac8,mastery_menu_info['fighter_faculties']['action_callback'])
+        struct.pack_into('<I',state,0x1acc,mastery_menu_info['fighter_faculties']['state_rva'])
     if progression_ui_info:
         state[progression_ui_offset:progression_ui_offset+len(progression_ui_data)]=progression_ui_data
         struct.pack_into('<I',state,0x1a38,progression_ui_info['help_draw_rva'])
@@ -741,7 +750,7 @@ def build(features):
     struct.pack_into('<I',result,pe.OPTIONAL_HEADER.get_field_absolute_offset('CheckSum'),check_pe.generate_checksum())
     OUT.mkdir(parents=True,exist_ok=True)
     (OUT/'GameNative.dll').write_bytes(result)
-    manifest = {'version':'combat-test-0.14.11','steam_build':25190541,'original_sha256':ORIGINAL_SHA256,
+    manifest = {'version':VERSION,'edition':EDITION,'steam_build':25190541,'original_sha256':ORIGINAL_SHA256,
                 'patched_sha256':digest(result),'features':features,'edits':edits,'hooks':hooks,
                 'symbols':symbols,'code_rva':code_rva,'data_rva':data_rva,
                 'concurrent_effect_allowlist':allowed,'runtime_validated':False,

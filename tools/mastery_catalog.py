@@ -14,13 +14,13 @@ from pathlib import Path
 
 
 
-def node(level, label, title, description, detail='', *, implemented=False, lane=0):
+def node(level, label, title, description, detail='', *, implemented=False, lane=0, preference=0):
 
     def pair(v): return v if isinstance(v, tuple) else (v, v)
 
     return dict(required=level, label=pair(label), title=pair(title),
 
-                description=pair(description), detail=pair(detail), implemented=implemented, lane=lane)
+                description=pair(description), detail=pair(detail), implemented=implemented, lane=lane, preference=preference)
 
 
 
@@ -79,6 +79,23 @@ def catalog():
              ('',''))])
 
     for r in rows:
+
+        extra = {
+            0: node(20,('Recul +10%','Hitstun +10%'),('Impact lourd','Heavy Impact'),
+                ('Le dernier coup normal au sol prolonge le recul de 10 %, une fois par chaîne. Les cibles lourdes et immunisées restent protégées.',
+                 'The final grounded normal hit adds 10% hitstun once per chain. Heavy and immune targets remain protected.'),implemented=True,lane=1),
+            1: node(25,('Riposte 0,4 s','Counter 0.4 s'),('Contre-attaque','Counterattack'),
+                ('Après une garde réussie, appuyez sur Attaque sous 0,4 s pour riposter avec un estoc normal. Une fois par coup bloqué.',
+                 'After a successful block, press Attack within 0.4 s for a normal thrust counter. Once per blocked hit.'),implemented=True,lane=1),
+            4: node(20,('Garde > arte','Guard > arte'),('Garde enchaînée','Guard Artes'),
+                ('Après une garde réussie, lancez un arte de base sous 0,4 s. Coût en TP, conditions et limites natives conservés.',
+                 'After a successful block, use a basic arte within 0.4 s. Native TP costs, requirements and chain limits still apply.'),implemented=True,lane=2),
+            6: node(20,('Réception -50%','Landing -50%'),('Réception active','Active Landing'),
+                ('Réduit de moitié la récupération à l’atterrissage après un arte aérien. Aucun saut supplémentaire ni remise à zéro des limites d’artes.',
+                 'Halves landing recovery after an aerial arte. No extra jump or reset of arte chain limits.'),implemented=True,lane=2),
+        }
+        if r['kind']==1 and r['key'] in extra:
+            r['nodes'].append(extra[r['key']])
 
         if r['kind']==1 and r['key'] in (4,6):
 
@@ -418,6 +435,10 @@ def catalog():
 
     assert all(len(r['nodes'])<=12 for r in rows)
 
+    from fighter_chain_catalog import extend_fighters
+    extend_fighters(rows, node)
+    from fighter_expansion_catalog import extend
+    extend(rows,node)
     return rows
 
 

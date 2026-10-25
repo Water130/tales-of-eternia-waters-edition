@@ -3,6 +3,7 @@ from craymel_faculties import preserve, FLAG_OFFSET
 
 
 def emit_combat(emit, mem, jump, data, info):
+    expansion=info.get('fighter_expansion')
     enabled, slot = info['enabled'], info['slot']
     state=info['state_rva']; tiers=info['tiers']
     heal=info['energy']['absolute_heal_rva']
@@ -202,6 +203,7 @@ def emit_combat(emit, mem, jump, data, info):
     defense=emit('craymel_incoming_damage',f'''
         push rbx; push rsi; push rdi; push rbp; sub rsp, 0x28
         mov rbx, rcx; mov esi, edx; mov edi, r8d
+        {f'call {expansion["defense"]:#x}; mov esi, eax; mov rcx, rbx' if expansion else ''}
         cmp byte ptr {mem(0x12d0ef7)}, 6; jne done
         cmp byte ptr {mem(data+FLAG_OFFSET)}, 0; je done
         test rcx, rcx; je done

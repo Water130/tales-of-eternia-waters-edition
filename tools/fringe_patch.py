@@ -9,18 +9,49 @@ from fringe_lists import CAPACITY, STRIDE
 
 def emit_fringe(emit, mem, jump, pe, cs, relocate, data, info):
     state, refresh, available = (info[k] for k in ('state_rva','refresh','available'))
+    menu_state = state+0x800
+    menu_refresh = emit('fringe_visible_menu',f'''
+        push rbx; push rsi; push rdi; sub rsp, 0x20
+        call {refresh:#x}
+        lea rsi, {mem(state)}; lea rdi, {mem(menu_state)}
+        mov ebx, 7
+    character:
+        xor ecx, ecx; xor r8d, r8d
+    row:
+        movzx eax, byte ptr [rsi+rcx]
+        test eax, eax; je next
+        cmp byte ptr {mem(0x111a670)}, 1; jne store
+        lea edx, [rax-22]; cmp edx, 2; jbe store
+        cmp eax, 126; jae store
+        imul edx, eax, 24; lea r10, {mem(0x562a50)}
+        test byte ptr [r10+rdx+1], 2; je next
+        cmp eax, 42; ja store
+        lea r10, {mem(0x11cb0b8)}; bt dword ptr [r10], eax; jc next
+    store:
+        mov byte ptr [rdi+r8], al; inc r8d
+    next:
+        inc ecx; cmp ecx, {CAPACITY}; jb row
+    clear:
+        cmp r8d, {CAPACITY}; jae next_character
+        mov byte ptr [rdi+r8], 0; inc r8d; jmp clear
+    next_character:
+        add rsi, {STRIDE}; add rdi, {STRIDE}; dec ebx; jne character
+        add rsp, 0x20; pop rdi; pop rsi; pop rbx; ret
+    ''')
+    info['menu_state_rva']=menu_state
+    info['menu_refresh']=menu_refresh
     flag = data+0x1a42
     save = 'pushfq\npush rax\npush rcx\npush rdx\npush r8\npush r9\npush r10\npush r11\nsub rsp, 0x20'
     restore = 'add rsp, 0x20\npop r11\npop r10\npop r9\npop r8\npop rdx\npop rcx\npop rax\npopfq'
     sites = []
-    def hook(site, size, enabled, name):
+    def hook(site, size, enabled, name, fringe_only=False):
         old=relocate(pe.get_data(site,size),site)
+        alternative = 'jmp enabled' if not fringe_only else 'jmp native'
         target=emit('fringe_'+name,f'''
             pushfq
             cmp byte ptr {mem(flag)}, 0
             jne enabled
-            cmp byte ptr {mem(data+0x1a63)}, 0
-            je native
+            {alternative}
         enabled:
             popfq
             {enabled}
@@ -36,7 +67,7 @@ def emit_fringe(emit, mem, jump, pe, cs, relocate, data, info):
     hook(0x223200,5,f'''
         {save.replace('sub rsp, 0x20','sub rsp, 0x28')}
         lea rcx, {mem(0x11ca420)}
-        call {refresh:#x}
+        call {menu_refresh:#x}
         {restore.replace('add rsp, 0x20','add rsp, 0x28')}
         mov qword ptr [rsp+8], rbx
         jmp 0x223205
@@ -45,7 +76,7 @@ def emit_fringe(emit, mem, jump, pe, cs, relocate, data, info):
         push rax
         push rdx
         push r8
-        lea rax, {mem(state)}
+        lea rax, {mem(menu_state)}
         add rax, r9
         xor edx, edx
         xor r8d, r8d
@@ -61,6 +92,8 @@ def emit_fringe(emit, mem, jump, pe, cs, relocate, data, info):
         pop r8
         pop rdx
         pop rax
+        # Native unrolled counting leaves this constant for menu setup.
+        mov r9d, 4
         jmp 0x22359f
     ''','menu_count')
 
@@ -76,7 +109,7 @@ def emit_fringe(emit, mem, jump, pe, cs, relocate, data, info):
         ins=next(cs.disasm(pe.get_data(site,15),site))
         assert any(o.type==capstone.x86.X86_OP_MEM and o.mem.disp==0x11ca49a for o in ins.operands)
         assert ins.mnemonic in ('movzx','movsx','cmp','lea'), (hex(ins.address),ins.mnemonic)
-        new=('movzx' if ins.mnemonic=='movsx' else ins.mnemonic)+' '+ins.op_str.replace('0x11ca49a',hex(state))
+        new=('movzx' if ins.mnemonic=='movsx' else ins.mnemonic)+' '+ins.op_str.replace('0x11ca49a',hex(menu_state))
         hook(ins.address,ins.size,new+f'\njmp {ins.address+ins.size:#x}',f'menu_read_{ins.address:x}')
         reads.append(ins.address)
     assert len(reads)>=20, reads
@@ -190,6 +223,28 @@ def emit_fringe(emit, mem, jump, pe, cs, relocate, data, info):
             {restore}
             jmp 0x21e5e2
         ''',f'ally_assignment_{char}')
+
+    # Learning must update the original discovery/notification bitsets too.
+    # Do not append relaxed recipes to the 32-byte saved arrays: all recipes
+    # can fit in a single cage, so only the bounded transient list may hold them.
+    # Native level tests and the learned-only rebuild mode run before this site.
+    hook(0x21de74,5,'''
+        cmp cl, 3
+        je owner_ok
+        cmp cl, 4
+        jne 0x21def5
+    owner_ok:
+        cmp byte ptr [r15+rdi*8+0xbb8], 0
+        je 0x21def5
+        movzx eax, byte ptr [r9]
+        jmp 0x21dec7
+    ''','learn_recipe',fringe_only=True)
+
+    # Unknown recipes use a separate colour/readiness path. The native code
+    # compares the staged cages here, before its unchanged level checks.
+    hook(0x24422c,6,'''
+        jmp 0x244259
+    ''','unlearned_recipe_colour',fringe_only=True)
 
     # Fringe screen's availability colour uses the same membership rule.
     hook(0x244180,8,f'''

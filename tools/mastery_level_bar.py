@@ -27,16 +27,16 @@ def emit_level_bar(emit,mem,value,text,line,tinted_line,string,number,center,buf
         test ebp, ebp; je done
         cmp ebp, 30; je max_label
         mov eax, esi; mov edx, edi; call {fraction:#x}
-        mov edx, 316; mov r8d, 55; mov r9d, 120; mov eax, 0xffeeeeee; call {text:#x}
+        mov edx, 316; mov r8d, 51; mov r9d, 120; mov eax, 0xffeeeeee; call {text:#x}
         jmp bar
     max_label:
         lea rcx, {mem(string('MAX'))}
-        mov edx, 316; mov r8d, 55; mov r9d, 24; mov eax, 0xffeeeeee; call {text:#x}
+        mov edx, 316; mov r8d, 51; mov r9d, 24; mov eax, 0xffeeeeee; call {text:#x}
     bar:
-        mov ecx, 112; mov edx, 57; mov r8d, 198; xor r10d, r10d; call {gauge:#x}
+        mov ecx, 112; mov edx, 53; mov r8d, 198; xor r10d, r10d; call {gauge:#x}
         imul eax, ebx, 198; xor edx, edx; mov ecx, 10000; div ecx
         test eax, eax; je done
-        mov r8d, eax; mov ecx, 112; mov edx, 57; mov r10d, 1; call {gauge:#x}
+        mov r8d, eax; mov ecx, 112; mov edx, 53; mov r10d, 1; call {gauge:#x}
     done: add rsp, 0x28; pop rbp; pop rdi; pop rsi; pop rbx; ret
     ''')
     progress=emit('mastery_level_progress',f'''

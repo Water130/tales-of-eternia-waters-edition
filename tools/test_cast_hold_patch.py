@@ -1,6 +1,6 @@
 """Execute native casting, patched controls and per-instance particle constructors."""
 from unicorn import UC_HOOK_CODE
-from unicorn.x86_const import UC_X86_REG_RSP, UC_X86_REG_RIP
+from unicorn.x86_const import UC_X86_REG_RSP, UC_X86_REG_RIP, UC_X86_REG_EFLAGS
 from casting_color_patch import COLORS, NEUTRAL_CAST
 
 
@@ -311,12 +311,14 @@ def check_cast_hold(uc, base, manifest, actors, enemies, stats, impact, sp,
 
         particle_pool=0x21000000
         uc.mem_map(particle_pool,0x10000)
-        # All nine hooked callsites, executing their real native constructors.
-        sites=[(0xcc6f4,0,0x10),(0xcc73e,0,0x10),(0xcc78e,0x19c8,0x22),
+        # Ordinary and held casts execute different native constructors.
+        aliases={0xcc437:0xcc73e,0xcc4a9:0xcc900}
+        sites=[(0xcc40e,0,0x10),(0xcc437,0,0x10),(0xcc4a9,0x19c8,0x22),
+               (0xcc6f4,0,0x10),(0xcc73e,0,0x10),(0xcc78e,0x19c8,0x22),
                (0xcc7c3,0x19c8,0x22),(0xcc7f6,0x19c8,0x22),(0xcc860,0x19c8,0x22),
                (0xcc8da,0,0x10),(0xcc900,0x19c8,0x22),(0xcc92a,0x36b0,0xa)]
         for site,pooloff,offset in sites:
-            actor=setup();put(actor+0x6c,'B',12);put(effect,'Q',actor)
+            actor=setup(3);put(actor+0x6c,'B',28);put(effect,'Q',actor)
             uc.mem_write(particle_pool,b'\0'*0x10000)
             put(base+0x12cecf0,'Q',particle_pool);put(base+0x12cec20,'Q',particle_pool+0x6000)
             put(base+0x12ceb7a,'B',0)
@@ -332,12 +334,13 @@ def check_cast_hold(uc, base, manifest, actors, enemies, stats, impact, sp,
             result=uc.reg_read(regs['rax'])
             assert result==particle_pool+pooloff,(hex(site),hex(result))
             from casting_color_patch import PROFILES
-            if site in PROFILES:
-                for off,value in PROFILES[site]:
-                    expected=bytes(((x*abs(value)//255)*(1 if value>=0 else -1))&255 for x in COLORS['fire'])
+            profile_site=aliases.get(site,site)
+            if profile_site in PROFILES:
+                for off,value in PROFILES[profile_site]:
+                    expected=bytes(((x*abs(value)//255)*(1 if value>=0 else -1))&255 for x in COLORS['light'])
                     assert bytes(uc.mem_read(result+off,3))==expected,(hex(site),off)
             else:
-                assert bytes(uc.mem_read(result+offset,3))==bytes(x*128//255 for x in COLORS['fire'])
+                assert bytes(uc.mem_read(result+offset,3))==bytes(x*128//255 for x in COLORS['light'])
             assert get(result+offset+3,'B')==0x91
             assert bytes(uc.mem_read(source,0x80))==before
         from casting_color_patch import PROFILES
@@ -373,7 +376,51 @@ def check_cast_hold(uc, base, manifest, actors, enemies, stats, impact, sp,
                         live=list(uc.mem_read(particle+color_offset,3))
                         strongest=max(range(3),key=lambda j:rgb[j])
                         assert all(abs(live[j]*rgb[strongest]-live[strongest]*rgb[j])<=20*255 for j in range(3)),(site,family,frame,live)
-        checks.append('100 real casting templates: both gradients/evolution; 12 native ticks; subtractive hand/energy glyphs switched to additive; geometry, lifetime, CLUT and phase preserved')
-        checks.append('Nine real particle-constructor callsites preserve shared templates and native particle placement')
+        checks.append('110 real casting templates: both gradients/evolution; 12 native ticks; subtractive hand/energy glyphs switched to additive; geometry, lifetime, CLUT and phase preserved')
+        checks.append('Twelve real particle-constructor callsites: Meredy light casts stay white, including ordinary rising trails; shared templates and placement preserved')
+        # Enemy ownership takes priority even when its character/family bytes
+        # collide with a mage's values. Both tint helpers must be strict no-ops.
+        for char in (2,3):
+            for family in range(11):
+                for helper,arguments in [('tint_cast_particle',(0x10,0x22,0xa)),
+                                         ('tint_cast_profile',range(5))]:
+                    for argument in arguments:
+                        actor=setup(char);put(actor+0x51,'B',1)
+                        put(actor+0x6c,'B',family*4);put(effect,'Q',actor)
+                        before=bytes(range(0x80));uc.mem_write(particle,before)
+                        reg('rax',particle);reg('rdi',effect);reg('rdx',argument)
+                        saved={k:uc.reg_read(v) for k,v in regs.items()}
+                        flags=uc.reg_read(UC_X86_REG_EFLAGS)
+                        execute(manifest['symbols'][helper])
+                        assert bytes(uc.mem_read(particle,0x80))==before
+                        assert saved=={k:uc.reg_read(v) for k,v in regs.items()}
+                        assert uc.reg_read(UC_X86_REG_EFLAGS)==flags
+        # Execute the original red-mote variation and the detour with identical
+        # inputs. Enemy, unsupported caster/family, null owner and option-off
+        # paths must match native memory, registers AND arithmetic flags.
+        from mod_settings_patch import FLAG_OFFSETS
+        flag=base+manifest['data_rva']+FLAG_OFFSETS[22]
+        old_flag=get(flag,'B');scratch=particle_pool+0x8000
+        uc.mem_write(scratch,bytes.fromhex('241f004322'))
+        for side,char,family,enabled,owned in [(1,2,28,1,True),(1,3,28,1,True),
+                (0,0,28,1,True),(0,3,44,1,True),(0,3,28,0,True),
+                (0,3,28,1,False),(0,3,28,1,True)]:
+            for red,random in [(0,0),(16,255),(250,31),(128,128)]:
+                results=[]
+                for start,end in [(scratch-base,scratch-base+5),(0xcc8b4,0xcc8b9)]:
+                    actor=setup(char);put(actor+0x51,'B',side);put(actor+0x6c,'B',family)
+                    put(effect,'Q',actor if owned else 0);put(flag,'B',enabled)
+                    uc.mem_write(particle,bytes([0x6b])*0x80);put(particle+0x22,'B',red)
+                    reg('rax',0xabc000|random);reg('rbx',particle);reg('rdi',effect)
+                    execute(start,[end])
+                    results.append((bytes(uc.mem_read(particle,0x80)),
+                                    {k:uc.reg_read(v) for k,v in regs.items()},
+                                    uc.reg_read(UC_X86_REG_EFLAGS)))
+                if (side,char,family,enabled,owned)==(0,3,28,1,True):
+                    expected=bytearray(results[0][0]);expected[0x22]=red
+                    assert results[1][0]==expected and results[1][1]==results[0][1]
+                else:assert results[1]==results[0],(side,char,family,enabled,owned,red,random)
+        put(flag,'B',old_flag)
+        checks.append('Enemy casting tints are no-ops; red-mote detour matches original instructions and flags for enemies, unsupported actors/families and option-off')
         uc.mem_unmap(particle_pool,0x10000)
     return checks,count

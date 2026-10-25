@@ -56,7 +56,7 @@ def emit_availability(emit,mem,ui,learned,usage):
         ret
     ''')
 
-def emit_browser(emit,mem,ui,rows,payload,state,string,lineblock,lookup,availability,text,frame,icon,tabletext,loc,bonus,data):
+def emit_browser(emit,mem,ui,rows,payload,state,string,lineblock,lookup,availability,text,frame,icon,tabletext,loc,bonus,data,badges):
     spells=[r for r in rows if r['kind']==2]
     spirits=sorted((r for r in rows if r['kind']==0),key=lambda r:r['key'])
     descriptors=[]
@@ -263,14 +263,26 @@ def emit_browser(emit,mem,ui,rows,payload,state,string,lineblock,lookup,availabi
         mov ecx, dword ptr [rcx+4]
         call {availability:#x}
         mov dword ptr [rsp+0x24], eax
+        test eax, eax
+        je no_badge
+        mov r9d, 128
+        cmp eax, 2
+        jne badge_opacity
+        mov r9d, 255
+    badge_opacity:
+        mov ecx, dword ptr [r15+4]
+        lea edx, [rbp+5]
+        lea r8d, [rsi+1]
+        call {badges['spell']:#x}
+    no_badge:
         {loc('unknown')}
         cmp dword ptr [rsp+0x24], 0
         je spell_name
         {tabletext('r15',12)}
     spell_name:
-        lea edx, [rbp+7]
-        mov r8d, esi
-        mov r9d, 65
+        lea edx, [rbp+18]
+        lea r8d, [rsi+2]
+        mov r9d, 58
         mov eax, 0xff999999
         cmp dword ptr [rsp+0x24], 2
         jne color
@@ -331,6 +343,13 @@ def emit_browser(emit,mem,ui,rows,payload,state,string,lineblock,lookup,availabi
         je requirement
         mov esi, 220
         mov eax, 2
+        cmp dword ptr [r15+4], 76
+        jne requirement_limit
+        # Eruption has six tracks. Its single Efreet requirement fits below
+        # the projectile row, within the existing panel's bottom edge (240).
+        mov esi, 232
+        mov eax, 1
+    requirement_limit:
         cmp edi, eax
         cmova edi, eax
     requirement:

@@ -109,9 +109,46 @@ def check_combat_ui(uc, base, manifest, actors, enemies, stats, impact, sp,
                 setup();reg('rbx',impact);reg('rbp',lifetime)
                 put(impact+5,'B',original_type)
                 execute('draw_damage_color',0x11cf45,[0x1114a0])
-                channel=112+(56-lifetime)//4
-                assert bytes(uc.mem_read(base+0x11ce670,3))==bytes((channel,128,channel))
-        checks.append('Damage ring: 11 elements, received-hit priority, pale-mint recovery distinguished from dark wind')
+                assert bytes(uc.mem_read(base+0x11ce670,3))==bytes((112,128,112))
+        checks.append('Damage ring: 11 elements, received-hit priority, native Symphonia mint recovery pair')
+
+        # Exercise native 1114a0 -> 1227b0 -> both HD passes -> actual packed
+        # vertex commands. Verify glyph cells, two-tone colors, return scope,
+        # and unmodified HP/TP calls outside the damage ring.
+        import struct
+        pairs=[('205080','102850'),('308050','185030'),('802810','501008'),
+               ('705020','483010'),('708080','385868'),('805080','582858'),
+               ('808058','585830'),('301850','180828'),('708070','508050')]
+        for tag,pair in list(zip(range(0x14,0x34,4),pairs))+[(0x34,('808080','808080')),(1,pairs[-1]),(3,pairs[-1])]:
+            setup()
+            put(data+0x1a03,'B',1)
+            context=actors+0xc800
+            put(base+0x644a10,'Q',context)
+            put(context+0x4d0,'Q',allocation+0x10000)
+            put(context+0x4d8,'Q',4096)
+            put(context+0x4e0,'I',0)
+            reg('rbx',impact);put(impact+5,'B',tag);reg('rbp',40)
+            reg('rcx',135);reg('rdx',100);reg('r8',80);reg('r9',4)
+            # Mid-function hook RSP = sp-8; these are the native stack args.
+            for off,val in ((0x20,40),(0x28,24 if tag in (1,3) else 0),(0x30,12),(0x38,12)):
+                put(sp-8+off,'I',val)
+            captured=[]
+            def capture_gradient(rva,rsp):
+                if rva==0x60bf0:
+                    c=bytes(uc.mem_read(uc.reg_read(regs['rdx']),80))
+                    if struct.unpack_from('<I',c)[0]==5:
+                        assert struct.unpack_from('<3I',c,8)==(4,0x80019f,4)
+                        ptr=struct.unpack_from('<Q',c,32)[0]
+                        captured.append([struct.unpack('<2fI3f',uc.mem_read(ptr+i*24,24)) for i in range(4)])
+            execute('draw_damage_color',0x11cf45,(0x12b90,0x11ded0,0x60bf0),capture_gradient)
+            assert len(captured)==6, ('two native HD passes for three digits',tag,len(captured))
+            colors=[int.from_bytes(bytes(min(255,c*2) for c in bytes.fromhex(h))+b'\xff','little') for h in pair]
+            for q in captured:
+                assert [v[2] for v in q]==[colors[0],colors[0],colors[1],colors[1]],q
+                assert q[0][1]==800 and q[2][1]==848,q
+                assert q[0][0] in (48,144,240) and q[1][0]-q[0][0]==48,q
+            assert get(data+0x13c0,'B')==0, 'gradient state leaked beyond number draw'
+        checks.append('Actual native damage glyph pipeline: original numeral strip, paired Symphonia RGBA vertices in both HD passes, no gradient state leakage')
 
     if 'combat_ui' not in manifest['features']:
         uc.mem_unmap(allocation,0x2001000)
@@ -358,10 +395,10 @@ def check_combat_ui(uc, base, manifest, actors, enemies, stats, impact, sp,
             execute(f'ui_hud_number_{metric}',site,[0x1227b0],capture_glyph)
             assert len(glyphs)==len(str(value)),glyphs
             assert all((gy,w,h)==(y,12,12) for gx,gy,w,h in glyphs),glyphs
-            assert max(x+w for x,gy,w,h in glyphs)==slot_index*48+11
+            assert max(x+w for x,gy,w,h in glyphs)==slot_index*48+(15 if metric==0 else 11)
             bar_y=220 if metric==0 else 235
             assert y+12==bar_y, 'digits obscure gauge'
-            assert min(x for x,gy,w,h in glyphs)>=slot_index*48-25, 'digits extend outside the reserved slot'
+            assert min(x for x,gy,w,h in glyphs)>=slot_index*48+(-21 if metric==0 else -25), 'digits extend outside the reserved slot'
             assert all(abs(glyphs[i][0]-glyphs[i-1][0])==8 for i in range(1,len(glyphs))), 'native digit advance'
             if metric:assert min(gy for x,gy,w,h in glyphs)>=223, 'TP digits over HP gauge'
     # Execute the unchanged portrait branch with only its two new immediates.

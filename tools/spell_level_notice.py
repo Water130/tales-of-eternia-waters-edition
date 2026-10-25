@@ -2,7 +2,9 @@
 
 The native victory routine ticks every frame at 119E7C. Its award frame is 88.
 Snapshot counters at battle entry; compare only at victory, never on loading.
-Native mastery sprite IDs are deliberately untouched: their atlas has no spells.
+The native victory scheduler owns notification cadence. Spell gains follow the
+actor's ordinary mastery flags and call the original level-up effect constructor.
+Its localized sprites, particles, sound and lifetime are not reimplemented.
 """
 import json
 import struct
@@ -35,7 +37,7 @@ def snapshot_code(mem, state, usage):
         add ecx, 2; cmp ecx, 512; jb snapshot
         xor eax, eax
         lea rdx, {mem(state+0xb00)}
-        mov ecx, 0x110
+        mov ecx, 0x130
     clear_notices:
         mov byte ptr [rdx+rcx-1], al
         dec ecx; jne clear_notices
@@ -52,11 +54,11 @@ def emit_notices(emit, mem, jump, data, state, strings, symbols, usage):
     for aid in OFFENSIVE:
         row=byid[aid]
         names=SHORT.get(aid,(row['name_fr'],row['name']))
-        labels[aid]=[names[0]+'  Niv. +',names[1]+'  Lv. UP']
+        labels[aid]=list(names)
         for lang,text in enumerate(labels[aid]):
             struct.pack_into('<I',blob,aid*8+lang*4,strings+len(blob))
             blob.extend(text.encode('utf-8')+b'\0')
-        passive_labels[aid]=[names[0]+'  Bonus niv. +',names[1]+'  Bonus Lv. UP']
+        passive_labels[aid]=list(names)
         for lang,text in enumerate(passive_labels[aid]):
             struct.pack_into('<I',blob,(aid|128)*8+lang*4,strings+len(blob))
             blob.extend(text.encode('utf-8')+b'\0')
@@ -66,9 +68,13 @@ def emit_notices(emit, mem, jump, data, state, strings, symbols, usage):
     # to detect their simultaneous increase. All tracks are monotonic.
     caps='\n'.join(f'cmp r11d, {aid}; jne cap_{aid}; mov ecx, {cap}; jmp shape; cap_{aid}:'
                    for aid,cap in PROJECTILE_CAPS.items())
+    from native_notice_effect import emit_native_labels
+    label_start=(strings+len(blob)+15)&~15
+    label_info,label_blob=emit_native_labels(emit,mem,jump,label_start)
+    blob.extend(bytes(label_start-strings-len(blob)));blob.extend(label_blob)
     rank=emit('spell_notice_passive_ranks',f'''
         mov r11d, edx
-        mov r8d, 999; cmp ecx, r8d; cmovb r8d, ecx
+        mov r8d, 500; cmp ecx, r8d; cmovb r8d, ecx
         mov eax, 500; cmp r8d, eax; cmovb eax, r8d
         mov r9d, eax
         xor edx, edx; mov ecx, 20; div ecx
@@ -80,7 +86,12 @@ def emit_notices(emit, mem, jump, data, state, strings, symbols, usage):
         {caps}
     shape:
         mov eax, r8d; imul eax, ecx
-        xor edx, edx; mov ecx, 999; div ecx
+        xor edx, edx; mov ecx, 500; div ecx
+        cmp r11d, 76; jne ranks_done
+        add r10d, eax
+        imul eax, r8d, 50
+        xor edx, edx; div ecx
+    ranks_done:
         add eax, r10d; ret
     ''')
     prepare=emit('spell_notice_prepare',f'''
@@ -89,6 +100,7 @@ def emit_notices(emit, mem, jump, data, state, strings, symbols, usage):
         cmp byte ptr {mem(state+0xc02)}, 0; jne done
         mov byte ptr {mem(state+0xc02)}, 1
         cmp byte ptr {mem(data+0x1a0c)}, 0; je done
+        call {label_info['initialize']:#x}
         xor ebx, ebx
     caster:
         xor esi, esi
@@ -130,73 +142,63 @@ def emit_notices(emit, mem, jump, data, state, strings, symbols, usage):
         add rsp, 0x30
         pop r12; pop rdi; pop rsi; pop rbp; pop rbx; ret
     ''')
-    draw=emit('spell_notice_draw',f'''
-        push rbx; push rbp; push rsi; push rdi; push r12
-        sub rsp, 0x60
-        cmp ecx, 88; jb done
+    dispatch=emit('spell_notice_dispatch',f'''
+        push rbx; push rsi; push rdi; sub rsp, 0x20
+        mov rsi, rcx; mov edi, edx
+        test rcx, rcx; je done
+        cmp word ptr [rcx+0xa0], 0; jne done
         cmp byte ptr {mem(data+0x1a0c)}, 0; je done
         cmp byte ptr {mem(state+0xc02)}, 0; je done
-        mov ebp, ecx; sub ebp, 88
-        cmp qword ptr {mem(0x644a10)}, 0; je done
-        cmp qword ptr {mem(0x644a18)}, 0; je done
-        xor ebx, ebx
-    caster:
+        cmp edx, 88; jb done
+        sub edx, 88; test edx, 63; jne done
+        cmp qword ptr {mem(0x12ced08)}, 0; je done
+        cmp qword ptr {mem(0x12ced10)}, 0; je done
+        movzx ebx, byte ptr [rsi+0x4f]; sub ebx, 2
+        cmp ebx, 1; ja done
+        lea rdx, {mem(state+0xc10)}
+        mov eax, ebx; shl eax, 4; add rdx, rax
+        cmp byte ptr [rdx+2], 0; je pending
+        cmp dword ptr [rdx+4], edi; je done
+    pending:
+        movzx ecx, byte ptr [rdx]
         lea rax, {mem(state+0xc00)}
-        movzx edi, byte ptr [rax+rbx]
-        test edi, edi; je next
-        mov rsi, qword ptr {mem(0x12cecd8)}
-        test rsi, rsi; je done
-        movzx ecx, byte ptr {mem(0x12cece8)}
-        cmp ecx, 5; ja done
-        lea eax, [rbx+2]
-    actor:
-        test ecx, ecx; je next
-        cmp byte ptr [rsi+0x4f], al; je found
-        add rsi, 0x248; dec ecx; jmp actor
-    found:
-        # Same projected sprite position as the native level-up effects.
-        movsx ecx, word ptr [rsi+0x7a]
-        call 0x11e3d0
-        sub eax, 58
-        mov edx, 4; cmp eax, edx; cmovl eax, edx
-        mov edx, 356; cmp eax, edx; cmovg eax, edx
-        mov r12d, eax
-        movsx ecx, word ptr [rsi+0x82]
-        call 0x11e430
-        sub eax, 22
-        mov edx, 8; cmp eax, edx; cmovl eax, edx
-        mov edx, 190; cmp eax, edx; cmovg eax, edx
-        mov esi, eax
-        mov eax, ebp; xor edx, edx; mov ecx, 90; div ecx
-        xor edx, edx; div edi
-        mov eax, ebx; shl eax, 7; add eax, edx
+        cmp cl, byte ptr [rax+rbx]; jae done
+        mov eax, ebx; shl eax, 7; add eax, ecx
         lea rcx, {mem(state+0xb00)}
-        movzx eax, byte ptr [rcx+rax]
-        lea rdx, {mem(strings)}; lea rdx, [rdx+rax*8]
-        mov ecx, dword ptr [rdx+4]
-        cmp byte ptr {mem(0x11c9ce8)}, 3
-        jne localized
-        mov ecx, dword ptr [rdx]
-    localized:
-        lea rax, {mem(0)}; add rcx, rax
-        cvtsi2ss xmm1, r12d; cvtsi2ss xmm2, esi
-        mov eax, 0x43ff8000; movd xmm3, eax
-        mov dword ptr [rsp+0x20], 0x40e00000
-        mov dword ptr [rsp+0x28], 0xff99ffff
-        mov dword ptr [rsp+0x30], 0
-        mov dword ptr [rsp+0x38], 0
-        mov dword ptr [rsp+0x40], 0x42e80000
-        mov dword ptr [rsp+0x48], 0x3f800000
-        call 0xb480
-    next:
-        inc ebx; cmp ebx, 2; jb caster
+        mov al, byte ptr [rcx+rax]
+        mov byte ptr [rdx+1], al
+        mov byte ptr [rdx+2], 1
+        mov dword ptr [rdx+4], edi
+        inc byte ptr [rdx]
+        # Use the actual mastery effect; only its name meshes are replaced.
+        and eax, 127; inc eax
+        mov dword ptr {mem(label_info['context_rva'])}, eax
+        mov rcx, rsi; mov edx, 1
+        call 0x117640
+        mov dword ptr {mem(label_info['context_rva'])}, 0
     done:
-        add rsp, 0x60
-        pop r12; pop rdi; pop rsi; pop rbp; pop rbx; ret
+        add rsp, 0x20; pop rdi; pop rsi; pop rbx; ret
     ''')
+    draw=emit('spell_notice_draw','ret') # No separate ordinary-font caption.
     # Full volatile register, flags and SSE preservation around a native frame.
     saves='\n'.join(f'movdqu [rsp+{0x20+i*16:#x}], xmm{i}' for i in range(6))
     restores='\n'.join(f'movdqu xmm{i}, [rsp+{0x20+i*16:#x}]' for i in range(6))
+    schedule=emit('spell_notice_schedule_hook',f'''
+        pushfq; push rax; push rcx; push rdx
+        push r8; push r9; push r10; push r11
+        sub rsp, 0x80
+        {saves}
+        mov rcx, r13
+        mov edx, dword ptr [rsp+0x118]
+        call {dispatch:#x}
+        {restores}
+        add rsp, 0x80
+        pop r11; pop r10; pop r9; pop r8
+        pop rdx; pop rcx; pop rax; popfq
+        test r13, r13; je 0x119e5e
+        jmp 0x119e37
+    ''')
+    jump(0x119e32,5,schedule,'Queue spell gains after native mastery gains using the original level-up effect')
     # Only this native award continuation commits the comparison. The broader
     # result renderer can also be entered without a victory (escape/abort).
     commit=emit('spell_notice_award_hook',f'''
@@ -230,7 +232,8 @@ def emit_notices(emit, mem, jump, data, state, strings, symbols, usage):
     jump(0x119e7c,5,hook,'Show localized per-caster spell level gains during the native victory sequence')
     return dict(state_rva=state+0x900,queue_rva=state+0xb00,counts_rva=state+0xc00,
                 strings_rva=strings,labels=labels,passive_labels=passive_labels,
-                passive_flag=128,award_frame=88,cycle_frames=90,
+                active_rva=state+0xc10,native_effect_rva=0x117640,native_labels=label_info,
+                passive_flag=128,award_frame=88,cycle_frames=64,caption_frames=56,
                 separate_casters=True,language='game language: FR or EN',
-                style='native font above caster; original mastery effects unchanged',
+                style='native mastery constructor and mesh animation; FR/EN abbreviations replace both label layers; no separate caption',
                 runtime_validated=False),bytes(blob)

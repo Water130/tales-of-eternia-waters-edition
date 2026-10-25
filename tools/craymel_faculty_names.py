@@ -1,56 +1,56 @@
-"""Elemental names for the live FR/EN catalog; no balance or saved-ID changes."""
+"""Names selected by Water on 2026-10-23; no balance or saved-ID changes."""
 
 NAMES = {
     'Undine': {
-        'Économie de mana': ('Flux paisible', 'Tranquil Flow'),
-        'Soin préparé': ('Marée bienfaisante', 'Healing Tide'),
-        'Soin protecteur': ('Écume protectrice', 'Sheltering Foam'),
+        'Économie de mana': ('Économie de mana', 'Mana Economy'),
+        'Soin préparé': ('Soin renforcé', 'Enhanced Healing'),
+        'Soin protecteur': ('Garde d’Ondine', "Undine's Guard"),
     },
     'Sylph': {
-        'Récupération après lancement': ('Grâce du zéphyr', "Zephyr's Grace"),
-        'Esquive parfaite': ('Corps de vent', 'Windform'),
+        'Récupération après lancement': ('Mage agile', 'Nimble Mage'),
+        'Esquive parfaite': ('Esquive parfaite', 'Perfect Dodge'),
     },
     'Efreet': {
-        'Puissance magique': ('Âme ardente', 'Blazing Soul'),
-        'Ferveur magique': ('Braise indomptable', 'Defiant Ember'),
+        'Puissance magique': ('Force magique', 'Magic Force'),
+        'Ferveur magique': ('Volonté ardente', 'Burning Will'),
     },
     'Gnome': {
-        'Cast protégé': ('Ancrage terrestre', 'Earthen Anchor'),
-        'Garde légère': ('Écorce de pierre', 'Stonebark'),
-        'Garde complète': ('Cœur de montagne', 'Mountain Heart'),
+        'Cast protégé': ('Garde d’incantation', 'Casting Guard'),
+        'Garde légère': ('Concentration', 'Concentration'),
+        'Garde complète': ('Inébranlable', 'Unshakable'),
     },
     'Celsius': {
-        'Résistance magique': ('Manteau de givre', 'Frost Mantle'),
-        'Esprit limpide': ('Clarté du cristal', 'Crystal Clarity'),
-        'Lucidité': ('Esprit de glace', 'Frozen Resolve'),
-        'Stase de survie': ('Cocon de glace', 'Ice Cocoon'),
+        'Résistance magique': ('Résistance magique', 'Magic Resistance'),
+        'Esprit limpide': ('Clarté mentale', 'Mental Clarity'),
+        'Lucidité': ('Lucidité', 'Lucidity'),
+        'Stase de survie': ('Survie', 'Survival'),
     },
     'Volt': {
-        'Critiques magiques': ('Éclat de foudre', 'Lightning Spark'),
-        'Éclair de génie': ('Pensée fulgurante', 'Thunder Insight'),
+        'Critiques magiques': ('Sort critique', 'Critical Spell'),
+        'Éclair de génie': ('Incantation éclair', 'Flash Casting'),
     },
     'Rem': {
-        'Soin solidaire': ('Lueur partagée', 'Shared Radiance'),
-        'Guérison purifiante': ('Lumière purifiante', 'Cleansing Light'),
-        'Régénération': ('Halo régénérant', 'Renewing Halo'),
-        'Protection salvatrice': ('Aube salvatrice', 'Saving Dawn'),
+        'Soin solidaire': ('Soin partagé', 'Shared Healing'),
+        'Guérison purifiante': ('Purification', 'Purification'),
+        'Régénération': ('Régénération', 'Regeneration'),
+        'Protection salvatrice': ('Garde salvatrice', 'Saving Guard'),
     },
     'Shadow': {
-        'Absorption de PV': ('Faim des ombres', 'Shadow Hunger'),
-        'Absorption de TP': ('Festin nocturne', 'Midnight Feast'),
-        'Lien vital': ('Pacte crépusculaire', 'Twilight Pact'),
+        'Absorption de PV': ('Vol de vie', 'Life Steal'),
+        'Absorption de TP': ('Vol d’esprit', 'Spirit Steal'),
+        'Lien vital': ('Lien vital', 'Vital Link'),
     },
     'Maxwell': {
-        'Mana solidaire': ('Cycle astral', 'Astral Cycle'),
-        'Rempart de mana': ('Rempart astral', 'Astral Bulwark'),
-        'Partage des ressources': ('Harmonie céleste', 'Celestial Harmony'),
-        'Second souffle arcanique': ('Renaissance astrale', 'Astral Rebirth'),
-        'Singularité': ('Cœur gravitationnel', 'Gravity Well'),
+        'Mana solidaire': ('Don spirituel', 'Spiritual Gift'),
+        'Rempart de mana': ('Manteau de mana', 'Mana Coat'),
+        'Partage des ressources': ('Partage des ressources', 'Resource Sharing'),
+        'Second souffle arcanique': ('Second souffle', 'Second Wind'),
+        'Singularité': ('Singularité', 'Singularity'),
     },
     'Sekundes': {
-        'Don de célérité': ('Souffle du temps', 'Breath of Time'),
-        'Mémoire d’incantation': ('Écho temporel', 'Temporal Echo'),
-        'Répétition accélérée': ('Spirale du temps', 'Time Spiral'),
+        'Don de célérité': ('Incantation rapide', 'Speed Cast'),
+        'Mémoire d’incantation': ('Mémoire d’incantation', 'Spell Memory'),
+        'Répétition accélérée': ('Reprise', 'Reprise'),
     },
 }
 

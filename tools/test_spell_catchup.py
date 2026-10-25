@@ -32,11 +32,11 @@ def check_spell_catchup(u,base,m,actors,sp,reset,put,get,reg,regs):
             for a in (a for a in range(39,114) if a!=42):
                 for current,credit,peer,peer_credit in ((0,0,100,0),(10,20,29,0),
                         (10,20,30,0),(10,20,31,0),(10,20,32,0),(10,20,33,0),
-                        (100,100,0,999),(997,0,9999,0),(999,0,9999,0),(9999,50,9999,0)):
+                        (100,100,0,999),(497,0,9999,0),(498,0,9999,0),(499,0,9999,0),(500,0,9999,0),(997,0,9999,0),(999,0,9999,0),(9999,50,9999,0)):
                     setup()
                     put(address(raw,c,a),'H',current);put(address(extra,c,a),'H',credit)
                     put(address(raw,c^1,a),'H',peer);put(address(extra,c^1,a),'H',peer_credit)
-                    cap=500 if 63<=a<=66 else 999
+                    cap=500
                     bonus=max(0,min(2,min(cap,peer+peer_credit)-(current+credit+1))) if a in ELIGIBLE else 0
                     expected=current+credit+1+bonus
                     before=bytes(u.mem_read(raw,1792))+bytes(u.mem_read(extra,1792))

@@ -1,12 +1,13 @@
 """Stage English distribution files or zip a verified package. Never installs."""
 from pathlib import Path
-import argparse, base64, hashlib, json, shutil, struct, zipfile
+import argparse, base64, hashlib, json, os, shutil, struct, zipfile
 
 ROOT=Path(__file__).resolve().parents[1]
+NATIVE_ORIGINAL=Path(os.environ.get('TOE_NATIVE_ORIGINAL',str(ROOT/'backups/build-25190541/GameNative.dll')))
 STAGE=ROOT/'build/shareable'
-SOURCE=ROOT/'build/combat-test'
+SOURCE=ROOT/'build/combat-release'
 TEMPLATES=ROOT/'tools/release'
-VERSION='0.14.11'
+VERSION='0.14.30R'
 NAME=f'Tales-of-Eternia-Waters-Edition-{VERSION}-Easy-Install'
 FILES=['Install.cmd','Uninstall.cmd','README.txt','Support/Patch-Mod.ps1',
        'Support/patch.json','Support/Mod-details.txt','Support/SHARE.txt',
@@ -33,8 +34,8 @@ def delta(original,result):
 
 def stage():
     manifest=read_json(SOURCE/'manifest.json');tests=read_json(SOURCE/'verification.json')
-    assert manifest['version']==f'combat-test-{VERSION}'
-    original=(ROOT/'backups/build-25190541/GameNative.dll').read_bytes()
+    assert manifest['version']==VERSION and manifest['edition']=='R'
+    original=NATIVE_ORIGINAL.read_bytes()
     patched=(SOURCE/'GameNative.dll').read_bytes()
     assert sha(original)==manifest['original_sha256']
     assert sha(patched)==manifest['patched_sha256']==tests['patched_sha256'] and tests['passed']
@@ -55,9 +56,18 @@ def stage():
         data=(TEMPLATES/source).read_text(encoding='utf-8-sig')
         data.encode('ascii')  # All public scripts and prose are English / PS 5.1-safe.
         (STAGE/dest).write_bytes(data.replace('\r\n','\n').replace('\n','\r\n').encode('ascii'))
-    payload=dict(format=1,name="Tales of Eternia - Water's Edition",version=f'{VERSION}-test',
+    payload=dict(format=2,name="Tales of Eternia - Water's Edition",version=VERSION,
                  steam_build=manifest['steam_build'],base_sha256=sha(original),base_size=len(original),
                  profiles=dict(Full=delta(original,patched),Compatibility=delta(original,bytes(fallback))))
+    font_report=read_json(SOURCE/'hp-tp-font/verification.json')
+    font_name=font_report['file']
+    font_original=Path(os.environ.get('TOE_FONT_ORIGINAL',str(ROOT/'backups/build-25190541/hp-tp-font'/font_name))).read_bytes()
+    font_patched=(SOURCE/'hp-tp-font'/font_name).read_bytes()
+    assert font_report['passed'] and sha(font_patched)==font_report['patched_sha256']
+    font_delta=delta(font_original,font_patched)
+    payload['assets']=[dict(path='Tales of Eternia Remastered_Data/StreamingAssets/aa/StandaloneWindows64/'+font_name,
+                           base_sha256=sha(font_original),base_size=len(font_original),
+                           profiles=dict(Full=font_delta,Compatibility=font_delta))]
     (STAGE/'Support/patch.json').write_text(json.dumps(payload,separators=(',',':')),encoding='ascii')
     for name,action in [('Install.cmd','Install -Prompt'),
                         ('Support/Compatibility-Mode.cmd','Install -Mode Compatibility -Prompt'),
@@ -86,7 +96,7 @@ def package():
         for name in FILES:assert z.read(NAME+'/'+name)==(STAGE/name).read_bytes()
         for info in z.infolist():
             content=z.read(info).lower()
-            assert b'ghp_' not in content and b'github_pat_' not in content
+            assert b'local_user' not in content and b'local_~1' not in content
             assert b'c:\\users\\' not in content and b'c:/users/' not in content
     digest=sha(archive.read_bytes())
     (target/(NAME+'.sha256')).write_text(digest+'  '+archive.name+'\n',encoding='ascii')

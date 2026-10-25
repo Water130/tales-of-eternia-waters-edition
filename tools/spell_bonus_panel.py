@@ -53,8 +53,18 @@ def emit_bonus_panel(emit,mem,ui,data,choices,value,text,number,loc,string,paylo
         call {value:#x}
         mov esi, eax
         mov edi, edx
+        {loc('unknown')}
+        test edi, edi
+        je heading_name
+        {tabletext('rbx',12)}
+    heading_name:
+        mov edx, 40
+        mov r8d, 174
+        mov r9d, 90
+        mov eax, 0xffffad61
+        call {text:#x}
         {loc('casts')}
-        mov edx, 160
+        mov edx, 245
         mov r8d, 174
         mov r9d, 70
         mov eax, 0xffffad61
@@ -67,7 +77,7 @@ def emit_bonus_panel(emit,mem,ui,data,choices,value,text,number,loc,string,paylo
         call {usage['catchup']['read_rva']:#x}
         call {number:#x}
     count:
-        mov edx, 199
+        mov edx, 284
         mov r8d, 174
         mov r9d, 35
         mov eax, 0xffffffff

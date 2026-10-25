@@ -1,22 +1,25 @@
-"""Five independent native EXP meters and a level derived from earned ranks."""
+"""Five native EXP meters (six for Eruption) and a level from earned ranks."""
 import struct
-from spell_growth import PROJECTILE_CAPS, emit_track_progress
+from spell_growth import PROJECTILE_CAPS, HYBRID_AREA_PROJECTILES, emit_track_progress
 from mastery_exp_bar import emit_exp_bar
 
 
 def emit_growth_panel(emit, mem, ui, data, choices, text, string, payload, state, tabletext, usage):
     progress = emit_track_progress(emit)
     gradient = emit_exp_bar(emit, mem, 'mastery_spell_exp_gradient')
+    from mastery_badges import emit_text_width
+    width = emit_text_width(emit,mem)
     from mastery_rich_text import encode_runs, emit_rich_text
     compact = emit_rich_text(emit,mem,'mastery_spell_compact_bonus',left=True)
     rows = [('Puissance','Power',40,190),('Incantation','Casting',40,205),
             ('Récupération','Recovery',40,220),('Critique','Critical',246,190),
-            ('Zone','Area',246,205),('Projectiles','Projectiles',246,205)]
+            ('Zone','Area',246,205),('Projectiles','Projectiles',246,205),
+            ('Projectiles','Projectiles',246,220)]
     labels=[]
     for index,(fr,en,x,y) in enumerate(rows):
         pairs=[]
         for i in range(51):
-            amount=('-' if index in (1,2) else '+')+str(i)+('' if index==5 else '%')
+            amount=('-' if index in (1,2) else '+')+str(i)+('' if index in (5,6) else '%')
             pairs.append(tuple(encode_runs(label+(' : ' if lang==0 else ': ')+amount,payload,state,string) for lang,label in enumerate((fr,en))))
         payload.extend(b'\0'*((-len(payload))%4))
         pointer=state+len(payload)
@@ -38,9 +41,9 @@ def emit_growth_panel(emit, mem, ui, data, choices, text, string, payload, state
     levels_rva=state+len(payload)
     for entry in levels:payload.extend(struct.pack('<2I',*entry))
     geometry=state+len(payload)
-    payload.extend(bytes(PROJECTILE_CAPS.get(i,50) for i in range(128)))
+    payload.extend(bytes(50 if i in HYBRID_AREA_PROJECTILES else PROJECTILE_CAPS.get(i,50) for i in range(128)))
     # Sum of five normalized earned ranks, in 0..50000. Level 30 requires
-    # every track's cap; a spell cannot reach it at 500 while geometry grows.
+    # every track's cap; all tracks now finish at 500 credited uses.
     total=emit('mastery_spell_total_level',f'''
         push rbx
         push rsi
@@ -61,7 +64,7 @@ def emit_growth_panel(emit, mem, ui, data, choices, text, string, payload, state
         div edi
         imul eax, eax, 2000
         add r8d, eax
-        mov eax, 999
+        mov eax, 500
         cmp esi, eax
         cmova esi, eax
         lea rax, {mem(geometry)}
@@ -69,12 +72,31 @@ def emit_growth_panel(emit, mem, ui, data, choices, text, string, payload, state
         mov eax, esi
         imul eax, ecx
         xor edx, edx
-        mov edi, 999
+        mov edi, 500
         div edi
         imul eax, eax, 10000
         xor edx, edx
         div ecx
         add r8d, eax
+        cmp ebx, 76
+        jne five_tracks
+        # Sixth track: normalize all six equally back into the 0..50000
+        # header contract. Neither area nor projectiles replaces the other.
+        imul eax, esi, {PROJECTILE_CAPS[76]}
+        xor edx, edx
+        mov ecx, 500
+        div ecx
+        imul eax, eax, 10000
+        xor edx, edx
+        mov ecx, {PROJECTILE_CAPS[76]}
+        div ecx
+        add eax, r8d
+        imul eax, eax, 5
+        xor edx, edx
+        mov ecx, 6
+        div ecx
+        mov r8d, eax
+    five_tracks:
         mov eax, r8d
         imul eax, eax, 29
         xor edx, edx
@@ -129,8 +151,8 @@ def emit_growth_panel(emit, mem, ui, data, choices, text, string, payload, state
         mov r9d, 27
         mov eax, 0xffeeeeee
         call {text:#x}
-        lea ecx, [rsi+124]
-        lea edx, [rdi+2]
+        lea ecx, [rsi+121]
+        lea edx, [rdi-1]
         mov r8d, 65
         xor r10d, r10d
         call {gradient:#x}
@@ -142,8 +164,8 @@ def emit_growth_panel(emit, mem, ui, data, choices, text, string, payload, state
         test eax, eax
         je bar_done
         mov r8d, eax
-        lea ecx, [rsi+124]
-        lea edx, [rdi+2]
+        lea ecx, [rsi+121]
+        lea edx, [rdi-1]
         mov r10d, 1
         cmp dword ptr [rsp+0x28], 0
         jne fill
@@ -154,7 +176,7 @@ def emit_growth_panel(emit, mem, ui, data, choices, text, string, payload, state
         cmp dword ptr [rsp+0x28], 0
         jne done
         lea rcx, {mem(maximum)}
-        lea edx, [rsi+145]
+        lea edx, [rsi+142]
         mov r8d, edi
         mov r9d, 25
         mov eax, 0xffffffff
@@ -172,7 +194,7 @@ def emit_growth_panel(emit, mem, ui, data, choices, text, string, payload, state
         code.append(f'''
             mov ecx, esi
             mov edx, {cap}
-            mov r8d, {999 if index==4 else 500}
+            mov r8d, 500
             mov r9d, {index}
             {f'lea rax, {mem(geometry)}; movzx edx, byte ptr [rax+rbx]' if index==4 else ''}
             call {row:#x}
@@ -181,9 +203,15 @@ def emit_growth_panel(emit, mem, ui, data, choices, text, string, payload, state
         push rbx
         push rsi
         push rdi
-        sub rsp, 0x20
+        push rbp
+        sub rsp, 0x38
+        mov rbp, rcx
         mov ebx, dword ptr [rcx+4]
         mov esi, edx
+        {tabletext('rbp',12)}
+        mov r9d, 90
+        call {width:#x}
+        lea ebp, [rax+43]
         mov ecx, esi
         mov edx, ebx
         call {total:#x}
@@ -197,25 +225,26 @@ def emit_growth_panel(emit, mem, ui, data, choices, text, string, payload, state
     level_text:
         lea rcx, {mem(0)}
         add rcx, rax
-        mov edx, 40
+        mov edx, ebp
         mov r8d, 174
         mov r9d, 26
         mov eax, 0xffffad61
         call {text:#x}
-        mov ecx, 69
-        mov edx, 176
-        mov r8d, 84
+        add ebp, 26
+        mov ecx, ebp
+        mov edx, 173
+        mov r8d, 80
         xor r10d, r10d
         call {gradient:#x}
-        imul eax, edi, 84
+        imul eax, edi, 80
         xor edx, edx
         mov ecx, 50000
         div ecx
         test eax, eax
         je tracks
         mov r8d, eax
-        mov ecx, 69
-        mov edx, 176
+        mov ecx, ebp
+        mov edx, 173
         mov r10d, 1
         cmp edi, 50000
         jne total_fill
@@ -225,13 +254,21 @@ def emit_growth_panel(emit, mem, ui, data, choices, text, string, payload, state
         cmp edi, 50000
         jne tracks
         lea rcx, {mem(maximum)}
-        mov edx, 102
+        lea edx, [rbp+28]
         mov r8d, 174
         mov r9d, 24
         mov eax, 0xffffffff
         call {text:#x}
     tracks:
         {''.join(code)}
+        cmp ebx, 76
+        jne status
+        mov ecx, esi
+        mov edx, {PROJECTILE_CAPS[76]}
+        mov r8d, 500
+        mov r9d, 6
+        call {row:#x}
+    status:
         movzx eax, byte ptr {mem(ui+4)}
         shl eax, 8
         add eax, ebx
@@ -251,7 +288,7 @@ def emit_growth_panel(emit, mem, ui, data, choices, text, string, payload, state
         jne catchup_text
         lea rcx, {mem(catchup[0])}
     catchup_text:
-        mov edx, 218; mov r8d, 174; mov r9d, 75
+        mov edx, 320; mov r8d, 182; mov r9d, 115
         mov eax, 0xffbbbbbb; call {text:#x}
         jmp ordinary_exp
     ordinary_exp:
@@ -276,12 +313,13 @@ def emit_growth_panel(emit, mem, ui, data, choices, text, string, payload, state
     off_text:
         mov eax, 0xff999999
     status_text:
-        mov edx, 301
+        mov edx, 320
         mov r8d, 174
-        mov r9d, 130
+        mov r9d, 115
         call {text:#x}
     done:
-        add rsp, 0x20
+        add rsp, 0x38
+        pop rbp
         pop rdi
         pop rsi
         pop rbx

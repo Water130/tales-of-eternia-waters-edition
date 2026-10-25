@@ -252,6 +252,54 @@ def check_cast_defense(uc, base, manifest, actors, enemies, stats, sp,
             put(actor+0x18,'h',320);reg('rcx',actor)
             execute(manifest['symbols']['action_stops_run'])
             assert get(actor+0x52,'B')==state and get(actor+0x18,'h')==320
+
+        # Reproduce running Guard+Up through both real readers and the native
+        # jump initializer. Run-stop must not change the take-off trajectory.
+        for reader,control in ((0x114300,2),(0x72490,1)):
+            for char in (0,1,2,3):
+                for facing in (-1,1):
+                    outcomes=[]
+                    for stop_run in (0,1):
+                        setup(char=char,state=3,timer=0,control=control,
+                              guard=True,up=True,press=True)
+                        put(base+manifest['data_rva']+0x1a4e,'B',stop_run)
+                        put(actor+0x53,'b',facing);put(actor+0x18,'h',-128*facing)
+                        put(actor+0x64,'B',5)
+                        reg('rcx',actor)
+                        execute(reader,stubs=(0x111fe0,0x1140f0,0x8fa90))
+                        reg('rcx',actor)
+                        execute(0xd51f0,[0xd6081],stubs=(0x8fa90,0x8bac0))
+                        outcomes.append(tuple(get(actor+offset,fmt) for offset,fmt in
+                            ((0x52,'B'),(0x18,'h'),(0x1a,'h'),(0x22,'H'),(0x90,'H'))))
+                    assert outcomes[0]==outcomes[1]==(4,-96*facing,-192,16,0),('running jump',reader,char,facing,outcomes)
+                    # Preserve momentum on the first input tick, before the
+                    # native two-tick Up threshold is reached.
+                    setup(char=char,state=3,control=control,guard=True,up=True,duration=1)
+                    put(base+manifest['data_rva']+0x1a4e,'B',1)
+                    put(actor+0x18,'h',-128*facing);reg('rcx',actor)
+                    execute(manifest['symbols']['action_stops_run'])
+                    assert get(actor+0x52,'B')==3 and get(actor+0x18,'h')==-128*facing
+
+        # Execute the real party-command dispatcher: no synthetic pending jump.
+        # Controlled actor and ready AI allies receive the same native request.
+        for char in (0,1,2,3):
+            for control in (1,2):
+                for state in (0,1,2,3):
+                    setup(char=char,state=state,timer=0,control=control,guard=False,up=False,press=False)
+                    put(base+0x8c9233,'B',1)
+                    put(base+0x12cece8,'B',4)
+                    for i in (0,1,3):
+                        a=actors+i*0x248
+                        put(a+0x52,'B',0);put(a+0xf0,'Q',inputs)
+                    reg('rcx',actor);execute(0x113ce0,stubs=(0x11ace0,))
+                    for i in range(4):
+                        assert get(actors+i*0x248+0x90,'H')==3
+                        assert get(actors+i*0x248+0x75,'B')==12
+                    reg('rcx',actor)
+                    execute(0xd51f0,[0xd6081],stubs=(0x8fa90,0x8bac0))
+                    assert get(actor+0x52,'B')==4 and get(actor+0x1a,'h')==-192,('party jump',char,control,state)
+                    assert get(inputs,'I')==0 and get(inputs+0x10,'B')==0
+                    put(base+0x8c9233,'B',0)
     finally:
         put(flags+10,'BB',1,1)
         put(flags+13,'B',1)

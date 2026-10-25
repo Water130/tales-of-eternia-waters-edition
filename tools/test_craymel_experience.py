@@ -115,11 +115,15 @@ def check_craymel_exp(u,base,m,actors,sp,reset,put,get,reg,regs):
             reg('rcx',sid);run(progress)
             assert all(u.reg_read(r)==0 for r in (UC_X86_REG_RAX,UC_X86_REG_RDX,UC_X86_REG_R8,UC_X86_REG_R9))
 
+    labels=[]
     def render(emu,address,size,user):
-        if address!=base+0x251390:return
+        if address not in (base+0x251390,base+0x24fb10):return
         rsp=u.reg_read(UC_X86_REG_RSP)
         assert rsp%16==8,'Cage gauge ABI'
-        calls.append((u.reg_read(UC_X86_REG_RCX),u.reg_read(UC_X86_REG_RDX),
+        if address==base+0x24fb10:
+            label=bytes(u.mem_read(u.reg_read(regs['rcx']),8)).split(b'\0')[0].decode()
+            labels.append((label,u.reg_read(regs['rdx'])+80,u.reg_read(regs['r8'])+16,get(rsp+0x30,'B')))
+        else:calls.append((u.reg_read(UC_X86_REG_RCX),u.reg_read(UC_X86_REG_RDX),
                       u.reg_read(UC_X86_REG_R8),u.reg_read(UC_X86_REG_R9),
                       get(rsp+0x28,'I'),get(rsp+0x30,'I'),get(rsp+0x38,'I'),get(rsp+0x40,'I')))
         # Test renderer may clobber every volatile register.
@@ -135,21 +139,39 @@ def check_craymel_exp(u,base,m,actors,sp,reset,put,get,reg,regs):
     level_hook=u.hook_add(UC_HOOK_CODE,level_position)
     hook=u.hook_add(UC_HOOK_CODE,render)
     try:
-        for amount,width in ((0,0),(243,24),(485,48)):
+        for amount,width in ((0,0),(243,11),(485,21)):
             for alpha in (0,128,255):
                 setup();calls.clear();put(entries+4,'I',amount)
                 reg('r14',0);reg('r15',alpha);put(sp-8+0xb0,'I',123)
                 run(0x243e8a,base+0x243e91,True)
-                assert calls[0]==(170,64,0x601,128,128,128,49,alpha),calls
+                assert calls[0]==(166,61,0x601,128,128,128,22,alpha),calls
                 assert len(calls)==(2 if width else 1)
-                if width:assert calls[1]==(170,64,0x601,192,192,48,width,alpha),calls
+                if width:assert calls[1]==(166,61,0x601,192,192,48,width,alpha),calls
         setup();put(flag,'B',0);calls.clear()
         run(0x243e8a,base+0x243e91,True);assert not calls
         for enabled in (0,1):
             setup();put(flag,'B',enabled);positions.clear()
             u.reg_write(UC_X86_REG_XMM2,0x437f0000)
             run(0x243d62,base+0x243d67,True)
-            assert positions==[0x436a0000 if enabled else 0x437f0000]
+            assert positions==[0x43660000 if enabled else 0x437f0000]
+        for enabled in (0,1):
+            for vitality in range(11):
+                for alpha in (0,128,255):
+                    setup();put(flag,'B',enabled);put(entries+2,'H',vitality<<12)
+                    positions.clear();labels.clear();calls.clear()
+                    reg('rcx',vitality);u.reg_write(UC_X86_REG_XMM2,0x43770000)
+                    run(0x243caf,base+0x243cb4,True)
+                    assert positions==([] if enabled and vitality==10 else [0x43660000 if enabled else 0x43770000])
+                    reg('r14',0);reg('r15',alpha)
+                    run(0x243e8a,base+0x243e91,True)
+                    expected=[('Vit.',216,68,alpha)]+([('MAX',230,68,alpha)] if vitality==10 else [])
+                    assert labels==(expected if enabled else []),labels
+                    for site,old_width in ((0x243e1f,10),(0x243e61,vitality)):
+                        calls.clear();reg('rcx',155);reg('rdx',52);reg('r8',0x601);reg('r9',192)
+                        for off,val in ((0x20,192),(0x28,48),(0x30,old_width),(0x38,alpha)):put(sp-8+off,'I',val)
+                        run(site,base+site+5,True)
+                        expected_width=(22 if site==0x243e1f else vitality*22//10) if enabled else old_width
+                        assert calls==[(166 if enabled else 155,52,0x601,192,192,48,expected_width,alpha)],calls
     finally:
         u.hook_del(hook);u.hook_del(level_hook)
     return cases

@@ -37,6 +37,16 @@ def emit_cast_defense(emit, mem, jump, data):
         je done
         test word ptr [rax], 0x200
         jne done
+        cmp word ptr [rcx+0x90], 3
+        jne check_up
+        cmp byte ptr [rcx+0x75], 12
+        je done
+    check_up:
+        test byte ptr [rax], 0x80
+        je check_stop
+        test byte ptr [rax+0x10], 1
+        jne done
+    check_stop:
         test byte ptr [rax], 0x80
         jne stop
         test byte ptr [rax+4], 0x60
@@ -60,7 +70,16 @@ def emit_cast_defense(emit, mem, jump, data):
             jmp {continuation:#x}
         ''')
         jump(site,5,hook,'Optional run stop before native manual/semi-auto Guard, Attack and Arte interpretation')
+    from craymel_faculties import preserve
+    faculty_action = preserve(f'''
+        mov eax, dword ptr {mem(data+0x1ac8)}
+        test eax, eax; je no_fighter_faculty
+        lea rdx, {mem(0)}; add rax, rdx
+        call rax
+    no_fighter_faculty:
+    ''')
     entry = emit('cast_defense_controls', f'''
+        {faculty_action}
         {save}
         cmp byte ptr {mem(0x12d0ef7)}, 6
         jne done
@@ -134,12 +153,18 @@ def emit_cast_defense(emit, mem, jump, data):
     deliberate_jump:
         cmp byte ptr [rcx+0x52], 3
         ja done
+        cmp word ptr [rcx+0x90], 3
+        jne local_jump
+        cmp byte ptr [rcx+0x75], 12
+        je accept_jump
+    local_jump:
         test byte ptr [rax], 0x80
         je block_bare_jump
         test byte ptr [rax+0x10], 1
         je block_bare_jump
         cmp byte ptr [rax+0xd], 2
         jb block_bare_jump
+    accept_jump:
         mov word ptr [rcx+0x90], 3
         cmp byte ptr [rcx+0x52], 2
         jne done
@@ -192,5 +217,7 @@ def emit_cast_defense(emit, mem, jump, data):
                 jump='Keele/Meredy and Reid/Farah: independent switches, Guard held + Up for the native two-tick threshold',
                 cancel_takes_priority=True, input_buffer_unchanged=True,
                 diagonal_walk_and_dash_brake_preserved=True,
+                running_jump_momentum_preserved=True,
+                native_party_jump_preserved=True,
                 released_effects_unchanged=True, ai_unchanged=True,
                 action_stop_flag_index=30,action_stop_readers=[0x114300,0x72490])

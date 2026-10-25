@@ -191,6 +191,14 @@ def emit_experience(emit,mem,jump,data,state,usage=None,faculties=None):
         {clearing}
         {notices_reset}
 
+        push rax; push rdx
+        mov eax, dword ptr {mem(data+0x1acc)}
+        test eax, eax; je no_fighter_state
+        lea rdx, {mem(0)}; add rax, rdx
+        movups [rax], xmm0
+    no_fighter_state:
+        pop rdx; pop rax
+
         movups {mem(0x12cea40)}, xmm0
 
         jmp 0x11c6f6
@@ -267,33 +275,34 @@ def emit_cage_gauge(emit,mem,jump,data,progress):
 
     # Native selected-spirit panel: total EXP at (237,85), level at (255,77).
 
-    # Add a 92px gauge to its right, in the same drawing layer and fade alpha.
+    # Compact row: native label at x=216, digits at x=230, gauge at x=246.
+    # Native frame coordinates include an (80,15) screen-space offset.
 
     gauge=emit('craymel_cage_exp_gauge',f'''
 
-        push rbx; push rsi; sub rsp, 0x48
+        push rbx; push rsi; push rdi; sub rsp, 0x60
 
         mov esi, edx
-
+        mov edi, ecx
         call {progress:#x}
 
         test r9d, r9d; je done
 
-        imul eax, eax, 49; xor edx, edx; mov ecx, 10000; div ecx
+        imul eax, eax, 22; xor edx, edx; mov ecx, 10000; div ecx
 
         mov ebx, eax
 
-        mov ecx, 170; mov edx, 64; mov r8d, 0x601; mov r9d, 128
+        mov ecx, 166; mov edx, 61; mov r8d, 0x601; mov r9d, 128
 
         mov dword ptr [rsp+0x20], 128; mov dword ptr [rsp+0x28], 128
 
-        mov dword ptr [rsp+0x30], 49; mov dword ptr [rsp+0x38], esi
+        mov dword ptr [rsp+0x30], 22; mov dword ptr [rsp+0x38], esi
 
         call 0x251390
 
-        test ebx, ebx; je done
+        test ebx, ebx; je vitality_label
 
-        mov ecx, 170; mov edx, 64; mov r8d, 0x601; mov r9d, 192
+        mov ecx, 166; mov edx, 61; mov r8d, 0x601; mov r9d, 192
 
         mov dword ptr [rsp+0x20], 192; mov dword ptr [rsp+0x28], 48
 
@@ -301,7 +310,24 @@ def emit_cage_gauge(emit,mem,jump,data,progress):
 
         call 0x251390
 
-    done: add rsp, 0x48; pop rsi; pop rbx; ret
+    vitality_label:
+        # Same yellow native label as Niv./Lv.; abbreviation shared by FR/EN.
+        mov dword ptr [rsp+0x50], 0x2e746956
+        mov byte ptr [rsp+0x54], 0
+        lea rcx, [rsp+0x50]
+        mov edx, 136; mov r8d, 52; mov r9d, 0x601
+        mov dword ptr [rsp+0x20], 7; mov dword ptr [rsp+0x28], esi
+        call 0x24fb10
+        lea rax, {mem(0x11cafda)}
+        movzx eax, word ptr [rax+rdi*8]
+        shr eax, 12
+        cmp eax, 10; jb done
+        mov dword ptr [rsp+0x50], 0x0058414d
+        lea rcx, [rsp+0x50]
+        mov edx, 150; mov r8d, 52; mov r9d, 0x601
+        mov dword ptr [rsp+0x20], 0; mov dword ptr [rsp+0x28], esi
+        call 0x24fb10
+    done: add rsp, 0x60; pop rdi; pop rsi; pop rbx; ret
 
     ''')
 
@@ -339,7 +365,7 @@ def emit_cage_gauge(emit,mem,jump,data,progress):
 
         cmp byte ptr {mem(data+0x1a61)}, 0; je native
 
-        mov eax, 0x436a0000
+        mov eax, 0x43660000
 
         movd xmm2, eax
 
@@ -353,4 +379,32 @@ def emit_cage_gauge(emit,mem,jump,data,progress):
 
     jump(0x243d62,5,number,'Craymel cage: level immediately before its EXP gauge')
 
-    return dict(draw=draw,gauge=gauge,progress=progress,rect=[250,79,49,4],native_layer=0x601,level_x=234)
+    vitality=emit('craymel_cage_vitality_position',f'''
+        cmp byte ptr {mem(data+0x1a61)}, 0; je native
+        cmp ecx, 10; jae done
+        mov eax, 0x43660000
+        movd xmm2, eax
+        mov edx, 1
+    native:
+        call 0xceb0
+    done:
+        jmp 0x243cb4
+    ''')
+    jump(0x243caf,5,vitality,'Craymel cage: aligned vitality value, MAX at full vitality')
+    for site,fill in ((0x243e1f,False),(0x243e61,True)):
+        width=('movzx eax, word ptr [rsp+0x30]; mov r10d, 10; cmp eax, r10d; cmova eax, r10d; '
+               'imul eax, eax, 22; xor edx, edx; div r10d; mov word ptr [rsp+0x30], ax'
+               if fill else 'mov word ptr [rsp+0x30], 22')
+        target=emit('craymel_cage_vitality_'+('fill' if fill else 'back'),f'''
+            cmp byte ptr {mem(data+0x1a61)}, 0; je native
+            {width}
+            mov ecx, 166
+            mov edx, 52
+        native:
+            call 0x251390
+            jmp {site+5:#x}
+        ''')
+        jump(site,5,target,'Craymel cage: align vitality gauge with level EXP gauge')
+    return dict(draw=draw,gauge=gauge,progress=progress,rect=[246,76,22,4],
+                vitality_rect=[246,67,22,4],vitality_label=[216,68],
+                native_layer=0x601,level_x=230,vitality_x=230)

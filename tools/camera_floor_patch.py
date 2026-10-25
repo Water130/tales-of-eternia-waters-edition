@@ -2,7 +2,7 @@
 
 Native grid points are captured without changing projection outputs. The temporary
 grid is adjusted only at the first ground draw, after backdrop anchors were used.
-Only audited flat rectangular grids with one recognised ground draw are eligible.
+Only audited flat rectangular grids with recognised ground draws are eligible.
 """
 import json, struct
 from pathlib import Path
@@ -187,6 +187,11 @@ def emit_floor(emit, mem, edit, data_rva):
         {restore}
         jmp 0x11e6f0
     ''')
+    capture_rdi=emit('capture_ground_border_rdi',f'''
+        push rbx; mov rbx, rdi; lea rsp, [rsp-0x20]
+        call {capture:#x}
+        lea rsp, [rsp+0x20]; pop rbx; ret
+    ''')
     payload=bytearray(len(stages)*16)
     edited=set()
     for row in stages:
@@ -194,7 +199,7 @@ def emit_floor(emit, mem, edit, data_rva):
         xmin,xmax=row['drawn_bounds'][0]
         near=row['drawn_bounds'][2][0]
         far=row['bounds'][2][1]
-        struct.pack_into('<hhhhh',payload,row['stage']*16,xmin,xmax,near,far,row['point_count'])
+        struct.pack_into('<hhhhh',payload,row['stage']*16,xmin,xmax,near,far,row['grid_span']//4)
         # Forest variants 6/7/8 share da330. Its far background starts at
         # world (-384,0,576), beyond the ground's Z=256. Four native 128-pixel
         # tiles cover 512 pixels. At native minimum depth 512, projecting the
@@ -203,8 +208,13 @@ def emit_floor(emit, mem, edit, data_rva):
         # ground boundary. A 576 minimum depth covers its fixed 512-pixel width.
         camera_far = 576 if row['function']=='0xda330' else far
         struct.pack_into('<hh',payload,row['stage']*16+10,camera_far,576 if row['function']=='0xda330' else 512)
-        for address,destination,label in [(row['callsite'],capture,'Capture audited ground grid'),
-                                          (row['floor_calls'][0],draw,'Extend audited ground border at draw')]:
+        row_capture=capture_rdi if row.get('grid_destination_rdi') else capture
+        # Some grids have alternate tile draw branches. Extend at whichever
+        # branch submits the first tile; subsequent calls are already guarded.
+        hooks=[(row['callsite'],row_capture,'Capture audited ground grid')]
+        hooks.extend((address,draw,'Extend audited ground border at draw')
+                     for address in row['floor_calls'])
+        for address,destination,label in hooks:
             rva=int(address,16)
             if rva in edited:continue
             edit(rva,b'\xe8'+struct.pack('<i',destination-rva-5),f'{label} {rva:x}')

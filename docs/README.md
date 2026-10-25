@@ -12,6 +12,6 @@
 | Creator's statement and sharing permissions | [About Water's Edition](ABOUT.md) |
 | Build the mod or run offline tests | [Developer guide](../BUILDING.md) |
 
-These guides describe the published **0.14.11** release. Its
-[release notes](RELEASE-0.14.11.md) and [verification record](VERIFICATION-0.14.11.json)
+These guides describe the published **0.14.30R** release. Its
+[release notes](RELEASE-0.14.30R.md) and [verification record](VERIFICATION-0.14.30R.json)
 remain available. Older release notes describe their own versions.

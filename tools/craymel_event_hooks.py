@@ -3,6 +3,7 @@ from craymel_faculties import preserve
 
 
 def emit_events(emit,mem,jump,data,info):
+    expansion=info.get('fighter_expansion')
     # 8FE50 never uses R11: retain its explicit arte argument through native
     # accessory cost modifiers. Do not infer it from an older actor action.
     cost_id=emit('craymel_cost_arte', '''
@@ -20,6 +21,7 @@ def emit_events(emit,mem,jump,data,info):
             cmp {arte}, 113; ja native
             {preserve(f'mov rcx, rbx; call {info["cost"]:#x}',result='rdx')}
         native:
+            {preserve(f'mov r8d, edx; mov edx, {arte}; mov rcx, rbx; call {expansion["cost"]:#x}',result='rdx') if expansion else ''}
             {original}
             jmp {end:#x}
         ''')
@@ -27,6 +29,7 @@ def emit_events(emit,mem,jump,data,info):
     paid=emit('craymel_tp_payment',f'''
         sub cx, dx
         mov word ptr [rbx+0x34], cx
+        {preserve(f'mov r8d, edx; mov edx, r11d; mov rcx, rbx; call {expansion["paid"]:#x}') if expansion else ''}
         cmp r11d, 54; jb done
         cmp r11d, 113; ja done
         {preserve(f'movsx r8d, cx; add r8d, edx; mov rcx, rbx; call {info["spent"]:#x}')}
@@ -72,6 +75,9 @@ def emit_events(emit,mem,jump,data,info):
         # RCX victim, EDX native reaction index. Damage is already committed.
         push rbx; push rsi; push rdi; sub rsp, 0x20
         mov rbx, rcx; mov esi, edx
+        {f'call {expansion["ward"]:#x}; test eax, eax; jne yes; mov rcx, rbx' if expansion else ''}
+        call {info['energy']['healing_ward']:#x}; test eax, eax; jne yes
+        mov rcx, rbx
         call {info['slot']:#x}; mov rdi, rax; test rdi, rdi; je no
         mov eax, dword ptr {mem(0x12cea40)}
         cmp eax, dword ptr [rdi+48]; jae casting

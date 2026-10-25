@@ -1,104 +1,38 @@
 TALES OF ETERNIA - WATER'S EDITION
-Version 0.14.11 - Experimental test release
+Version 0.14.30R - Public release
+Windows / Steam build 25190541
 
-An experimental combat, progression and interface mod.
+NEW APPROVED SPELLS
+- Spark Wave (French: Vague d'etincelles): Volt level 5, power 1400,
+  base casting time 240 frames before progression modifiers.
+- Fear Flare (French: Rafale ardente): Efreet level 10, nominal total
+  power 1440 across 18 meteors, base casting time 180 frames.
+The required spirit must be in the caster's cage. Both Keele and Meredy
+can learn these additions. They have no level-one testing bypass.
+These adaptations apply to party casters; enemy versions retain native data.
 
-COMBAT AND CONTROLS
-- Dynamic battle camera, custom HUD, casting bars and an item cooldown bar.
-- TP recovery from normal physical attacks and after victory.
-- Elemental damage/casting colors; healing numbers use a pale green.
-- Optional removal of spell pauses and supported simultaneous spell effects.
-- Three six-slot Artesphere pages: blue A, red B (L2/LT), yellow C (R2/RT).
-- Configurable keyboard page modifiers and per-save arte assignments.
-- Optional Guard spell cancellation, separate mage/fighter Guard + Up jumps,
-  action commands stopping automatic running, and separate Air Thrust impacts.
-- Optional multiple MAX vitality gauges and rebalanced difficulty statistics.
-- Reid's special-technique option: Attack + Arte Aurora commands, Aurora Wall
-  at 25% HP, no target-HP gate for his hi-ougi, at most three uses per technique
-  per battle. Other technique requirements still apply.
-- Four autonomous team-up artes for Reid/Farah, unlocked after 50 uses of the
-  physical arte and 50 uses of the associated spell by Keele or Meredy.
+EDITIONS
+R identifies public releases; T identifies personal test builds of the same
+revision. The common gameplay is shared. Unapproved prototype spells are
+unavailable in R, including when loading old test assignments or preferences.
 
-SPELL AND CRAYMEL PROGRESSION
-- Independent spell mastery for Keele and Meredy. The lagging mage receives
-  three credited uses per successful eligible cast until catching up to the
-  other mage; these credits count for progression and use-based requirements.
-- Offensive spells grow toward level 30 at 999 credited uses. Five tracks:
-  power +25%, casting/recovery times -15%, magic critical chance +15 points
-  at 500 uses; up to 3 or 6 extra projectiles OR area +50% at 999 uses.
-- Per-track levels and EXP gauges, with a full MAX gauge at the cap.
-- Victory messages in French/English for overall spell levels AND passive
-  ranks. Passive-only gains now show "Bonus Lv. UP" even at overall level 1.
-- Craymels earn 50/200/500 EXP per completed basic/intermediate/advanced
-  elemental spell, awarded on victory instead of free automatic growth.
-- Craymel EXP gauges in the cage and mastery menus; invocation damage and
-  area scale with the spirit's level.
-- 72 implemented Craymel faculties, with unlocks at levels 5/10/15/20/25/30.
-  Element-themed names, numeric benefits and detailed effects in FR/EN.
-  Faculties unlock enabled and can be switched individually.
-- These battle faculties cover spell costs, recovery, power, protection,
-  healing, critical hits, drains, mana sharing and casting time.
-- Optional Fringe relaxation ignores only the partner spirit's cage location.
-  Discovery, levels and primary spirit ownership remain required. Default: off.
-- The enhanced Maelstrom route requires Undine level 10, 50 Spread uses and
-  at least 5/10 vitality. This is not a complete custom-spell expansion.
+COMBAT, PROGRESSION AND INTERFACE
+- Optional dynamic camera, custom HUD, casting and item cooldown bars.
+- TP recovery, elemental damage colors and supported overlapping spells.
+- Three six-slot Artesphere pages and configurable keyboard controls.
+- Spell mastery caps at 500 credited uses, with separate progress for each mage.
+  Catch-up EXP does not increase real cast counts for learning requirements.
+- Craymel EXP, faculty trees, individual toggles and detailed FR/EN effects.
+- Expanded Reid and Farah mastery branches; custom physical prototypes paused.
+- Native-style mastery notices, compact cage gauges and elemental spell icons.
+- French HP/TP digits use the original combat glyph shapes.
+- Settings help scrolls with the right stick.
 
-FIGHTER PROGRESSION AND INTERFACE
-- Farah's Energy group includes its gauge and six healing faculties:
-  stronger Healer, healing Detoxify, shared Healer targets, broader cleansing,
-  and stronger Life revival. Normal-attack extensions use both Punch/Kick.
-- Reid's normal-attack extensions use both Slash/Thrust. At levels 15 and 30,
-  the mixed branches grant one and two extra normal attacks respectively.
-- Mastery access from Stats and Techniques; rooted trees, elemental links,
-  active-node highlights, locked-node shading and six milestone columns.
-- Two five-column spell pages show learned, unavailable and unknown spells,
-  elemental grouping, prerequisites, usage and progression.
-- Scanned enemies remain identified; HP bars sit above their target frames.
-  Target selection can show a compact native scan bubble after the original
-  Lens window closes, including weakness/resistance icons.
-- Arte category labels, skit notification and quick skit playback.
-- Four Mod settings categories, grouped progression switches, saved options,
-  and scrollable setting descriptions. Mod text follows the game's text
-  language: French for French, English otherwise. Installer files are English.
+Most systems can be toggled in Mod settings. Same-effect and special spells
+may still queue. Offline tests are not a guarantee of whole-game stability
+or final visual quality. Back up saves and mod preferences before updating.
 
-1. Back up your saves separately and close the game completely.
-2. Extract the entire Easy-Install ZIP to a normal folder.
-3. Double-click Install.cmd, check the detected game folder, type Y and press Enter.
-4. Wait for "Installed and verified", then start the game through Steam.
-
-No Python, mod loader or additional download is required. Keep the launchers
-and Support folder together. Windows PowerShell 5.1 is sufficient.
-If asked for a folder, use Steam > Manage > Browse local files for the game.
-Uninstall an older Water's Edition release with its own uninstaller before
-updating. Unknown game versions and modified DLLs are refused without changes.
-To uninstall: close the game, run Uninstall.cmd, and confirm the detected folder.
-The original GameNative.dll backup is kept beside the game DLL for removal.
-Uninstalling keeps mod preferences and the verified original backup.
-
-Back up %LOCALAPPDATA%\TalesOfEternia-WatersEdition.ini alongside your saves.
-It contains mod settings, extra assignments and progression data and is not
-automatically included in Steam Cloud.
-
-Support/Status.cmd checks the installation. Support/Compatibility-Mode.cmd
-restores the native spell queue while retaining the other changes.
-If removal fails, close the game and use Steam's game-file verification.
-This restores game files, not damaged saves or lost progress.
-
-Windows / Steam build 25190541 only. The installer verifies the exact original
-DLL (SHA-256 6488be2ce5ecc1dc9fc0216aa2462ec9aeba7a464468d5fd61ad3c2a8356849b).
-The archive contains binary patch data, not a complete game DLL or game assets.
-Mods replacing GameNative.dll cannot be combined automatically.
-This is an experimental test release. Native-code emulation and installer
-fixture tests do not prove whole-game stability or final GPU rendering.
-Concurrent effects, camera edges and special spell sequences need more play
-testing. Same-effect and unsupported special casts can still queue.
-Some advanced fighter arte-chain nodes and other character trees remain
-explicit previews with no combat effect. Craymel battle faculties are active;
-not all of their effects are implemented for healing outside battle.
-Future custom spells and generalized extension/sublimed-spell rules are not
-claimed as complete in this release. The published feature list describes the
-implemented systems, not the whole development wishlist.
-
+AUTHORSHIP, BUGS AND USE AT YOUR OWN RISK
 Water's Edition was created, designed and directed by Water, a human.
 All of the mod's code was written by AI.
 This mod was made for personal use and is shared as-is. Requests are not accepted.

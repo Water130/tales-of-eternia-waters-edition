@@ -63,6 +63,9 @@ for BASE in [0x180000000,0x7ffb00000000]:
             uc.mem_write(BASE+manifest['artesphere']['usage']['catchup']['live_rva'],bytes(1792))
         uc.mem_write(BASE+0x12cea40,b'\0'*0x26c0)
         uc.mem_write(DATA,b'\0'*0x200) # keep allowlist
+        # Baseline suites exercise normal progression; the dedicated custom
+        # suite explicitly tests the default-on level-one override as well.
+        put(DATA+0x1a64,'B',0)
         for i,(name,number) in enumerate(REGS.items()):uc.reg_write(number,0x111000+i)
         uc.reg_write(UC_X86_REG_RSP,SP)
         uc.reg_write(UC_X86_REG_EFLAGS,0x202)
@@ -101,6 +104,53 @@ for BASE in [0x180000000,0x7ffb00000000]:
         run('damage_origin',[0x8e915])
         assert saved=={r:uc.reg_read(v) for r,v in REGS.items()},'entry register corruption'
         return get(DATA,'Q')
+
+    if '--camera-only' in sys.argv:
+        from test_camera_patch import check_camera
+        n=check_camera(uc,BASE,DATA,ACTORS,ENEMIES,STATS,IMPACT,SP,
+                       reset,put,get,reg,run,REGS,
+                       (UC_HOOK_CODE,UC_X86_REG_RSP,UC_X86_REG_EFLAGS))
+        passed.append(f'{BASE:x}: adaptive camera: {n} cases, including native enemy camera isolation')
+        continue
+
+    if '--casting-only' in sys.argv:
+        from test_cast_hold_patch import check_cast_hold
+        checks,n=check_cast_hold(uc,BASE,manifest,ACTORS,ENEMIES,STATS,IMPACT,SP,
+                                reset,put,get,reg,REGS)
+        passed.extend(f'{BASE:x}: {check}' for check in checks)
+        passed.append(f'{BASE:x}: casting: {n} cases')
+        continue
+
+    if '--artesphere-only' in sys.argv:
+        from test_artesphere_patch import check_artesphere
+        n,checks=check_artesphere(uc,BASE,manifest,ACTORS,SP,reset,put,get,reg,REGS)
+        passed.extend(f'{BASE:x}: {check}' for check in checks)
+        passed.append(f'{BASE:x}: artesphere: {n} cases')
+        continue
+
+    if '--camera-floor-only' in sys.argv:
+        from test_camera_floor_patch import check_floor
+        n=check_floor(uc,BASE,DATA,manifest,ACTORS,SP,reset,put,get,reg,REGS)
+        passed.append(f'{BASE:x}: native ground renderer: {n} cases')
+        continue
+
+    if '--custom-artes-only' in sys.argv:
+        from test_custom_artes import check_custom_artes
+        n=check_custom_artes(uc,BASE,manifest,ACTORS,SP,reset,put,get,reg,REGS)
+        passed.append(f'{BASE:x}: custom level-one artes: {n} unlock/list/admission/script/lifetime cases')
+        continue
+
+    if '--farah-artes-only' in sys.argv or '--core-only' in sys.argv:
+        from test_farah_regulus_artes import check_farah_artes
+        n=check_farah_artes(uc,BASE,manifest,ACTORS,SP,reset,put,get,reg,REGS)
+        passed.append(f'{BASE:x}: Farah Regulus adaptations: {n} admission/script/projectile/lifecycle cases')
+        if '--farah-artes-only' in sys.argv:continue
+
+    if '--expansion-only' in sys.argv or '--core-only' in sys.argv:
+        from test_fighter_expansion import check_expansion
+        n=check_expansion(uc,BASE,manifest,ACTORS,SP,reset,put,get,reg,REGS)
+        passed.append(f'{BASE:x}: approved fighter expansion: {n}')
+        if '--expansion-only' in sys.argv:continue
 
     if '--meredy-cast-only' in sys.argv or '--core-only' in sys.argv:
         from test_meredy_cast_callback import check_meredy_cast_callback
@@ -156,6 +206,18 @@ for BASE in [0x180000000,0x7ffb00000000]:
         passed.append(f'{BASE:x}: Craymel EXP: {n}')
         continue
 
+    if '--fighter-chains-only' in sys.argv or '--core-only' in sys.argv:
+        from test_fighter_arte_chains import check_fighter_chains
+        n=check_fighter_chains(uc,BASE,manifest,ACTORS,SP,reset,put,get,reg,REGS)
+        passed.append(f'{BASE:x}: fighter arte chains and healing ward: {n}')
+        if '--fighter-chains-only' in sys.argv:continue
+
+    if '--fighter-only' in sys.argv or '--core-only' in sys.argv:
+        from test_fighter_faculties import check_fighters
+        n=check_fighters(uc,BASE,manifest,ACTORS,SP,reset,put,get,reg,REGS)
+        passed.append(f'{BASE:x}: fighter faculties: {n}')
+        if '--fighter-only' in sys.argv:continue
+
     if '--basic-mastery-only' in sys.argv or '--core-only' in sys.argv:
         from test_basic_attack_mastery import check_basic_mastery
         n=check_basic_mastery(uc,BASE,manifest,ACTORS,SP,reset,put,get,reg,REGS)
@@ -206,10 +268,21 @@ for BASE in [0x180000000,0x7ffb00000000]:
         passed.append(f'{BASE:x}: Air Thrust: {n}')
         if '--air-hits-only' in sys.argv:continue
 
+    if '--eruption-only' in sys.argv or '--mastery-only' in sys.argv:
+        from test_eruption_growth import check_eruption
+        n=check_eruption(uc,BASE,manifest,ACTORS,SP,reset,put,get,reg,REGS)
+        passed.append(f'{BASE:x}: Eruption: {n}')
+        if '--eruption-only' in sys.argv:continue
     if '--mastery-only' in sys.argv:
         from test_spell_mastery_patch import check_spell_mastery
         n=check_spell_mastery(uc,BASE,manifest,ACTORS,ENEMIES,IMPACT,SP,reset,put,get,reg,REGS)
         passed.append(f'{BASE:x}: {n} mastery-only execution cases')
+        continue
+
+    if '--cast-defense-only' in sys.argv:
+        from test_cast_defense_patch import check_cast_defense
+        n=check_cast_defense(uc,BASE,manifest,ACTORS,ENEMIES,STATS,SP,reset,put,get,reg,REGS)
+        passed.append(f'{BASE:x}: {n} defense controls cases including running momentum and native party jump')
         continue
 
     if 'tp' in manifest['features'] and 'mod_settings' in manifest:
@@ -220,6 +293,7 @@ for BASE in [0x180000000,0x7ffb00000000]:
         n = check_basic_tp(uc,BASE,manifest,ACTORS,ENEMIES,STATS,IMPACT,SP,
                            reset,put,get,reg,REGS)
         passed.append(f'{BASE:x}: {n} native basic TP cases; ground/running/aerial commands, Keele, Meredy/Quickie attribution, projectile lifetime, option off, physical arte/landing/magic exclusions and TP caps')
+        if '--basic-tp-only' in sys.argv:continue
 
     if 'cast_defense' in manifest:
         from test_cast_defense_patch import check_cast_defense
@@ -431,6 +505,8 @@ for BASE in [0x180000000,0x7ffb00000000]:
 report={'passed':True,'patched_sha256':digest(binary),'checks':passed,
         'runtime_validated':False,'note':'Actual x64 hook execution in an emulator; rendering, engine concurrency, Quickie routing and gameplay still require user testing.'}
 report_name = 'mastery-verification.json' if '--mastery-only' in sys.argv else 'verification.json'
+if '--camera-only' in sys.argv:report_name='camera-verification.json'
+if '--casting-only' in sys.argv:report_name='casting-verification.json'
 if '--mastery-menu-only' in sys.argv:report_name='mastery-menu-verification.json'
 if '--craymel-exp-only' in sys.argv:report_name='craymel-exp-verification.json'
 if '--browser-stress-only' in sys.argv:report_name='browser-stress-verification.json'
@@ -442,10 +518,20 @@ if '--startup-only' in sys.argv:report_name='startup-verification.json'
 if '--maelstrom-only' in sys.argv:report_name='maelstrom-verification.json'
 if '--fringe-only' in sys.argv:report_name='fringe-verification.json'
 if '--core-only' in sys.argv:report_name='core-verification.json'
+if '--camera-floor-only' in sys.argv:report_name='camera-floor-verification.json'
+if '--artesphere-only' in sys.argv:report_name='artesphere-verification.json'
+if '--fighter-chains-only' in sys.argv:report_name='fighter-chains-verification.json'
+if '--fighter-only' in sys.argv:report_name='fighter-verification.json'
+if '--farah-artes-only' in sys.argv:report_name='farah-artes-verification.json'
+if '--custom-artes-only' in sys.argv:report_name='custom-artes-verification.json'
+if '--expansion-only' in sys.argv:report_name='expansion-verification.json'
+if '--eruption-only' in sys.argv:report_name='eruption-verification.json'
+if '--basic-tp-only' in sys.argv:report_name='basic-tp-verification.json'
 if '--air-hits-only' in sys.argv:report_name='air-hits-verification.json'
 if '--basic-mastery-only' in sys.argv:report_name='basic-mastery-verification.json'
 if '--reid-specials-only' in sys.argv:report_name='reid-specials-verification.json'
 if '--teamup-only' in sys.argv:report_name='teamup-verification.json'
+if '--cast-defense-only' in sys.argv:report_name='cast-defense-verification.json'
 if '--faculties-only' in sys.argv:report_name='faculties-verification.json'
 if '--meredy-cast-only' in sys.argv:report_name='meredy-cast-verification.json'
 (OUT/report_name).write_text(json.dumps(report,indent=2),encoding='utf-8')

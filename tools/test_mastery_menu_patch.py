@@ -19,7 +19,7 @@ def check_mastery_menu(u,base,m,actors,sp,reset,put,get,reg,regs):
     vertices=arena+0x300000
     context=arena+0x1000;commands=arena+0x10000;stop=data-16
     texts=[];submitted=[];native=[];buttons=[];cursors=[];silhouettes=[];gauges=[];frames=[];links=[];meters=[];alphas=[];node_colors=[]
-    records={};save_ok=True;io_ok=True;device=0;calls=0;max_commands=0;hint_keys=[]
+    records={};save_ok=True;io_ok=True;device=0;calls=0;max_commands=0;hint_keys=[];badges=[]
     nonvolatile=('rbx','rbp','rsi','rdi','r12','r13','r14','r15')
     def get_from(raw,offset,fmt):return struct.unpack_from('<'+fmt,raw,offset)[0]
     def string(p,wide=False):
@@ -41,7 +41,7 @@ def check_mastery_menu(u,base,m,actors,sp,reset,put,get,reg,regs):
         u.reg_write(UC_X86_REG_RIP,get(rsp,'Q'));u.reg_write(UC_X86_REG_RSP,rsp+8)
     observed={api,api+0x10,api+0x20,api+0x30,api+0x40}|{base+a for a in (
         0x594d0,0x2a41e0,sym['mastery_status_native_input'],sym['mastery_status_native_draw'],
-        0x251390,0xb480,0x52f10,0x6a320,0x60bf0,0x62010,0x12cb0,0x140c0,sym['mastery_menu_spirit_icon'],
+        0x2518a0,sym['mastery_compact_element_badge'],sym['mastery_compact_heal_badge'],0x251390,0xb480,0x52f10,0x6a320,0x60bf0,0x62010,0x12cb0,0x140c0,sym['mastery_menu_spirit_icon'],
         sym['mastery_menu_frame'],sym['mastery_node_frame'],sym['mastery_menu_tinted_link'],sym['mastery_spell_meter_rect'],0x250b50)}
     def boundary(_,address,length,user):
         if address not in observed:return
@@ -52,7 +52,7 @@ def check_mastery_menu(u,base,m,actors,sp,reset,put,get,reg,regs):
             ret(api+(0x20 if string(rdx)=='GetPrivateProfileStructW' else 0x30))
         elif address in (api+0x20,api+0x30):
             key=(string(rcx,True),string(rdx,True))
-            assert (key[0],r9) in (('MasteryChoices-v1',232),('SpellCatchUp-v1',1800),('ArteUsage-v1',1800),('Artesphere-v1',104),('Artesphere-v2',104))
+            assert (key[0],r9) in (('MasteryChoices-v1',232),('SpellCatchUp-v1',1800),('ArteUsage-v1',1800),('Artesphere-v1',104),('Artesphere-v2',104),('HeroShortcuts-v1',104))
             if address==api+0x30:
                 if io_ok:records[key]=bytes(u.mem_read(r8,r9))
                 ret(int(io_ok))
@@ -62,6 +62,12 @@ def check_mastery_menu(u,base,m,actors,sp,reset,put,get,reg,regs):
         elif address==api+0x40:ret(device)
         elif a==0x594d0:ret(int(save_ok))
         elif a==0x2a41e0:u.mem_write(rcx,bytes(u.mem_read(rdx,r8)));ret(rcx)
+        elif a==0x2518a0:
+            badges.append(('element',r9,((rcx+80)&0xffffffff,(rdx+16)&0xffffffff),get(rsp+0x28,'B')));ret()
+        elif a==sym['mastery_compact_element_badge']:
+            badges.append(('element',rcx,(rdx,r8),r9));ret()
+        elif a==sym['mastery_compact_heal_badge']:
+            badges.append(('heal',54,(rdx,r8),r9));ret()
         elif a in (sym['mastery_status_native_input'],sym['mastery_status_native_draw']):
             native.append(a)
             if a==sym['mastery_status_native_draw']:put(ui+8,'i',214)
@@ -147,6 +153,7 @@ def check_mastery_menu(u,base,m,actors,sp,reset,put,get,reg,regs):
         return table+found*32
     def draw():
         nonlocal max_commands
+        badges.clear()
         texts.clear();submitted.clear();buttons.clear();silhouettes.clear();cursors.clear();frames.clear();links.clear();meters.clear();alphas.clear();gauges.clear();node_colors.clear()
         put(context+0x4e0,'I',0);put(vertices+0x2000008,'I',0)
         run(0x23fa00)
@@ -167,6 +174,9 @@ def check_mastery_menu(u,base,m,actors,sp,reset,put,get,reg,regs):
         if get(ui,'B') and get(ui+5,'B'):
             if get(ui+3,'B'):
                 assert len(silhouettes)==5
+                assert all((b[2][1]-85)%17==0 and 85<=b[2][1]<=153 for b in badges),badges
+                spell_names=[t for t in texts if 80<=t[2]<=165]
+                assert spell_names and all((t[2]-86)%17==0 for t in spell_names),spell_names
                 assert (34,171,407,69) in frames
                 assert len([t for t in texts if t[0] in ('Page 1 / 2','Page 2 / 2')])==1
                 assert any(t[0] in ('Activer / désactiver','Toggle') for t in texts)
@@ -221,13 +231,13 @@ def check_mastery_menu(u,base,m,actors,sp,reset,put,get,reg,regs):
                     if bubble[0][0]=='???':
                         assert [t[0] for t in bubble]==['???','???']
                         assert all(t[3]==0xff999999 for t in bubble)
-                        assert (n['x'],n['y'],0xff706050) in node_colors
+                        assert (n['x'],n['y'],0xff605850) in node_colors
                     else:
                         count=len(n['title_lines'][lang])
                         assert [t[0] for t in bubble[:count]]==n['title_lines'][lang],bubble
                         locked=bubble[0][3]==0xff999999
                         node_color=next(c for x,y,c in node_colors if (x,y)==(n['x'],n['y']))
-                        assert node_color==0xff706050 if locked else node_color in (0xffcca060,0xffefd080)
+                        assert node_color==(0xff605850 if locked else 0xffffe8a0)
                         assert all(t[3]==(0xff999999 if locked else 0xffffad61) for t in bubble[:count])
                         assert ''.join(t[0] for t in bubble[count:])==n['label'][lang],bubble
                         for t in bubble[count:]:assert t[3]==(0xff999999 if locked else 0xff70f0a0 if re.search(r'\d',t[0]) else 0xffffffff),t
@@ -393,6 +403,29 @@ def check_mastery_menu(u,base,m,actors,sp,reset,put,get,reg,regs):
         setup();put(base+0x111a674,'B',2);put(base+0x11cad10,'4H',4,3,1,2)
         press(0x8000);assert get(ui+4,'B')==0
         press(0x4000)
+        # L1/R1 browse party order inside the panel; the underlying menu stays intact.
+        setup(0);put(base+0x11cad10,'4H',1,2,3,4);press(0x8000)
+        for key,expected in ((0x200,1),(0x200,2),(0x200,3),(0x200,0),(0x100,3)):
+            press(key);assert get(ui,'B')==1 and get(ui+4,'B')==expected
+            assert get(ui+1,'H')==0 and get(ui+6,'B')==0
+            assert get(base+0x111a674,'B')==0
+        press(0x1000);assert get(ui+3,'B')==1
+        press(0x100);assert get(ui+4,'B')==2 and get(ui+3,'B')==1
+        press(0x100);assert get(ui+4,'B')==1 and get(ui+3,'B')==0
+        # Explicit new IDs do not alias normal attack or original Energy toggles.
+        for char in (0,1):
+            setup(char);put(data+0x1a41,'B',1);put(data+0x1a4f,'B',1)
+            for offset in (0x11cb028,0x11cb030,0x11cb038,0x11cb040):put(base+offset,'B',30)
+            press(0x8000)
+            for r in rows:
+                if r['kind']!=1 or not r['mask']&(1<<char):continue
+                row=select(1,r['key'])
+                for ni,n in enumerate(r['nodes']):
+                    if not n.get('preference'):continue
+                    put(ui+2,'B',ni);press(0x2000)
+                    expected=bytearray(224);bit=char*256+n['preference'];expected[bit//8]=1<<(bit%8)
+                    assert bytes(u.mem_read(choices,224))==bytes(expected),(char,r['key'],ni)
+                    press(0x2000)
         # Third bar and compact native gauges, read-only at both boundary levels.
         for language in (3,1):
             for punch,kick in ((0,0),(1,30),(14,10),(30,30),(255,255),(30,0)):
@@ -430,8 +463,11 @@ def check_mastery_menu(u,base,m,actors,sp,reset,put,get,reg,regs):
                 assert any('Craymel' in t[0] and t[2]==201 for t in texts)
                 assert not any(t[2] in (209,217,225,236) for t in texts)
                 assert not any(r['name'][int(lang!=3)] in [t[0] for t in texts] for r in rows if r['kind']==0)
+                assert not badges,'unknown spirit element revealed'
                 put(base+0x11cafd8+key*8,'BB',3,30);draw()
                 assert (key,0xffffffff) in silhouettes
+                assert len(badges)==1 and badges[0][0:2]==('element',key+1) and badges[0][2][1]==33
+                assert 'mastery_element_motif' not in sym
                 assert [t[0] for t in texts if t[2]==190]!=['???']
                 assert any(t[0] in ('Faculté activée','Faculty enabled','Prérequis non atteints','Requirements not met') for t in texts if t[2]==236)
                 before=bytes(u.mem_read(choices,224))
@@ -454,13 +490,13 @@ def check_mastery_menu(u,base,m,actors,sp,reset,put,get,reg,regs):
             assert joined==f'Invocation : dégâts +{(level-1)*MAX_BONUS[0]//29} %',joined
             assert all(94<=t[1]<=160 for t in caption)
             assert not any('conditionnel' in n['description'][0] for r in rows if r['name'][1]=='Efreet' for n in r['nodes'])
-        # Six real Energy faculties have independent persisted bits. Reading
+        # The original six Energy faculties retain their persisted bits. Reading
         # a locked node cannot toggle it; a global off switch retains choices.
         for level in (9,10,15,20,25,30):
             setup(1);put(data+0x1a41,'B',1)
             put(base+0x11cb038,'B',level);put(base+0x11cb040,'B',30)
             press(0x8000);row=select(1,5)
-            assert get(row+24,'I')==6
+            assert get(row+24,'I')==11 # Six originals, healing ward, four additions.
             for ni,threshold in enumerate((10,20,30,15,25,30)):
                 put(ui+2,'B',ni)
                 reg('rcx',row);reg('rdx',base+get(row+20,'I')+ni*info['node_size'])
@@ -486,7 +522,7 @@ def check_mastery_menu(u,base,m,actors,sp,reset,put,get,reg,regs):
                 put(base+0x11cb030+char*16,'B',30)
                 press(0x8000);row=select(1,4 if char==0 else 6)
                 nodes=rows[current_rows()[get(ui+1,'B')]]['nodes']
-                real=[(i,n) for i,n in enumerate(nodes) if n['implemented']]
+                real=[(i,n) for i,n in enumerate(nodes) if n['implemented'] and n['required'] in (15,30) and not n.get('preference')]
                 assert len(real)==2
                 for rank,(ni,n) in enumerate(real):
                     put(ui+2,'B',ni)
@@ -504,27 +540,58 @@ def check_mastery_menu(u,base,m,actors,sp,reset,put,get,reg,regs):
                 assert bytes(u.mem_read(choices,224))==b'\0'*224
                 put(group,'B',0);draw()
                 if level==30:assert any('progression' in t[0].lower() and 'désactivée' in t[0] for t in texts)
+        # New fighter faculties keep stable, separate save bits.
+        for char,key,level,pref in ((0,0,20,138),(0,1,25,139),(0,4,20,140),(1,6,20,141)):
+            setup(char);put(data+(0x1a4f if char==0 else 0x1a41),'B',1)
+            put(base+0x11cb028+char*16,'B',30);put(base+0x11cb030+char*16,'B',30)
+            press(0x8000);row=select(1,key)
+            nodes=rows[current_rows()[get(ui+1,'B')]]['nodes']
+            ni=next(i for i,n in enumerate(nodes) if n['implemented'] and n['required']==level)
+            put(ui+2,'B',ni);press(0x2000)
+            expected=bytearray(224);bit=char*256+pref;expected[bit//8]=1<<(bit%8)
+            assert bytes(u.mem_read(choices,224))==bytes(expected),(char,key,pref)
+            draw();assert any(t[0]=='Faculté désactivée' for t in texts)
+            press(0x2000);assert bytes(u.mem_read(choices,224))==bytes(224)
         put(data+0x1a4f,'B',1);put(data+0x1a41,'B',1)
+        # Every approved addition, including the four arte unlocks, is rendered
+        # and toggles only its own stable bit. Missing requirements cannot toggle.
+        for char,key,pref in [(0 if r['key'] in (0,1,4) else 1,r['key'],n['preference'])
+                             for r in rows if r['kind']==1 for n in r['nodes']
+                             if 154<=n.get('preference',0)<=178]:
+            for lvl in (0,30):
+                setup(char);put(data+(0x1a4f if char==0 else 0x1a41),'B',1)
+                put(base+0x11cb028+char*16,'B',lvl);put(base+0x11cb030+char*16,'B',lvl)
+                press(0x8000);row=select(1,key)
+                nodes=rows[current_rows()[get(ui+1,'B')]]['nodes']
+                ni=next(i for i,n in enumerate(nodes) if n.get('preference')==pref)
+                put(ui+2,'B',ni);draw();press(0x2000)
+                expected=bytearray(224);bit=char*256+pref
+                if lvl==30:expected[bit//8]=1<<(bit%8)
+                assert bytes(u.mem_read(choices,224))==bytes(expected),(char,key,pref,lvl)
+                if lvl==30:
+                    draw();assert any(t[0]=='Faculté désactivée' for t in texts)
+                    press(0x2000);assert bytes(u.mem_read(choices,224))==bytes(224)
         # Exact integer EXP ranks and progress toward the next rank, including
-        # non-divisible 999-use projectile/area thresholds.
+        # non-divisible projectile thresholds and the shared 500-use cap.
         from spell_growth import Track, PROJECTILE_CAPS
-        for cap,limit in ((25,500),(15,500),(3,999),(6,999),(50,999)):
+        for cap,limit in ((25,500),(15,500),(3,500),(6,500),(9,500),(50,500)):
             track=Track(cap,limit)
             for uses in range(1001):
                 reg('rcx',uses);reg('rdx',cap);reg('r8',limit)
                 run('mastery_track_progress')
                 assert tuple(u.reg_read(regs[r]) for r in ('rax','rdx','r8','r9'))==track.progress(uses)
-        for aid in (71,73,75):
+        for aid in (71,73,75,76):
             cap=PROJECTILE_CAPS.get(aid,50)
             previous=0
             for uses in range(1001):
                 reg('rcx',uses);reg('rdx',aid);run('mastery_spell_total_level')
                 normalized=min(25,uses//20)*400 + min(15,uses*15//500)*2000
-                normalized+=min(cap,uses*cap//999)*10000//cap
+                normalized+=min(cap,uses*cap//500)*10000//cap
+                if aid==76:normalized=(normalized+min(50,uses*50//500)*200)*5//6
                 assert u.reg_read(regs['r8'])==normalized
                 level=u.reg_read(regs['rax'])
                 assert level==1+normalized*29//50000 and level>=previous
-                assert (level==30)==(uses>=999)
+                assert (level==30)==(uses>=500)
                 previous=level
         # Dedicated spell progress covers each caster, supported bonuses,
         # informational heals and exact next thresholds (not just major nodes).
@@ -567,7 +634,7 @@ def check_mastery_menu(u,base,m,actors,sp,reset,put,get,reg,regs):
                             # fill per gauge, never two stacked gradients.
                             assert len(gauges)==12,gauges
                             assert [(g[2],g[5],g[6]) for g in gauges]==[(128,128,128),(160,160,104)]*6
-                            assert [g[3] for g in gauges]==[84,84]+[65,65]*5
+                            assert [g[3] for g in gauges]==[80,80]+[65,65]*5
                             assert sum(t[0]=='-15%' for t in texts)==2
                             assert not any('\u2212' in t[0] for t in texts)
                         put(usage+(char*128+aid)*2,'H',26);draw()
@@ -577,8 +644,36 @@ def check_mastery_menu(u,base,m,actors,sp,reset,put,get,reg,regs):
                         else:
                             assert any(t[0]=='+1%' for t in texts)
                             assert not any(t[0]=='MAX' for t in texts)
-                            assert len(gauges)==12
-                            assert [g[1] for g in gauges[::2]]==[161,177,192,207,177,192]
+                            # A very small total progress can round down to
+                            # zero pixels; the five individual fills remain.
+                            assert len(gauges) in (11,12)
+                            # Native gauge coordinates have a -15 origin;
+                            # its visible 4px strip starts at +3. Its centre
+                            # thus sits four pixels below the text's top.
+                            level_texts=[t for t in texts if t[0].startswith('Niv. ') or t[0].startswith('Lv. ')]
+                            assert len(level_texts)==6
+                            backs=[gauges[0]]+gauges[len(gauges)-10::2]
+                            assert [g[1]+15+5 for g in backs]==[t[2]+4 for t in level_texts]
+                            heading=next(t for t in texts if t[2]==174 and t[0].startswith(('Niv. ','Lv. ')))
+                            assert [(g[0]+80)&0xffffffff for g in backs]==[int(heading[1])+26,161,161,161,367,367]
+                            name=next(r['name'][int(language!=3)] for r in rows if r['kind']==2 and r['key']==aid)
+                            assert any(t[0]==name and t[1]==40 and t[2]==174 for t in texts)
+                            assert heading[1]>40 and heading[1]+106<=241
+        # Both independent Eruption geometry tracks, plus its Efreet
+        # requirement, fit in the existing panel in either language.
+        for char in (2,3):
+            for language in (3,1):
+                setup(char);put(base+0x11c9ce8,'B',language)
+                u.mem_write(master+char*0xd0+0x7a,bytes([76])+bytes(31))
+                put(base+0x11cafd8+2*8,'B',1)
+                press(0x8000);press(0x1000);select(2,76)
+                put(usage+(char*128+76)*2,'H',500);draw()
+                assert sum(t[0]=='MAX' for t in texts)==7
+                assert len(gauges)==14
+                for label,y in ((('Zone : ' if language==3 else 'Area: '),205),('Projectiles : ' if language==3 else 'Projectiles: ',220)):
+                    assert any(t[0]==label and t[1]==246 and t[2]==y for t in texts),(label,texts)
+                assert any(t[0]=='+50%' for t in texts) and any(t[0]=='+9' for t in texts)
+                assert any('Efreet' in t[0] and t[2]==232 for t in texts)
         for char in (2,3):
             setup(char)
             u.mem_write(master+char*0xd0+0x7a,bytes([71])+bytes(31))
@@ -633,7 +728,9 @@ def check_mastery_menu(u,base,m,actors,sp,reset,put,get,reg,regs):
                 assert u.reg_read(regs['rdx'])==1
                 draw()
                 name=next(r['name'][0] for r in rows if r['kind']==2 and r['key']==aid)
-                assert any(t[0]==name and t[3]==(0xffffffff if char==owner else 0xff999999) for t in texts if 84<=t[2]<=152)
+                assert any(t[0]==name and t[3]==(0xffffffff if char==owner else 0xff999999) for t in texts if 86<=t[2]<=154)
+                assert any(b[0]=='element' and b[1]=={70:1,72:2,75:3,79:4,82:5,86:6}[aid]
+                           and b[3]==(255 if char==owner else 128) for b in badges),badges
                 assert all(tint==0xff000000 for key,tint in silhouettes)
                 assert any(t[0]==str(24 if char==2 else 625) and t[2]==174 for t in texts)
                 assert any(t[0]==('Page 1 / 2' if aid in (70,72,75) else 'Page 2 / 2') for t in texts)
@@ -665,7 +762,8 @@ def check_mastery_menu(u,base,m,actors,sp,reset,put,get,reg,regs):
             before=bytes(u.mem_read(master,0x1070))
             reg('rcx',0);run('craymel_exp_progress_tree');assert u.reg_read(regs['rax'])==want
             texts.clear();gauges.clear();reg('rcx',row);run('mastery_level_bar')
-            assert all(t[2]==55 and t[1]==316 for t in texts), 'EXP belongs beside the bar'
+            assert all(t[2]==51 and t[1]==316 for t in texts), 'EXP belongs beside the bar'
+            assert all(g[1]+15==53 for g in gauges),gauges
             assert len(texts)==1 and (texts[0][0]=='MAX' if level==30 else '/' in texts[0][0])
             width=198*want//10000
             assert [g[3] for g in gauges]==[198]+([width] if width else [])

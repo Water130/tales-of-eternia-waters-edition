@@ -23,12 +23,14 @@ class Track:
 
 POWER = Track(25, 500)
 CAST = RECOVERY = CRITICAL = Track(15, 500)
-AREA = Track(50, 999)
-PROJECTILE_SMALL = Track(3, 999)
-PROJECTILE_LARGE = Track(6, 999)
+AREA = Track(50, 500)
+PROJECTILE_SMALL = Track(3, 500)
+PROJECTILE_LARGE = Track(6, 500)
 OFFENSIVE = tuple(range(70, 102)) + (112, 113)
 # Maximum *additional* projectiles. Wide sprays receive six, single bolts three.
-PROJECTILE_CAPS = {70:3,72:3,73:6,75:3,82:3,83:6,89:6,90:3,91:6,93:6,94:6}
+PROJECTILE_CAPS = {70:3,72:3,73:6,75:3,76:9,82:3,83:6,89:6,90:3,91:6,93:6,94:6}
+# Eruption retains its magma area track as well as its native fireball spray.
+HYBRID_AREA_PROJECTILES = frozenset({76})
 
 
 def emit_track_progress(emit):
@@ -125,7 +127,7 @@ def emit_actor_uses(emit, mem, data, usage):
         lea r9, {mem(usage['catchup']['live_rva'])}
         movzx edx, word ptr [r9+r8*2]
         add eax, edx
-        mov edx, 999
+        mov edx, 500
         cmp eax, edx
         cmova eax, edx
         ret
@@ -147,6 +149,12 @@ def emit_cast_growth(emit, mem, jump, actor_uses, faculties=None):
         push r10
         push r11
         sub rsp, 0x28
+        cmp byte ptr [rbx+0x51], 0; jne cast_base
+        cmp byte ptr [rbx+0x4f], 2; jb cast_base
+        cmp byte ptr [rbx+0x4f], 3; ja cast_base
+        cmp ebp, 112; jne cast_base
+        mov dx, 240
+    cast_base:
         movzx r10d, dx
         mov dword ptr [rsp+0x20], r10d
         mov rcx, rbx
@@ -167,6 +175,7 @@ def emit_cast_growth(emit, mem, jump, actor_uses, faculties=None):
         mov ecx, 100
         div ecx
         {f'mov r8d, eax; mov edx, ebp; mov rcx, rbx; call {faculties["cast"]:#x}' if faculties else ''}
+        {f'mov r8d, eax; mov edx, ebp; mov rcx, rbx; call {faculties["fighter_expansion"]["cast"]:#x}' if faculties and faculties.get('fighter_expansion') else ''}
         mov word ptr [rsp+0x48], ax
         add rsp, 0x28
         pop r11
