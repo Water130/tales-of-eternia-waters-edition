@@ -7,7 +7,13 @@
 A combat, progression and interface overhaul for **Tales of Eternia Remastered on Windows / Steam**.
 Most features can be switched on or off in **Mod settings**, so you can choose the changes you enjoy.
 
-I'm Water, a player who wanted to adapt a game I love to my own taste. I'm not a programmer: **all of this mod's code was written by AI**. This is my personal project, shared with anyone who wants to try it.
+Created and directed by **Water**, with **all code written by AI**.
+
+## A word from Water
+
+This mod was done strictly for my personal use, I am just sharing it with whoever wants it, I wont take requests.
+
+**If you're on a crusade agaisnt AI, do not be hypocrite and do not download this mod, I have neither the time nor the desire to learn codding, I'm just a random lambda guy that likes to tweaks games and give them my personal touch with the help of AI like Codex or Claude.**
 
 ## Download and install
 
